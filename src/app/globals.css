@@ -1,8 +1,46 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "IM Fell English";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/imfellenglish/v14/Ktk1ALSLW8zDe0LSNBOVLvTbpEjMYzfihAw.woff2")
+    format("woff2");
+}
+
+@font-face {
+  font-family: "Crimson Text";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/crimsontext/v19/wlp2gwHKFkZgtmSR3NB0oRJfbwhTIfFd3A.woff2")
+    format("woff2");
+}
+
+@font-face {
+  font-family: "Crimson Text";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/crimsontext/v19/wlppgwHKFkZgtmSR3NB0oRJXsCx2C9lR1LFffg.woff2")
+    format("woff2");
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Papyrus palette */
+  --papyrus-bg: #f5ead0;
+  --papyrus-surface: #efe0c4;
+  --papyrus-text: #23180d;
+  --papyrus-text-secondary: #4a3825;
+  --papyrus-text-muted: #665038;
+  --papyrus-accent: #713813;
+  --papyrus-accent-hover: #562a0c;
+  --papyrus-border: #cfbe97;
+  --papyrus-highlight: #b88636;
+
+  --background: var(--papyrus-bg);
+  --foreground: var(--papyrus-text);
 }
 
 @theme inline {
@@ -12,15 +50,9 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--papyrus-bg);
+  color: var(--papyrus-text);
+  font-family: "Crimson Text", Georgia, serif;
+  margin: 0;
 }
