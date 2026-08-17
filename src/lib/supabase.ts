@@ -1,14 +1,5 @@
 /**
  * SupabaseDatabaseClient — adapter for the DatabaseClient port.
- *
- * This file is the ONLY place that knows about Supabase.
- * To replace the persistence layer, create a new file (e.g. `src/lib/postgres.ts`)
- * that implements `DatabaseClient` and update the import in
- * `createDatabaseClient()` inside `src/client/db-client.ts`.
- *
- * Environment variables (set in .env.local):
- *   SUPABASE_URL  — project REST endpoint
- *   SUPABASE_KEY  — anon / service-role key
  */
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
@@ -19,17 +10,17 @@ import type {
   DatabaseClient,
 } from "../client/db-client";
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_KEY = process.env.SUPABASE_KEY;
-
 export class SupabaseDatabaseClient implements DatabaseClient {
   private readonly client: SupabaseClient;
 
   constructor() {
+    const SUPABASE_URL = process.env.SUPABASE_URL;
+    const SUPABASE_KEY = process.env.SUPABASE_KEY;
+
     if (!SUPABASE_URL || !SUPABASE_KEY) {
       throw new Error(
         "Missing required environment variables: SUPABASE_URL and/or SUPABASE_KEY. " +
-          "Ensure they are declared in .env.local.",
+          "Ensure they are declared in .env",
       );
     }
     this.client = createClient(SUPABASE_URL, SUPABASE_KEY);
