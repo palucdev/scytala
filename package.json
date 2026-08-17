@@ -1,6 +1,6 @@
 {
   "name": "scytala",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,9 +9,12 @@
     "lint": "eslint",
     "build:worker": "opennextjs-cloudflare build",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "db:reset": "npx supabase db reset",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.112.3",
+    "dayjs": "^1.11.23",
     "next": "16.3.1",
     "react": "19.2.8",
     "react-dom": "19.2.8"
