@@ -3,6 +3,8 @@ import Image from "next/image";
 import { getLatestDeploymentInfo } from "@/actions/audit";
 import dayjs from "dayjs";
 
+export const dynamic = "force-dynamic";
+
 function FeatureItem({
   title,
   description,
