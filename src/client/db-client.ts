@@ -38,10 +38,6 @@ export interface AuditResult {
  * `src/lib/supabase.ts` provides the concrete implementation.
  */
 export interface DatabaseClient {
-  // ------------------------------------------------------------------
-  // Audit — `info` table
-  // ------------------------------------------------------------------
-
   /**
    * Insert a deployment audit entry into the `info` table.
    * Idempotent by default: skips insert when a record for the same

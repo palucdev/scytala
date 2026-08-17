@@ -19,16 +19,8 @@ import type {
   DatabaseClient,
 } from "../client/db-client";
 
-// ---------------------------------------------------------------------------
-// Constants sourced from env (never hard-coded)
-// ---------------------------------------------------------------------------
-
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
-
-// ---------------------------------------------------------------------------
-// Adapter
-// ---------------------------------------------------------------------------
 
 export class SupabaseDatabaseClient implements DatabaseClient {
   private readonly client: SupabaseClient;
@@ -42,10 +34,6 @@ export class SupabaseDatabaseClient implements DatabaseClient {
     }
     this.client = createClient(SUPABASE_URL, SUPABASE_KEY);
   }
-
-  // ------------------------------------------------------------------
-  // Audit — `info` table
-  // ------------------------------------------------------------------
 
   /**
    * Insert one deployment audit record.
@@ -125,10 +113,6 @@ export class SupabaseDatabaseClient implements DatabaseClient {
 
     return data ?? [];
   }
-
-  // ------------------------------------------------------------------
-  // Private helpers
-  // ------------------------------------------------------------------
 
   private async getAuditRecordByVersion(
     version: string,
