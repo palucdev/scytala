@@ -1,5 +1,9 @@
 import Link from "next/link";
 import Image from "next/image";
+import { getLatestDeploymentInfo } from "@/actions/audit";
+import dayjs from "dayjs";
+
+export const dynamic = "force-dynamic";
 
 function FeatureItem({
   title,
@@ -35,7 +39,9 @@ function FeatureItem({
   );
 }
 
-export default function Home() {
+export default async function Home() {
+  const deploymentInfo = await getLatestDeploymentInfo();
+
   return (
     <div
       style={{
@@ -216,8 +222,20 @@ export default function Home() {
         >
           No account required · Free to use · Open source
         </p>
-      </main>
 
+        <div
+          style={{
+            fontSize: "0.875rem",
+            color: "var(--papyrus-text-muted)",
+            textAlign: "center",
+            margin: 0,
+            marginTop: "0.5rem",
+          }}
+        >
+          <p>Version: {deploymentInfo?.app_version}</p>
+          <p>{dayjs(deploymentInfo?.created_at).format("YYYY-MM-DD HH:mm")}</p>
+        </div>
+      </main>
     </div>
   );
 }
