@@ -10,6 +10,14 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  outputFileTracingExcludes: {
+    '*': [
+      './src/**/__tests__/**',
+      './src/**/*.test.{ts,tsx}',
+      './coverage/**',
+      './vitest.config.ts',
+    ],
+  },
 };
 
 export default nextConfig;
