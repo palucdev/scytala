@@ -13,6 +13,11 @@
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
   },
   "dependencies": {
+    "@emotion/cache": "^11.14.0",
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/material": "^9.3.1",
+    "@mui/material-nextjs": "^9.3.0",
     "@supabase/supabase-js": "^2.112.3",
     "dayjs": "^1.11.23",
     "next": "16.3.1",
@@ -21,13 +26,11 @@
   },
   "devDependencies": {
     "@opennextjs/cloudflare": "^1.20.2",
-    "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.1",
-    "tailwindcss": "^4",
     "typescript": "^5",
     "wrangler": "^4.123.0"
   }

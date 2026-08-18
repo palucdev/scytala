@@ -1,5 +1,3 @@
-@import "tailwindcss";
-
 @font-face {
   font-family: "IM Fell English";
   font-style: normal;
@@ -27,6 +25,14 @@
     format("woff2");
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
 :root {
   /* Papyrus palette */
   --papyrus-bg: #f5ead0;
@@ -43,11 +49,10 @@
   --foreground: var(--papyrus-text);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+html {
+  height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 body {
