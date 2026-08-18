@@ -10,8 +10,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">
+    <html lang="en">
+      <body style={{ minHeight: "100%", display: "flex", flexDirection: "column" }}>
         <MUIThemeProvider>{children}</MUIThemeProvider>
       </body>
     </html>
