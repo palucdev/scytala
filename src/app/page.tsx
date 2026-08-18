@@ -1,7 +1,13 @@
-import Link from "next/link";
 import Image from "next/image";
 import { getLatestDeploymentInfo } from "@/actions/audit";
 import dayjs from "dayjs";
+
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Container from "@mui/material/Container";
+import Divider from "@mui/material/Divider";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
 
 export const dynamic = "force-dynamic";
 
@@ -13,29 +19,18 @@ function FeatureItem({
   description: string;
 }) {
   return (
-    <div className="text-center max-w-[240px]">
-      <h3
-        style={{
-          fontFamily: '"IM Fell English", Georgia, serif',
-          fontSize: "1.125rem",
-          fontWeight: 400,
-          color: "var(--papyrus-accent)",
-          marginBottom: "0.375rem",
-        }}
-      >
+    <Box sx={{ textAlign: "center", maxWidth: 240 }}>
+      <Typography variant="h3" sx={{ color: "primary.main", mb: "0.375rem" }}>
         {title}
-      </h3>
-      <p
-        style={{
-          fontSize: "0.95rem",
-          lineHeight: 1.6,
-          color: "var(--papyrus-text-secondary)",
-          margin: 0,
-        }}
+      </Typography>
+      <Typography
+        variant="caption"
+        component="p"
+        sx={{ color: "text.secondary", m: 0 }}
       >
         {description}
-      </p>
-    </div>
+      </Typography>
+    </Box>
   );
 }
 
@@ -43,45 +38,31 @@ export default async function Home() {
   const deploymentInfo = await getLatestDeploymentInfo();
 
   return (
-    <div
-      style={{
+    <Box
+      sx={{
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
         minHeight: "100vh",
-        padding: "2rem 1.5rem",
-        background: `
-          radial-gradient(ellipse at 20% 50%, rgba(201, 169, 110, 0.08) 0%, transparent 50%),
-          radial-gradient(ellipse at 80% 50%, rgba(139, 94, 60, 0.06) 0%, transparent 50%),
-          var(--papyrus-bg)
-        `,
-        /* Subtle paper texture via noise */
-        backgroundImage: `
-          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4'%3E%3Crect width='4' height='4' fill='%23f5ead0'/%3E%3Crect width='1' height='1' fill='%23efe0c4' opacity='0.4'/%3E%3C/svg%3E"),
-          radial-gradient(ellipse at 20% 50%, rgba(201, 169, 110, 0.08) 0%, transparent 50%),
-          radial-gradient(ellipse at 80% 50%, rgba(139, 94, 60, 0.06) 0%, transparent 50%)
-        `,
+        px: "1.5rem",
+        py: "2rem",
       }}
     >
-      <main
-        style={{
+      <Container
+        component="main"
+        maxWidth={false}
+        disableGutters
+        sx={{
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           gap: "2rem",
-          maxWidth: "560px",
+          maxWidth: 560,
           width: "100%",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: "3rem",
-          }}
-        >
+        <Stack sx={{ alignItems: "center" }} spacing="3rem">
           <Image
             src="/logo.svg"
             alt="Scytala cipher logo"
@@ -94,80 +75,69 @@ export default async function Home() {
               filter: "drop-shadow(0 3px 10px rgba(35, 24, 13, 0.14))",
             }}
           />
-          <h1
-            style={{
-              fontFamily: '"IM Fell English", Georgia, serif',
+          <Typography
+            variant="h1"
+            sx={{
               fontSize: "clamp(2.5rem, 6vw, 3.5rem)",
-              fontWeight: 400,
-              letterSpacing: "0.04em",
-              color: "var(--papyrus-text)",
-              margin: 0,
+              color: "text.primary",
+              m: 0,
               textAlign: "center",
-              lineHeight: 1.1,
             }}
           >
             Scytala
-          </h1>
-        </div>
+          </Typography>
+        </Stack>
 
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.75rem",
-            width: "100%",
-            maxWidth: "200px",
-          }}
+        <Stack
+          direction="row"
+          spacing="0.75rem"
+          sx={{ alignItems: "center", width: "100%", maxWidth: 200 }}
           aria-hidden="true"
         >
-          <div
-            style={{
+          <Divider
+            sx={{
               flex: 1,
-              height: "1px",
-              background:
-                "linear-gradient(to right, transparent, var(--papyrus-border))",
+              borderImage: "linear-gradient(to right, transparent, #cfbe97) 1",
             }}
           />
-          <div
-            style={{
-              width: "6px",
-              height: "6px",
+          <Box
+            sx={{
+              width: 6,
+              height: 6,
               borderRadius: "50%",
-              background: "var(--papyrus-highlight)",
+              bgcolor: "secondary.main",
               opacity: 0.6,
             }}
           />
-          <div
-            style={{
+          <Divider
+            sx={{
               flex: 1,
-              height: "1px",
-              background:
-                "linear-gradient(to left, transparent, var(--papyrus-border))",
+              borderImage: "linear-gradient(to left, transparent, #cfbe97) 1",
             }}
           />
-        </div>
+        </Stack>
 
-        <p
-          style={{
+        <Typography
+          variant="body1"
+          sx={{
             fontSize: "clamp(1.05rem, 2.5vw, 1.2rem)",
-            lineHeight: 1.75,
-            color: "var(--papyrus-text-secondary)",
+            color: "text.secondary",
             textAlign: "center",
-            margin: 0,
-            maxWidth: "460px",
+            m: 0,
+            maxWidth: 460,
           }}
         >
           Share your dynamic hypermedia content: notes, documents, images and
           more. All with full end-to-end encryption.
-        </p>
+        </Typography>
 
-        <div
-          style={{
+        <Box
+          sx={{
             display: "flex",
             flexWrap: "wrap",
             justifyContent: "center",
             gap: "2rem",
-            marginTop: "0.5rem",
+            mt: "0.5rem",
           }}
         >
           <FeatureItem
@@ -182,60 +152,50 @@ export default async function Home() {
             title="Cooperate"
             description="Modify shared content together with your friends, all secured and private"
           />
-        </div>
+        </Box>
 
-        <Link
+        <Button
           href="/app"
           id="get-started-link"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            marginTop: "1rem",
-            padding: "0.875rem 2.5rem",
-            fontFamily: '"IM Fell English", Georgia, serif',
-            fontSize: "1.1rem",
-            letterSpacing: "0.03em",
-            color: "#f5ead0",
-            background: "var(--papyrus-accent)",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
-            textDecoration: "none",
-            transition: "background 0.2s ease, transform 0.15s ease",
-          }}
+          variant="contained"
+          color="primary"
+          sx={{ mt: "1rem", gap: "0.5rem" }}
         >
           Get Started
-          <span aria-hidden="true" style={{ fontSize: "1.2em" }}>
+          <Box component="span" aria-hidden="true" sx={{ fontSize: "1.2em" }}>
             →
-          </span>
-        </Link>
+          </Box>
+        </Button>
 
-        <p
-          style={{
-            fontSize: "0.875rem",
-            color: "var(--papyrus-text-muted)",
+        <Typography
+          variant="caption"
+          component="p"
+          sx={{
+            color: "text.disabled",
             textAlign: "center",
-            margin: 0,
-            marginTop: "0.5rem",
+            m: 0,
+            mt: "0.5rem",
           }}
         >
           No account required · Free to use · Open source
-        </p>
+        </Typography>
 
-        <div
-          style={{
-            fontSize: "0.875rem",
-            color: "var(--papyrus-text-muted)",
+        <Box
+          sx={{
+            color: "text.disabled",
             textAlign: "center",
-            margin: 0,
-            marginTop: "0.5rem",
+            m: 0,
+            mt: "0.5rem",
           }}
         >
-          <p>Version: {deploymentInfo?.app_version}</p>
-          <p>{dayjs(deploymentInfo?.created_at).format("YYYY-MM-DD HH:mm")}</p>
-        </div>
-      </main>
-    </div>
+          <Typography variant="caption" component="p">
+            Version: {deploymentInfo?.app_version}
+          </Typography>
+          <Typography variant="caption" component="p">
+            {dayjs(deploymentInfo?.created_at).format("YYYY-MM-DD HH:mm")}
+          </Typography>
+        </Box>
+      </Container>
+    </Box>
   );
 }
