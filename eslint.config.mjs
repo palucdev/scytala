@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     ".open-next/**",
     // Supabase local dev artifacts:
     "supabase/.temp/**",
+    // Test coverage artifacts:
+    "coverage",
   ]),
 ]);
 
