@@ -6,6 +6,10 @@
 
 import { SupabaseDatabaseClient } from "@/lib/supabase";
 
+// ---------------------------------------------------------------------------
+// Audit Types (Legacy / Deployment Info)
+// ---------------------------------------------------------------------------
+
 /** Input for a deployment audit entry. */
 export interface AuditInput {
   /** Semantic version of the deployed application (e.g. "0.1.0"). */
@@ -26,6 +30,83 @@ export interface AuditResult {
   recorded: boolean;
   message: string;
   record?: AuditRecord;
+}
+
+// ---------------------------------------------------------------------------
+// Domain Models
+// ---------------------------------------------------------------------------
+
+/** A collaborative dashboard entity. */
+export interface Dashboard {
+  id: string;
+  hash: string;
+  title: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Participant user belonging to a dashboard. */
+export interface DashboardUser {
+  id: string;
+  dashboard_id: string;
+  user_alias: string;
+  password_hash: string;
+  created_at: string;
+}
+
+/** Collaborative note tile belonging to a dashboard. */
+export interface Note {
+  id: string;
+  dashboard_id: string;
+  title: string;
+  content: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Immutable history snapshot of a note version. */
+export interface NoteVersion {
+  id: string;
+  note_id: string;
+  version: number;
+  title: string;
+  content: string;
+  author_id: string | null;
+  created_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Input Types
+// ---------------------------------------------------------------------------
+
+/** Input for creating a new dashboard along with initial participant credentials. */
+export interface CreateDashboardInput {
+  title: string;
+  description?: string | null;
+  hash?: string;
+  users: Array<{
+    user_alias: string;
+    password_hash: string;
+  }>;
+}
+
+/** Input for creating a new note. */
+export interface CreateNoteInput {
+  dashboard_id: string;
+  title?: string;
+  content: string;
+  author_id?: string | null;
+}
+
+/** Input for updating an existing note under optimistic concurrency control. */
+export interface UpdateNoteInput {
+  note_id: string;
+  title?: string;
+  content: string;
+  expected_version: number;
+  author_id?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,6 +136,80 @@ export interface DatabaseClient {
    * Return all audit records ordered by `created_at` descending.
    */
   getAuditHistory(): Promise<AuditRecord[]>;
+
+  /**
+   * Create a new dashboard along with its initial participant users.
+   */
+  createDashboard(input: CreateDashboardInput): Promise<{
+    dashboard: Dashboard;
+    users: Omit<DashboardUser, "password_hash">[];
+  }>;
+
+  /**
+   * Retrieve a dashboard by its unique 16-character sharing hash slug.
+   */
+  getDashboardByHash(hash: string): Promise<Dashboard | null>;
+
+  /**
+   * Retrieve a dashboard by its internal UUID primary key.
+   */
+  getDashboardById(id: string): Promise<Dashboard | null>;
+
+  /**
+   * Atomically delete a dashboard and cascade all associated users, notes, and versions.
+   */
+  deleteDashboard(id: string): Promise<boolean>;
+
+  /**
+   * Retrieve a specific participant user in a dashboard by their alias.
+   */
+  getDashboardUserByAlias(
+    dashboard_id: string,
+    user_alias: string,
+  ): Promise<DashboardUser | null>;
+
+  /**
+   * List all participant users in a dashboard without exposing password hashes.
+   */
+  listDashboardUsers(
+    dashboard_id: string,
+  ): Promise<Omit<DashboardUser, "password_hash">[]>;
+
+  /**
+   * Create a new note tile and its initial version 1 history snapshot.
+   */
+  createNote(input: CreateNoteInput): Promise<{
+    note: Note;
+    initialVersion: NoteVersion;
+  }>;
+
+  /**
+   * Update a note under optimistic concurrency control, incrementing version and saving history snapshot.
+   */
+  updateNote(input: UpdateNoteInput): Promise<{
+    note: Note;
+    newVersion: NoteVersion;
+  }>;
+
+  /**
+   * Retrieve all notes belonging to a dashboard ordered by creation date.
+   */
+  getNotesByDashboard(dashboard_id: string): Promise<Note[]>;
+
+  /**
+   * Retrieve a note by its UUID primary key.
+   */
+  getNoteById(note_id: string): Promise<Note | null>;
+
+  /**
+   * Retrieve all version history snapshots for a note ordered by version descending.
+   */
+  getNoteVersions(note_id: string): Promise<NoteVersion[]>;
+
+  /**
+   * Atomically delete a note and cascade its version history snapshots.
+   */
+  deleteNote(note_id: string): Promise<boolean>;
 }
 
 /**

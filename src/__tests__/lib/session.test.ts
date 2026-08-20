@@ -11,7 +11,6 @@ import {
   base64UrlToBytes,
   stringToBase64Url,
   base64UrlToString,
-  type VerifiedSessionPayload,
 } from '@/lib/session';
 
 describe('src/lib/session', () => {
@@ -379,9 +378,9 @@ describe('src/lib/session', () => {
     });
 
     it('uses __Host- prefix for cookie name when in production environment', async () => {
-      const originalEnv = process.env.NODE_ENV;
       try {
-        process.env.NODE_ENV = 'production';
+        vi.resetModules();
+        vi.stubEnv('NODE_ENV', 'production');
         // Re-import to evaluate production branch
         const sessionModule = await import('@/lib/session');
         expect(sessionModule.SESSION_COOKIE_NAME).toBe('__Host-scytala_session');
@@ -390,7 +389,8 @@ describe('src/lib/session', () => {
         expect(header).toContain('Secure');
         expect(header).toContain('Path=/');
       } finally {
-        process.env.NODE_ENV = originalEnv;
+        vi.unstubAllEnvs();
+        vi.resetModules();
       }
     });
 
