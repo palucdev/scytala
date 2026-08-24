@@ -73,7 +73,7 @@ describe('Landing page', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders the Get Started call-to-action linking to /app', async () => {
+  it('renders the Get Started call-to-action linking to /new', async () => {
     mockGetLatestDeploymentInfo.mockResolvedValue(null);
 
     const jsx = await Home();
@@ -81,7 +81,7 @@ describe('Landing page', () => {
 
     const cta = screen.getByText('Get Started').closest('a');
     expect(cta).toBeInTheDocument();
-    expect(cta).toHaveAttribute('href', '/app');
+    expect(cta).toHaveAttribute('href', '/new');
   });
 
   it('renders the trust signals text', async () => {
