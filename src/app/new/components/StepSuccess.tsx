@@ -23,9 +23,9 @@ import LinkIcon from "@mui/icons-material/Link";
 
 import { Dashboard } from "@/client/db-client";
 import {
-  ParticipantCredential,
+  type ParticipantCredential,
   formatCredentialsText,
-} from "@/actions/dashboard";
+} from "@/schemas/dashboard";
 
 function subscribeEmpty() {
   return () => {};

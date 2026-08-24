@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createDashboardAction } from "@/actions/dashboard";
 import {
-  createDashboardAction,
   createDashboardSchema,
   participantUserSchema,
   formatCredentialsText,
   ALIAS_REGEX,
-} from "@/actions/dashboard";
+} from "@/schemas/dashboard";
 import * as dbClientModule from "@/client/db-client";
 import * as cryptoModule from "@/lib/crypto";
 
