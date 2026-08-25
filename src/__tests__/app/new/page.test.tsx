@@ -121,17 +121,29 @@ describe("DashboardCreationWizard (/new)", () => {
     });
 
     it("renders empty state initially with prompt to add participants", () => {
-      expect(
-        screen.getByText("No participants added yet. At least one participant is required."),
-      ).toBeInTheDocument();
+      const emptyText = screen.getByText(
+        "No participants added yet. At least one participant is required.",
+      );
+      expect(emptyText).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /add participant/i })).toBeInTheDocument();
     });
 
-    it("does not advance if no participants have been added", () => {
+    it("does not advance if no participants have been added and applies error state", () => {
+      const emptyText = screen.getByText(
+        "No participants added yet. At least one participant is required.",
+      );
       const nextBtn = screen.getByRole("button", { name: /next/i });
       fireEvent.click(nextBtn);
 
       expect(screen.getByText("Participant Credentials")).toBeInTheDocument();
+      expect(emptyText).toBeInTheDocument();
+
+      // Adding a participant clears the empty state
+      const addBtn = screen.getByRole("button", { name: /add participant/i });
+      fireEvent.click(addBtn);
+      expect(
+        screen.queryByText("No participants added yet. At least one participant is required."),
+      ).not.toBeInTheDocument();
     });
 
     it("adds a participant row with auto-generated secure password", async () => {

@@ -31,6 +31,8 @@ export function useWizardState() {
 
   const [users, setUsers] = useState<ParticipantRow[]>([]);
   const [aliasErrors, setAliasErrors] = useState<Record<string, string>>({});
+  const [emptyParticipantsError, setEmptyParticipantsError] =
+    useState<boolean>(false);
 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -60,6 +62,7 @@ export function useWizardState() {
   }, []);
 
   const handleAddParticipant = useCallback(() => {
+    setEmptyParticipantsError(false);
     const newId =
       typeof crypto !== "undefined" && crypto.randomUUID
         ? crypto.randomUUID()
@@ -125,8 +128,10 @@ export function useWizardState() {
 
   const validateStep2 = useCallback((): boolean => {
     if (users.length === 0) {
+      setEmptyParticipantsError(true);
       return false;
     }
+    setEmptyParticipantsError(false);
 
     const errors: Record<string, string> = {};
     const seenAliases = new Map<string, string>();
@@ -217,6 +222,7 @@ export function useWizardState() {
     if (activeStep > 0 && activeStep < 3 && !isSubmitting) {
       setActiveStep((prev) => prev - 1);
       setSubmitError(null);
+      setEmptyParticipantsError(false);
     }
   }, [activeStep, isSubmitting]);
 
@@ -227,6 +233,7 @@ export function useWizardState() {
     titleError,
     users,
     aliasErrors,
+    emptyParticipantsError,
     isSubmitting,
     submitError,
     createdResult,
