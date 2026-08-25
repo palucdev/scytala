@@ -2,6 +2,19 @@
 
 import { createTheme } from "@mui/material/styles";
 
+/* ------------------------------------------------------------------ */
+/*  Module augmentation – extend MUI's Palette with a custom "active" */
+/*  channel used for highlighted / selected items.                    */
+/* ------------------------------------------------------------------ */
+declare module "@mui/material/styles" {
+  interface Palette {
+    active: Palette["primary"];
+  }
+  interface PaletteOptions {
+    active?: PaletteOptions["primary"];
+  }
+}
+
 /**
  * PapyrusThemeLight — a MUI theme that mirrors the papyrus CSS custom-property
  * palette defined in globals.css.
@@ -50,6 +63,12 @@ export const PapyrusThemeLight = createTheme({
       dark: "#375230",
       light: "#dce8d7",
       contrastText: "#ffffff",
+    },
+    active: {
+      main: "#713813", // --papyrus-active — matches primary accent / button
+      dark: "#562a0c",
+      light: "#e8d5c4", // --papyrus-active-light — warm parchment tint
+      contrastText: "#f5ead0",
     },
   },
 
@@ -106,26 +125,81 @@ export const PapyrusThemeLight = createTheme({
           borderRadius: 6,
           fontFamily: '"Crimson Text", Georgia, serif',
           fontSize: "1rem",
+          "&.MuiAlert-standard.MuiAlert-colorSuccess": {
+            backgroundColor: "#d4e4cf",
+            color: "#284422",
+            border: "1px solid #aecba7",
+            "& .MuiAlert-icon": { color: "#4d6e43" },
+          },
+          "&.MuiAlert-standard.MuiAlert-colorError": {
+            backgroundColor: "#f0cfc9",
+            color: "#6c2113",
+            border: "1px solid #dba89e",
+            "& .MuiAlert-icon": { color: "#9c3b28" },
+          },
+          "&.MuiAlert-standard.MuiAlert-colorWarning": {
+            backgroundColor: "#f0deba",
+            color: "#6e4209",
+            border: "1px solid #dfc291",
+            "& .MuiAlert-icon": { color: "#b8731d" },
+          },
+          "&.MuiAlert-standard.MuiAlert-colorInfo": {
+            backgroundColor: "#ebdfc0",
+            color: "#533e14",
+            border: "1px solid #d4c48e",
+            "& .MuiAlert-icon": { color: "#8c6b2d" },
+          },
         },
-        standardSuccess: {
-          backgroundColor: "#e2ede0",
-          color: "#284422",
-          border: "1px solid #c2dac0",
+      },
+    },
+
+    /* -------------------------------------------------------------- */
+    /*  Stepper — papyrus-themed with "active" dusty-blue highlight   */
+    /* -------------------------------------------------------------- */
+    MuiStepIcon: {
+      styleOverrides: {
+        root: {
+          color: "#cfbe97", // inactive — matches --papyrus-border
+          fontSize: "1.75rem",
+          "&.Mui-completed": {
+            color: "#4a3825", // completed — papyrus-text-secondary
+          },
+          "&.Mui-active": {
+            color: "#713813", // active — primary accent / button brown
+          },
         },
-        standardError: {
-          backgroundColor: "#fce9e6",
-          color: "#6c2113",
-          border: "1px solid #f2c0b8",
+        text: {
+          fontFamily: '"Crimson Text", Georgia, serif',
+          fontWeight: 600,
+          fontSize: "0.75rem",
+          fontVariantNumeric: "lining-nums",
         },
-        standardWarning: {
-          backgroundColor: "#faeedb",
-          color: "#6e4209",
-          border: "1px solid #eed2a7",
+      },
+    },
+
+    MuiStepLabel: {
+      styleOverrides: {
+        label: {
+          fontFamily: '"Crimson Text", Georgia, serif',
+          fontSize: "0.925rem",
+          color: "#665038", // --papyrus-text-muted for inactive
+          "&.Mui-completed": {
+            color: "#4a3825", // --papyrus-text-secondary
+            fontWeight: 600,
+          },
+          "&.Mui-active": {
+            color: "#713813", // active — primary accent
+            fontWeight: 600,
+          },
         },
-        standardInfo: {
-          backgroundColor: "#f6eedb",
-          color: "#533e14",
-          border: "1px solid #e5d3a5",
+      },
+    },
+
+    MuiStepConnector: {
+      styleOverrides: {
+        line: {
+          borderColor: "#cfbe97", // --papyrus-border
+          borderTopWidth: 2,
         },
       },
     },

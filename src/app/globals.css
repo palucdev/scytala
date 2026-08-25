@@ -44,6 +44,8 @@
   --papyrus-accent-hover: #562a0c;
   --papyrus-border: #cfbe97;
   --papyrus-highlight: #b88636;
+  --papyrus-active: #713813;
+  --papyrus-active-light: #e8d5c4;
 
   --background: var(--papyrus-bg);
   --foreground: var(--papyrus-text);
