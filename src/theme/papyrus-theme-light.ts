@@ -27,6 +27,30 @@ export const PapyrusThemeLight = createTheme({
       disabled: "#665038", // --papyrus-text-muted
     },
     divider: "#cfbe97", // --papyrus-border
+    error: {
+      main: "#9c3b28", // Papyrus brick / terracotta red
+      dark: "#7a2b1b",
+      light: "#f7dcd7",
+      contrastText: "#ffffff",
+    },
+    warning: {
+      main: "#b8731d", // Papyrus amber / warm ochre
+      dark: "#8f5712",
+      light: "#faeedb",
+      contrastText: "#23180d",
+    },
+    info: {
+      main: "#8c6b2d", // Papyrus antique gold
+      dark: "#694e1c",
+      light: "#f6edd9",
+      contrastText: "#23180d",
+    },
+    success: {
+      main: "#4d6e43", // Papyrus sage / olive green
+      dark: "#375230",
+      light: "#dce8d7",
+      contrastText: "#ffffff",
+    },
   },
 
   typography: {
@@ -72,6 +96,36 @@ export const PapyrusThemeLight = createTheme({
         root: {
           padding: "0.875rem 2.5rem",
           transition: "background 0.2s ease, transform 0.15s ease",
+        },
+      },
+    },
+
+    MuiAlert: {
+      styleOverrides: {
+        root: {
+          borderRadius: 6,
+          fontFamily: '"Crimson Text", Georgia, serif',
+          fontSize: "1rem",
+        },
+        standardSuccess: {
+          backgroundColor: "#e2ede0",
+          color: "#284422",
+          border: "1px solid #c2dac0",
+        },
+        standardError: {
+          backgroundColor: "#fce9e6",
+          color: "#6c2113",
+          border: "1px solid #f2c0b8",
+        },
+        standardWarning: {
+          backgroundColor: "#faeedb",
+          color: "#6e4209",
+          border: "1px solid #eed2a7",
+        },
+        standardInfo: {
+          backgroundColor: "#f6eedb",
+          color: "#533e14",
+          border: "1px solid #e5d3a5",
         },
       },
     },

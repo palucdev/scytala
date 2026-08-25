@@ -18,6 +18,9 @@ const PBKDF2_ITERATIONS = 100000;
 const MIN_PBKDF2_ITERATIONS = 1000;
 const MAX_PBKDF2_ITERATIONS = 1000000;
 
+export const DEFAULT_DASHBOARD_SLUG_LENGTH = 16;
+export const DEFAULT_PASSWORD_LENGTH = 16;
+
 const SALT_BYTE_LENGTH = 16;
 const KEY_BIT_LENGTH = 256;
 
@@ -178,7 +181,9 @@ export async function verifyPassword(
 /**
  * Generates a URL-safe random string (default 16 chars from [A-Za-z0-9_-]) using crypto.getRandomValues.
  */
-export function generateDashboardSlug(length: number = 16): string {
+export function generateDashboardSlug(
+  length: number = DEFAULT_DASHBOARD_SLUG_LENGTH,
+): string {
   if (length <= 0) {
     return "";
   }
@@ -218,7 +223,9 @@ function getUniformRandomInt(max: number): number {
  * Generates a strong random password (default 16 chars with mixed case, digits, and symbols).
  * Guarantees inclusion of at least one character from each character class (uppercase, lowercase, digit, symbol).
  */
-export function generateRandomPassword(length: number = 16): string {
+export function generateRandomPassword(
+  length: number = DEFAULT_PASSWORD_LENGTH,
+): string {
   if (length < 4) {
     length = 4; // Minimum length to satisfy character class constraints
   }

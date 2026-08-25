@@ -1,21 +1,30 @@
 "use server";
 
 import { createDatabaseClient } from "@/client/db-client";
-import { generateDashboardSlug, hashPassword } from "@/lib/crypto";
+import {
+  DEFAULT_DASHBOARD_SLUG_LENGTH,
+  generateDashboardSlug,
+  hashPassword,
+} from "@/lib/crypto";
 import {
   createDashboardSchema,
   type CreateDashboardActionResult,
+  type CreateDashboardInput,
   type ParticipantCredential,
 } from "@/schemas/dashboard";
 
-export type { CreateDashboardActionResult, ParticipantCredential };
+export type {
+  CreateDashboardActionResult,
+  CreateDashboardInput,
+  ParticipantCredential,
+};
 
 /**
  * Server action for creating a new dashboard along with participant credentials.
  * Hashes all cleartext passwords using PBKDF2 before calling the atomic DB RPC.
  */
 export async function createDashboardAction(
-  input: unknown,
+  input: CreateDashboardInput | unknown,
 ): Promise<CreateDashboardActionResult> {
   const parsed = createDashboardSchema.safeParse(input);
 
@@ -29,7 +38,7 @@ export async function createDashboardAction(
   }
 
   try {
-    const slug = generateDashboardSlug(16);
+    const slug = generateDashboardSlug(DEFAULT_DASHBOARD_SLUG_LENGTH);
     const hashedUsers = await Promise.all(
       parsed.data.users.map(async (u) => ({
         user_alias: u.user_alias,

@@ -43,6 +43,7 @@ export const createDashboardSchema = z.object({
 });
 
 export type ParticipantUserInput = z.infer<typeof participantUserSchema>;
+export type CreateDashboardInput = z.input<typeof createDashboardSchema>;
 export type CreateDashboardInputValues = z.infer<typeof createDashboardSchema>;
 
 export interface ParticipantCredential {

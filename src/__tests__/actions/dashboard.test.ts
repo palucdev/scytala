@@ -202,7 +202,7 @@ describe("src/actions/dashboard", () => {
         createDashboard: mockCreateDashboard,
       } as unknown as dbClientModule.DatabaseClient);
 
-      vi.spyOn(cryptoModule, "generateDashboardSlug").mockReturnValue(
+      const slugSpy = vi.spyOn(cryptoModule, "generateDashboardSlug").mockReturnValue(
         "AbCdEfGh12345678",
       );
       vi.spyOn(cryptoModule, "hashPassword").mockImplementation(
@@ -221,6 +221,7 @@ describe("src/actions/dashboard", () => {
       const result = await createDashboardAction(input);
 
       expect(result.success).toBe(true);
+      expect(slugSpy).toHaveBeenCalledWith(cryptoModule.DEFAULT_DASHBOARD_SLUG_LENGTH);
       if (result.success) {
         expect(result.dashboard).toEqual(mockDashboard);
         expect(result.credentials).toEqual([

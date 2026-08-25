@@ -3,21 +3,12 @@
 import { useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import IconButton from "@mui/material/IconButton";
-import InputAdornment from "@mui/material/InputAdornment";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-
 import AddIcon from "@mui/icons-material/Add";
-import AutorenewIcon from "@mui/icons-material/Autorenew";
-import DeleteIcon from "@mui/icons-material/Delete";
-import PersonIcon from "@mui/icons-material/Person";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
+
+import { ParticipantCard } from "./participants/ParticipantCard";
+import { ParticipantEmptyState } from "./participants/ParticipantEmptyState";
 
 export interface ParticipantRow {
   id: string;
@@ -74,172 +65,29 @@ export function StepParticipants({
       </Box>
 
       {users.length === 0 ? (
-        <Card
-          variant="outlined"
-          sx={{
-            p: 3,
-            textAlign: "center",
-            borderColor: "divider",
-            bgcolor: "background.paper",
-            borderStyle: "dashed",
-          }}
-        >
-          <CardContent sx={{ p: 0, "&:last-child": { pb: 0 } }}>
-            <Typography variant="body1" sx={{ color: "text.secondary", mb: 2 }}>
-              No participants added yet. At least one participant is required.
-            </Typography>
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={<AddIcon />}
-              onClick={onAddParticipant}
-              id="add-first-participant-btn"
-            >
-              Add Participant
-            </Button>
-          </CardContent>
-        </Card>
+        <ParticipantEmptyState onAddParticipant={onAddParticipant} />
       ) : (
         <Stack spacing={2}>
-          {users.map((user, index) => {
-            const isPasswordVisible = Boolean(visiblePasswords[user.id]);
-            const aliasError = aliasErrors[user.id];
-
-            return (
-              <Card
-                key={user.id}
-                variant="outlined"
-                sx={{
-                  p: 2,
-                  borderColor: aliasError ? "error.main" : "divider",
-                  bgcolor: "background.paper",
-                }}
-              >
-                <Stack
-                  direction={{ xs: "column", sm: "row" }}
-                  spacing={2}
-                  sx={{ alignItems: { xs: "stretch", sm: "flex-start" } }}
-                >
-                  <TextField
-                    label={`Participant #${index + 1} Alias`}
-                    placeholder="e.g. Alice"
-                    required
-                    value={user.user_alias}
-                    onChange={(e) =>
-                      onUpdateParticipant(user.id, "user_alias", e.target.value)
-                    }
-                    error={Boolean(aliasError)}
-                    helperText={
-                      aliasError || "Letters, numbers, _, - (2-30 chars)"
-                    }
-                    sx={{ flex: 1 }}
-                    slotProps={{
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <PersonIcon
-                              fontSize="small"
-                              sx={{ color: "text.disabled" }}
-                            />
-                          </InputAdornment>
-                        ),
-                      },
-                      htmlInput: {
-                        maxLength: 30,
-                        "aria-label": `Participant ${index + 1} Alias`,
-                      },
-                    }}
-                  />
-
-                  <TextField
-                    label="Password"
-                    value={user.password}
-                    onChange={(e) =>
-                      onUpdateParticipant(user.id, "password", e.target.value)
-                    }
-                    type={isPasswordVisible ? "text" : "password"}
-                    sx={{
-                      flex: 1.2,
-                      "& input": {
-                        fontFamily: "monospace",
-                        letterSpacing: isPasswordVisible ? "0.05em" : "0.2em",
-                      },
-                    }}
-                    slotProps={{
-                      input: {
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <Tooltip
-                              title={
-                                isPasswordVisible
-                                  ? "Hide password"
-                                  : "Show password"
-                              }
-                            >
-                              <IconButton
-                                aria-label={
-                                  isPasswordVisible
-                                    ? `Hide password for ${user.user_alias || `user ${index + 1}`}`
-                                    : `Show password for ${user.user_alias || `user ${index + 1}`}`
-                                }
-                                onClick={() =>
-                                  togglePasswordVisibility(user.id)
-                                }
-                                edge="end"
-                                size="small"
-                              >
-                                {isPasswordVisible ? (
-                                  <VisibilityOffIcon fontSize="small" />
-                                ) : (
-                                  <VisibilityIcon fontSize="small" />
-                                )}
-                              </IconButton>
-                            </Tooltip>
-                          </InputAdornment>
-                        ),
-                      },
-                      htmlInput: {
-                        maxLength: 128,
-                        "aria-label": `Participant ${index + 1} Password`,
-                      },
-                    }}
-                  />
-
-                  <Stack
-                    direction="row"
-                    spacing={0.5}
-                    sx={{
-                      alignItems: "center",
-                      justifyContent: { xs: "flex-end", sm: "center" },
-                      pt: { xs: 0, sm: 1 },
-                    }}
-                  >
-                    <Tooltip title="Regenerate Password">
-                      <IconButton
-                        aria-label={`Regenerate password for ${user.user_alias || `user ${index + 1}`}`}
-                        onClick={() => onRegeneratePassword(user.id)}
-                        color="primary"
-                        size="medium"
-                      >
-                        <AutorenewIcon />
-                      </IconButton>
-                    </Tooltip>
-
-                    <Tooltip title="Remove Participant">
-                      <IconButton
-                        aria-label={`Remove ${user.user_alias || `user ${index + 1}`}`}
-                        onClick={() => onRemoveParticipant(user.id)}
-                        color="error"
-                        size="medium"
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </Tooltip>
-                  </Stack>
-                </Stack>
-              </Card>
-            );
-          })}
+          {users.map((user, index) => (
+            <ParticipantCard
+              key={user.id}
+              user={user}
+              index={index}
+              aliasError={aliasErrors[user.id]}
+              isPasswordVisible={Boolean(visiblePasswords[user.id])}
+              onTogglePasswordVisibility={() =>
+                togglePasswordVisibility(user.id)
+              }
+              onUpdateAlias={(val) =>
+                onUpdateParticipant(user.id, "user_alias", val)
+              }
+              onUpdatePassword={(val) =>
+                onUpdateParticipant(user.id, "password", val)
+              }
+              onRegeneratePassword={() => onRegeneratePassword(user.id)}
+              onRemove={() => onRemoveParticipant(user.id)}
+            />
+          ))}
 
           <Box sx={{ pt: 1 }}>
             <Button
