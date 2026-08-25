@@ -83,7 +83,7 @@ export function StepSuccess({
   };
 
   return (
-    <Stack spacing={3} sx={{ width: "100%", py: 1 }}>
+    <Stack spacing={3} sx={{ width: "100%", pt: 1, pb: 0 }}>
       <Box>
         <Typography
           variant="h3"
@@ -120,15 +120,23 @@ export function StepSuccess({
       />
 
       {/* Enter Dashboard CTA */}
-      <Box sx={{ pt: 1, display: "flex", justifyContent: "flex-end" }}>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "center",
+          pt: 2,
+          mt: 2,
+          borderTop: "1px solid",
+          borderColor: "divider",
+        }}
+      >
         <Button
           variant="contained"
           color="primary"
-          size="large"
           endIcon={<ArrowForwardIcon />}
           onClick={handleEnter}
           id="enter-dashboard-btn"
-          sx={{ px: 4, py: 1.25 }}
         >
           Enter Dashboard
         </Button>

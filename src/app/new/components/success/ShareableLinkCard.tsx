@@ -72,7 +72,6 @@ export function ShareableLinkCard({
           }
           sx={{
             fontFamily: "monospace",
-            bgcolor: "rgba(255, 255, 255, 0.4)",
           }}
           inputProps={{
             "aria-label": "Shareable Dashboard Link",

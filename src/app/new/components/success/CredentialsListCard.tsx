@@ -4,7 +4,6 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
-import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
@@ -58,9 +57,6 @@ export function CredentialsListCard({
             >
               Participant Credentials ({credentials.length})
             </Typography>
-            <Typography variant="caption" sx={{ color: "error.main" }}>
-              * Passwords cannot be recovered once you leave this page.
-            </Typography>
           </Box>
 
           <Button
@@ -77,7 +73,7 @@ export function CredentialsListCard({
           </Button>
         </Stack>
 
-        <Stack spacing={1.5} divider={<Divider />}>
+        <Stack spacing={0}>
           {credentials.map((cred, idx) => {
             const credKey = `cred-${idx}`;
             const isCopied = copiedKey === credKey;

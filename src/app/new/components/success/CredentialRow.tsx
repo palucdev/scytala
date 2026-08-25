@@ -1,5 +1,6 @@
 "use client";
 
+
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
@@ -25,26 +26,42 @@ export function CredentialRow({
   return (
     <Stack
       direction="row"
+      onClick={onCopy}
       sx={{
         justifyContent: "space-between",
         alignItems: "center",
-        py: 0.5,
+        py: 1,
+        px: 2,
+        borderRadius: 1,
+        cursor: "pointer",
+        "&:nth-of-type(odd)": {
+          bgcolor: "action.hover",
+        },
+        "&:hover": {
+          bgcolor: "action.selected",
+          "& .credential-password": {
+            filter: "none",
+          },
+        },
       }}
     >
       <Box sx={{ minWidth: 0, flex: 1, pr: 2 }}>
         <Typography
-          variant="body2"
+          variant="body1"
           sx={{ fontWeight: 600, color: "text.primary" }}
         >
           {credential.user_alias}
         </Typography>
         <Typography
-          variant="body2"
+          variant="body1"
+          className="credential-password"
           sx={{
             fontFamily: "monospace",
             color: "text.secondary",
             letterSpacing: "0.05em",
             wordBreak: "break-all",
+            filter: "blur(6px)",
+            transition: "filter 0.2s ease",
           }}
         >
           {credential.password}

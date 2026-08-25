@@ -43,7 +43,7 @@ export function DashboardCreationWizard() {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        justifyContent: "flex-start",
+        justifyContent: "center",
         px: { xs: 1.5, sm: 3 },
         py: { xs: 3, sm: 6 },
       }}
@@ -64,7 +64,7 @@ export function DashboardCreationWizard() {
         <WizardHeader />
         <WizardStepper activeStep={activeStep} />
 
-        <Box sx={{ minHeight: 280, mb: 4 }}>
+        <Box sx={{ minHeight: 280, mb: activeStep === 3 ? 0 : 4 }}>
           {activeStep === 0 && (
             <StepDetails
               title={title}

@@ -204,6 +204,20 @@ export const PapyrusThemeLight = createTheme({
       },
     },
 
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          backgroundColor: "#eadcbe", // sun-warmed parchment — subtly deeper than card
+          "&:hover": {
+            backgroundColor: "#e7d8b8",
+          },
+          "&.Mui-focused": {
+            backgroundColor: "#e7d8b8",
+          },
+        },
+      },
+    },
+
     MuiCssBaseline: {
       styleOverrides: {
         body: {
