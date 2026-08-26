@@ -343,3 +343,27 @@ export function extractSessionTokenFromCookieHeader(
 
   return null;
 }
+
+/**
+ * Retrieves the session signing secret key from environment variables.
+ * In production, throws an error if neither SESSION_SECRET nor SUPABASE_SERVICE_ROLE_KEY is configured.
+ * In development/test environments, falls back to a development secret if unset.
+ */
+export function getSessionSecret(): string {
+  const secret =
+    process.env.SESSION_SECRET ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_KEY;
+
+  if (secret && secret.trim().length > 0) {
+    return secret.trim();
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Missing required session secret. Set SESSION_SECRET or SUPABASE_SERVICE_ROLE_KEY in production.",
+    );
+  }
+
+  return "scytala-insecure-dev-secret-key-change-in-production-1234567890";
+}
