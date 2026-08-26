@@ -214,7 +214,7 @@ describe("Dashboard Subcomponents", () => {
         ),
       ).toBeInTheDocument();
 
-      const newNoteBtn = screen.getByRole("button", { name: /\+ new note/i });
+      const newNoteBtn = screen.getByRole("button", { name: /new note/i });
       expect(newNoteBtn).toBeInTheDocument();
       expect(newNoteBtn).toBeDisabled();
     });
@@ -274,7 +274,7 @@ describe("Dashboard Subcomponents", () => {
       expect(screen.getByText("Commander_Shepard")).toBeInTheDocument();
       expect(screen.getByText("No notes yet")).toBeInTheDocument();
       expect(
-        screen.getByRole("button", { name: /\+ new note/i }),
+        screen.getByRole("button", { name: /new note/i }),
       ).toBeDisabled();
     });
   });

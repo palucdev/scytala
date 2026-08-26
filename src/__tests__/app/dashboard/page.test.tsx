@@ -263,7 +263,7 @@ describe("src/app/dashboard/[hash]/page.tsx (DashboardPage SSR)", () => {
       expect(screen.getByText("Commander_Shepard")).toBeInTheDocument();
       expect(screen.getByText("No notes yet")).toBeInTheDocument();
       expect(
-        screen.getByRole("button", { name: /\+ new note/i }),
+        screen.getByRole("button", { name: /new note/i }),
       ).toBeDisabled();
     });
   });
