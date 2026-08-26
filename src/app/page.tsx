@@ -155,7 +155,7 @@ export default async function Home() {
         </Box>
 
         <Button
-          href="/app"
+          href="/new"
           id="get-started-link"
           variant="contained"
           color="primary"

@@ -4,6 +4,8 @@ import {
   verifyPassword,
   generateDashboardSlug,
   generateRandomPassword,
+  DEFAULT_DASHBOARD_SLUG_LENGTH,
+  DEFAULT_PASSWORD_LENGTH,
 } from '@/lib/crypto';
 
 describe('src/lib/crypto', () => {
@@ -132,9 +134,10 @@ describe('src/lib/crypto', () => {
   });
 
   describe('generateDashboardSlug', () => {
-    it('generates a 16-character URL-safe string by default', () => {
+    it('generates a 16-character URL-safe string by default matching DEFAULT_DASHBOARD_SLUG_LENGTH', () => {
+      expect(DEFAULT_DASHBOARD_SLUG_LENGTH).toBe(16);
       const slug = generateDashboardSlug();
-      expect(slug).toHaveLength(16);
+      expect(slug).toHaveLength(DEFAULT_DASHBOARD_SLUG_LENGTH);
       expect(slug).toMatch(/^[A-Za-z0-9_-]{16}$/);
     });
 
@@ -160,9 +163,10 @@ describe('src/lib/crypto', () => {
   });
 
   describe('generateRandomPassword', () => {
-    it('generates a 16-character strong password by default', () => {
+    it('generates a 16-character strong password by default matching DEFAULT_PASSWORD_LENGTH', () => {
+      expect(DEFAULT_PASSWORD_LENGTH).toBe(16);
       const password = generateRandomPassword();
-      expect(password).toHaveLength(16);
+      expect(password).toHaveLength(DEFAULT_PASSWORD_LENGTH);
     });
 
     it('respects custom length parameter', () => {
