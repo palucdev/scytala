@@ -5,7 +5,7 @@ export const ALIAS_REGEX = /^[a-zA-Z0-9_-]+$/;
 
 export const participantUserSchema = z.object({
   id: z.string().optional(),
-  user_alias: z
+  userAlias: z
     .string()
     .trim()
     .min(2, "Alias must be at least 2 characters")
@@ -37,7 +37,7 @@ export const createDashboardSchema = z.object({
     .array(participantUserSchema)
     .min(1, "At least one participant user is required")
     .refine((users) => {
-      const aliases = users.map((u) => u.user_alias.toLowerCase());
+      const aliases = users.map((u) => u.userAlias.toLowerCase());
       return new Set(aliases).size === aliases.length;
     }, "Participant aliases must be unique"),
 });
@@ -47,7 +47,7 @@ export type CreateDashboardInput = z.input<typeof createDashboardSchema>;
 export type CreateDashboardInputValues = z.infer<typeof createDashboardSchema>;
 
 export interface ParticipantCredential {
-  user_alias: string;
+  userAlias: string;
   password: string;
 }
 
@@ -77,7 +77,7 @@ export function formatCredentialsText(
     `URL: ${dashboardUrl}`,
     "",
     "Participant Credentials:",
-    ...credentials.map((c) => `• ${c.user_alias}: ${c.password}`),
+    ...credentials.map((c) => `• ${c.userAlias}: ${c.password}`),
   ];
   return lines.join("\n");
 }

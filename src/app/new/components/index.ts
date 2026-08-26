@@ -10,7 +10,10 @@ export { WizardHeader } from "./WizardHeader";
 export { WizardStepper, WIZARD_STEPS } from "./WizardStepper";
 export { WizardNavigation } from "./WizardNavigation";
 export { ParticipantCard } from "./participants/ParticipantCard";
-export { ParticipantEmptyState } from "./participants/ParticipantEmptyState";
+export {
+  AddParticipantCard,
+  type AddParticipantCardProps,
+} from "./participants/AddParticipantCard";
 export { ReviewSummaryCard } from "./review/ReviewSummaryCard";
 export { ShareableLinkCard } from "./success/ShareableLinkCard";
 export { CredentialsListCard } from "./success/CredentialsListCard";

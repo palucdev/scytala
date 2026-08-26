@@ -154,7 +154,7 @@ export const PapyrusThemeLight = createTheme({
     },
 
     /* -------------------------------------------------------------- */
-    /*  Stepper — papyrus-themed with "active" dusty-blue highlight   */
+    /*  Stepper — papyrus-themed with warm brown active highlight     */
     /* -------------------------------------------------------------- */
     MuiStepIcon: {
       styleOverrides: {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Alert from "@mui/material/Alert";
 import AlertTitle from "@mui/material/AlertTitle";
@@ -15,20 +15,9 @@ import {
   type ParticipantCredential,
   formatCredentialsText,
 } from "@/schemas/dashboard";
+import { copyToClipboard } from "@/utils/clipboard";
 import { ShareableLinkCard } from "./success/ShareableLinkCard";
 import { CredentialsListCard } from "./success/CredentialsListCard";
-
-function subscribeEmpty() {
-  return () => {};
-}
-
-function getOriginSnapshot() {
-  return typeof window !== "undefined" ? window.location.origin : "";
-}
-
-function getOriginServerSnapshot() {
-  return "";
-}
 
 export interface StepSuccessProps {
   dashboard: Dashboard;
@@ -42,26 +31,18 @@ export function StepSuccess({
   onEnterDashboard,
 }: StepSuccessProps) {
   const router = useRouter();
-  const origin = useSyncExternalStore(
-    subscribeEmpty,
-    getOriginSnapshot,
-    getOriginServerSnapshot,
-  );
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const dashboardUrl = `${origin || ""}/dashboard/${dashboard.hash}`;
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const dashboardUrl = `${origin}/dashboard/${dashboard.hash}`;
 
-  const copyToClipboard = async (text: string, key: string) => {
-    try {
-      if (typeof navigator !== "undefined" && navigator.clipboard) {
-        await navigator.clipboard.writeText(text);
-        setCopiedKey(key);
-        setTimeout(() => {
-          setCopiedKey((prev) => (prev === key ? null : prev));
-        }, 2500);
-      }
-    } catch (err) {
-      console.error("Failed to copy to clipboard:", err);
+  const handleCopy = async (text: string, key: string) => {
+    const success = await copyToClipboard(text);
+    if (success) {
+      setCopiedKey(key);
+      setTimeout(() => {
+        setCopiedKey((prev) => (prev === key ? null : prev));
+      }, 2500);
     }
   };
 
@@ -71,7 +52,7 @@ export function StepSuccess({
       dashboardUrl,
       credentials,
     );
-    copyToClipboard(fullText, "all");
+    handleCopy(fullText, "all");
   };
 
   const handleEnter = () => {
@@ -108,7 +89,7 @@ export function StepSuccess({
       <ShareableLinkCard
         dashboardUrl={dashboardUrl}
         isCopied={copiedKey === "url"}
-        onCopy={() => copyToClipboard(dashboardUrl, "url")}
+        onCopy={() => handleCopy(dashboardUrl, "url")}
       />
 
       {/* Participant Credentials Card */}
@@ -116,7 +97,7 @@ export function StepSuccess({
         credentials={credentials}
         copiedKey={copiedKey}
         onCopyAll={handleCopyAll}
-        onCopySingle={copyToClipboard}
+        onCopySingle={handleCopy}
       />
 
       {/* Enter Dashboard CTA */}

@@ -2,15 +2,15 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { ThemeProvider } from "@mui/material/styles";
 
-import { ParticipantEmptyState } from "@/app/new/components/participants/ParticipantEmptyState";
+import { AddParticipantCard } from "@/app/new/components/participants/AddParticipantCard";
 import { PapyrusThemeLight } from "@/theme/papyrus-theme-light";
 
-describe("ParticipantEmptyState", () => {
+describe("AddParticipantCard", () => {
   it("renders default state without error styling", () => {
     const handleAdd = vi.fn();
     render(
       <ThemeProvider theme={PapyrusThemeLight}>
-        <ParticipantEmptyState onAddParticipant={handleAdd} />
+        <AddParticipantCard onAddParticipant={handleAdd} />
       </ThemeProvider>,
     );
 
@@ -25,7 +25,7 @@ describe("ParticipantEmptyState", () => {
     const handleAdd = vi.fn();
     render(
       <ThemeProvider theme={PapyrusThemeLight}>
-        <ParticipantEmptyState onAddParticipant={handleAdd} hasError={true} />
+        <AddParticipantCard onAddParticipant={handleAdd} hasError={true} />
       </ThemeProvider>,
     );
 
@@ -39,7 +39,7 @@ describe("ParticipantEmptyState", () => {
     const handleAdd = vi.fn();
     render(
       <ThemeProvider theme={PapyrusThemeLight}>
-        <ParticipantEmptyState onAddParticipant={handleAdd} />
+        <AddParticipantCard onAddParticipant={handleAdd} />
       </ThemeProvider>,
     );
 

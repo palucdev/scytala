@@ -37,26 +37,26 @@ describe("src/actions/dashboard", () => {
     it("validates a correct participant input", () => {
       const result = participantUserSchema.safeParse({
         id: "temp-1",
-        user_alias: "Alice_01",
+        userAlias: "Alice_01",
         password: "securePassword123!",
       });
 
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.user_alias).toBe("Alice_01");
+        expect(result.data.userAlias).toBe("Alice_01");
         expect(result.data.id).toBe("temp-1");
       }
     });
 
     it("fails when alias is too short or too long", () => {
       const shortResult = participantUserSchema.safeParse({
-        user_alias: "a",
+        userAlias: "a",
         password: "password123",
       });
       expect(shortResult.success).toBe(false);
 
       const longResult = participantUserSchema.safeParse({
-        user_alias: "a".repeat(31),
+        userAlias: "a".repeat(31),
         password: "password123",
       });
       expect(longResult.success).toBe(false);
@@ -64,13 +64,13 @@ describe("src/actions/dashboard", () => {
 
     it("fails when password is too short or too long", () => {
       const shortPw = participantUserSchema.safeParse({
-        user_alias: "alice",
+        userAlias: "alice",
         password: "12345",
       });
       expect(shortPw.success).toBe(false);
 
       const longPw = participantUserSchema.safeParse({
-        user_alias: "alice",
+        userAlias: "alice",
         password: "a".repeat(129),
       });
       expect(longPw.success).toBe(false);
@@ -83,8 +83,8 @@ describe("src/actions/dashboard", () => {
         title: "Team Alpha Dashboard",
         description: "Project Apollo coordination space",
         users: [
-          { user_alias: "alice", password: "password123" },
-          { user_alias: "bob", password: "password456" },
+          { userAlias: "alice", password: "password123" },
+          { userAlias: "bob", password: "password456" },
         ],
       });
 
@@ -100,7 +100,7 @@ describe("src/actions/dashboard", () => {
       const result = createDashboardSchema.safeParse({
         title: "Dashboard",
         description: "",
-        users: [{ user_alias: "alice", password: "password123" }],
+        users: [{ userAlias: "alice", password: "password123" }],
       });
 
       expect(result.success).toBe(true);
@@ -112,7 +112,7 @@ describe("src/actions/dashboard", () => {
     it("allows optional description when omitted", () => {
       const result = createDashboardSchema.safeParse({
         title: "Dashboard",
-        users: [{ user_alias: "alice", password: "password123" }],
+        users: [{ userAlias: "alice", password: "password123" }],
       });
 
       expect(result.success).toBe(true);
@@ -124,13 +124,13 @@ describe("src/actions/dashboard", () => {
     it("rejects empty title or title exceeding 80 characters", () => {
       const emptyTitle = createDashboardSchema.safeParse({
         title: "   ",
-        users: [{ user_alias: "alice", password: "password123" }],
+        users: [{ userAlias: "alice", password: "password123" }],
       });
       expect(emptyTitle.success).toBe(false);
 
       const longTitle = createDashboardSchema.safeParse({
         title: "A".repeat(81),
-        users: [{ user_alias: "alice", password: "password123" }],
+        users: [{ userAlias: "alice", password: "password123" }],
       });
       expect(longTitle.success).toBe(false);
     });
@@ -139,7 +139,7 @@ describe("src/actions/dashboard", () => {
       const longDesc = createDashboardSchema.safeParse({
         title: "Dashboard",
         description: "A".repeat(301),
-        users: [{ user_alias: "alice", password: "password123" }],
+        users: [{ userAlias: "alice", password: "password123" }],
       });
       expect(longDesc.success).toBe(false);
     });
@@ -156,8 +156,8 @@ describe("src/actions/dashboard", () => {
       const duplicates = createDashboardSchema.safeParse({
         title: "Dashboard",
         users: [
-          { user_alias: "Alice", password: "password123" },
-          { user_alias: "alice", password: "password456" },
+          { userAlias: "Alice", password: "password123" },
+          { userAlias: "alice", password: "password456" },
         ],
       });
       expect(duplicates.success).toBe(false);
@@ -213,8 +213,8 @@ describe("src/actions/dashboard", () => {
         title: "Test Board",
         description: "Test Desc",
         users: [
-          { user_alias: "alice", password: "secretPassword1" },
-          { user_alias: "bob", password: "secretPassword2" },
+          { userAlias: "alice", password: "secretPassword1" },
+          { userAlias: "bob", password: "secretPassword2" },
         ],
       };
 
@@ -225,8 +225,8 @@ describe("src/actions/dashboard", () => {
       if (result.success) {
         expect(result.dashboard).toEqual(mockDashboard);
         expect(result.credentials).toEqual([
-          { user_alias: "alice", password: "secretPassword1" },
-          { user_alias: "bob", password: "secretPassword2" },
+          { userAlias: "alice", password: "secretPassword1" },
+          { userAlias: "bob", password: "secretPassword2" },
         ]);
       }
 
@@ -265,7 +265,7 @@ describe("src/actions/dashboard", () => {
 
       const input = {
         title: "Valid Title",
-        users: [{ user_alias: "alice", password: "password123" }],
+        users: [{ userAlias: "alice", password: "password123" }],
       };
 
       const result = await createDashboardAction(input);
@@ -285,7 +285,7 @@ describe("src/actions/dashboard", () => {
 
       const input = {
         title: "Valid Title",
-        users: [{ user_alias: "alice", password: "password123" }],
+        users: [{ userAlias: "alice", password: "password123" }],
       };
 
       const result = await createDashboardAction(input);
@@ -303,8 +303,8 @@ describe("src/actions/dashboard", () => {
         "Project Apollo",
         "https://scytala.app/dashboard/AbCdEfGh12345678",
         [
-          { user_alias: "alice", password: "pwd1" },
-          { user_alias: "bob", password: "pwd2" },
+          { userAlias: "alice", password: "pwd1" },
+          { userAlias: "bob", password: "pwd2" },
         ],
       );
 
@@ -324,7 +324,7 @@ describe("src/actions/dashboard", () => {
       const formatted = formatCredentialsText(
         "Solo Board",
         "https://scytala.app/dashboard/xyz123",
-        [{ user_alias: "creator", password: "myPassword" }],
+        [{ userAlias: "creator", password: "myPassword" }],
       );
 
       expect(formatted).toContain("Dashboard: Solo Board");

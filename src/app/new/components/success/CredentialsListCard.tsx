@@ -77,11 +77,11 @@ export function CredentialsListCard({
           {credentials.map((cred, idx) => {
             const credKey = `cred-${idx}`;
             const isCopied = copiedKey === credKey;
-            const formattedLine = `${cred.user_alias}: ${cred.password}`;
+            const formattedLine = `${cred.userAlias}: ${cred.password}`;
 
             return (
               <CredentialRow
-                key={cred.user_alias}
+                key={cred.userAlias}
                 credential={cred}
                 isCopied={isCopied}
                 onCopy={() => onCopySingle(formattedLine, credKey)}

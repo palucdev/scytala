@@ -328,8 +328,8 @@ describe("DashboardCreationWizard (/new)", () => {
           updated_at: new Date().toISOString(),
         },
         credentials: [
-          { user_alias: "Alice_Prime", password: "password-alice-123" },
-          { user_alias: "Bob_Sec", password: "password-bob-456" },
+          { userAlias: "Alice_Prime", password: "password-alice-123" },
+          { userAlias: "Bob_Sec", password: "password-bob-456" },
         ],
       });
 
@@ -342,8 +342,8 @@ describe("DashboardCreationWizard (/new)", () => {
           title: "Gamma Project",
           description: "Project description notes",
           users: [
-            expect.objectContaining({ user_alias: "Alice_Prime" }),
-            expect.objectContaining({ user_alias: "Bob_Sec" }),
+            expect.objectContaining({ userAlias: "Alice_Prime" }),
+            expect.objectContaining({ userAlias: "Bob_Sec" }),
           ],
         });
       });
@@ -366,7 +366,7 @@ describe("DashboardCreationWizard (/new)", () => {
           updated_at: new Date().toISOString(),
         },
         credentials: [
-          { user_alias: "Alice_Prime", password: "password-alice-123" },
+          { userAlias: "Alice_Prime", password: "password-alice-123" },
         ],
       });
 
@@ -403,8 +403,8 @@ describe("DashboardCreationWizard (/new)", () => {
           updated_at: new Date().toISOString(),
         },
         credentials: [
-          { user_alias: "Commander", password: "cmd-secret-pass-99" },
-          { user_alias: "Pilot", password: "plt-secret-pass-88" },
+          { userAlias: "Commander", password: "cmd-secret-pass-99" },
+          { userAlias: "Pilot", password: "plt-secret-pass-88" },
         ],
       });
 

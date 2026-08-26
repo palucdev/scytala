@@ -11,7 +11,7 @@ import { ReviewSummaryCard } from "./review/ReviewSummaryCard";
 export interface StepReviewProps {
   title: string;
   description: string;
-  users: Array<{ id: string; user_alias: string; password: string }>;
+  users: Array<{ id: string; userAlias: string; password: string }>;
   submitError?: string | null;
 }
 

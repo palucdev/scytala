@@ -50,7 +50,7 @@ export function CredentialRow({
           variant="body1"
           sx={{ fontWeight: 600, color: "text.primary" }}
         >
-          {credential.user_alias}
+          {credential.userAlias}
         </Typography>
         <Typography
           variant="body1"
@@ -72,11 +72,11 @@ export function CredentialRow({
         title={
           isCopied
             ? "Copied!"
-            : `Copy credentials for ${credential.user_alias}`
+            : `Copy credentials for ${credential.userAlias}`
         }
       >
         <IconButton
-          aria-label={`Copy credentials for ${credential.user_alias}`}
+          aria-label={`Copy credentials for ${credential.userAlias}`}
           onClick={onCopy}
           size="small"
           color={isCopied ? "success" : "default"}

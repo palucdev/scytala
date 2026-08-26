@@ -56,7 +56,7 @@ export function ParticipantCard({
           label={`Participant #${index + 1} Alias`}
           placeholder="e.g. Alice"
           required
-          value={user.user_alias}
+          value={user.userAlias}
           onChange={(e) => onUpdateAlias(e.target.value)}
           error={Boolean(aliasError)}
           helperText={aliasError || "Letters, numbers, _, - (2-30 chars)"}
@@ -98,8 +98,8 @@ export function ParticipantCard({
                     <IconButton
                       aria-label={
                         isPasswordVisible
-                          ? `Hide password for ${user.user_alias || `user ${index + 1}`}`
-                          : `Show password for ${user.user_alias || `user ${index + 1}`}`
+                          ? `Hide password for ${user.userAlias || `user ${index + 1}`}`
+                          : `Show password for ${user.userAlias || `user ${index + 1}`}`
                       }
                       onClick={onTogglePasswordVisibility}
                       edge="end"
@@ -133,7 +133,7 @@ export function ParticipantCard({
         >
           <Tooltip title="Regenerate Password">
             <IconButton
-              aria-label={`Regenerate password for ${user.user_alias || `user ${index + 1}`}`}
+              aria-label={`Regenerate password for ${user.userAlias || `user ${index + 1}`}`}
               onClick={onRegeneratePassword}
               color="primary"
               size="medium"
@@ -144,7 +144,7 @@ export function ParticipantCard({
 
           <Tooltip title="Remove Participant">
             <IconButton
-              aria-label={`Remove ${user.user_alias || `user ${index + 1}`}`}
+              aria-label={`Remove ${user.userAlias || `user ${index + 1}`}`}
               onClick={onRemove}
               color="error"
               size="medium"

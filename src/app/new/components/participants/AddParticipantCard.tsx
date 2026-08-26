@@ -6,15 +6,15 @@ import CardContent from "@mui/material/CardContent";
 import Typography from "@mui/material/Typography";
 import AddIcon from "@mui/icons-material/Add";
 
-export interface ParticipantEmptyStateProps {
+export interface AddParticipantCardProps {
   onAddParticipant: () => void;
   hasError?: boolean;
 }
 
-export function ParticipantEmptyState({
+export function AddParticipantCard({
   onAddParticipant,
   hasError = false,
-}: ParticipantEmptyStateProps) {
+}: AddParticipantCardProps) {
   return (
     <Card
       variant="outlined"
@@ -54,4 +54,4 @@ export function ParticipantEmptyState({
   );
 }
 
-export default ParticipantEmptyState;
+export default AddParticipantCard;

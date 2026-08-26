@@ -14,7 +14,7 @@ import {
 
 export interface ParticipantRow {
   id: string;
-  user_alias: string;
+  userAlias: string;
   password: string;
 }
 
@@ -73,7 +73,7 @@ export function useWizardState() {
       ...prev,
       {
         id: newId,
-        user_alias: "",
+        userAlias: "",
         password: newPassword,
       },
     ]);
@@ -89,11 +89,11 @@ export function useWizardState() {
   }, []);
 
   const handleUpdateParticipant = useCallback(
-    (id: string, field: "user_alias" | "password", value: string) => {
+    (id: string, field: "userAlias" | "password", value: string) => {
       setUsers((prev) =>
         prev.map((u) => (u.id === id ? { ...u, [field]: value } : u)),
       );
-      if (field === "user_alias") {
+      if (field === "userAlias") {
         setAliasErrors((prev) => {
           if (!prev[id]) return prev;
           const next = { ...prev };
@@ -137,7 +137,7 @@ export function useWizardState() {
     const seenAliases = new Map<string, string>();
 
     for (const user of users) {
-      const trimmedAlias = user.user_alias.trim();
+      const trimmedAlias = user.userAlias.trim();
       if (!trimmedAlias) {
         errors[user.id] = "Alias is required";
       } else if (trimmedAlias.length < 2) {
@@ -179,7 +179,7 @@ export function useWizardState() {
         description: description.trim() || null,
         users: users.map((u) => ({
           id: u.id,
-          user_alias: u.user_alias.trim(),
+          userAlias: u.userAlias.trim(),
           password: u.password,
         })),
       };

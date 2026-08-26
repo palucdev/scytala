@@ -24,7 +24,7 @@ export type {
  * Hashes all cleartext passwords using PBKDF2 before calling the atomic DB RPC.
  */
 export async function createDashboardAction(
-  input: CreateDashboardInput | unknown,
+  input: CreateDashboardInput,
 ): Promise<CreateDashboardActionResult> {
   const parsed = createDashboardSchema.safeParse(input);
 
@@ -41,7 +41,7 @@ export async function createDashboardAction(
     const slug = generateDashboardSlug(DEFAULT_DASHBOARD_SLUG_LENGTH);
     const hashedUsers = await Promise.all(
       parsed.data.users.map(async (u) => ({
-        user_alias: u.user_alias,
+        user_alias: u.userAlias,
         password_hash: await hashPassword(u.password),
       })),
     );
@@ -56,7 +56,7 @@ export async function createDashboardAction(
 
     const cleartextCredentials: ParticipantCredential[] = parsed.data.users.map(
       (u) => ({
-        user_alias: u.user_alias,
+        userAlias: u.userAlias,
         password: u.password,
       }),
     );

@@ -8,11 +8,11 @@ import Typography from "@mui/material/Typography";
 import AddIcon from "@mui/icons-material/Add";
 
 import { ParticipantCard } from "./participants/ParticipantCard";
-import { ParticipantEmptyState } from "./participants/ParticipantEmptyState";
+import { AddParticipantCard } from "./participants/AddParticipantCard";
 
 export interface ParticipantRow {
   id: string;
-  user_alias: string;
+  userAlias: string;
   password: string;
 }
 
@@ -22,7 +22,7 @@ export interface StepParticipantsProps {
   onRemoveParticipant: (id: string) => void;
   onUpdateParticipant: (
     id: string,
-    field: "user_alias" | "password",
+    field: "userAlias" | "password",
     value: string,
   ) => void;
   onRegeneratePassword: (id: string) => void;
@@ -67,7 +67,7 @@ export function StepParticipants({
       </Box>
 
       {users.length === 0 ? (
-        <ParticipantEmptyState
+        <AddParticipantCard
           onAddParticipant={onAddParticipant}
           hasError={emptyParticipantsError}
         />
@@ -84,7 +84,7 @@ export function StepParticipants({
                 togglePasswordVisibility(user.id)
               }
               onUpdateAlias={(val) =>
-                onUpdateParticipant(user.id, "user_alias", val)
+                onUpdateParticipant(user.id, "userAlias", val)
               }
               onUpdatePassword={(val) =>
                 onUpdateParticipant(user.id, "password", val)

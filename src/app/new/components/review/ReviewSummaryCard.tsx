@@ -15,11 +15,12 @@ import CheckIcon from "@mui/icons-material/Check";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 
 import { formatCredentialsText } from "@/schemas/dashboard";
+import { copyToClipboard } from "@/utils/clipboard";
 
 export interface ReviewSummaryCardProps {
   title: string;
   description: string;
-  users: Array<{ id: string; user_alias: string; password: string }>;
+  users: Array<{ id: string; userAlias: string; password: string }>;
 }
 
 export function ReviewSummaryCard({
@@ -29,17 +30,13 @@ export function ReviewSummaryCard({
 }: ReviewSummaryCardProps) {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const copyToClipboard = async (text: string, key: string) => {
-    try {
-      if (typeof navigator !== "undefined" && navigator.clipboard) {
-        await navigator.clipboard.writeText(text);
-        setCopiedKey(key);
-        setTimeout(() => {
-          setCopiedKey((prev) => (prev === key ? null : prev));
-        }, 2500);
-      }
-    } catch (err) {
-      console.error("Failed to copy to clipboard:", err);
+  const handleCopy = async (text: string, key: string) => {
+    const success = await copyToClipboard(text);
+    if (success) {
+      setCopiedKey(key);
+      setTimeout(() => {
+        setCopiedKey((prev) => (prev === key ? null : prev));
+      }, 2500);
     }
   };
 
@@ -48,11 +45,11 @@ export function ReviewSummaryCard({
       title,
       "(Generated after creation)",
       users.map((u) => ({
-        user_alias: u.user_alias,
+        userAlias: u.userAlias,
         password: u.password,
       })),
     );
-    copyToClipboard(formatted, "all");
+    handleCopy(formatted, "all");
   };
 
   return (
@@ -163,13 +160,13 @@ export function ReviewSummaryCard({
               {users.map((user, idx) => {
                 const credKey = `review-cred-${idx}`;
                 const isCopied = copiedKey === credKey;
-                const formattedLine = `${user.user_alias}: ${user.password}`;
+                const formattedLine = `${user.userAlias}: ${user.password}`;
 
                 return (
                   <Stack
                     key={user.id}
                     direction="row"
-                    onClick={() => copyToClipboard(formattedLine, credKey)}
+                    onClick={() => handleCopy(formattedLine, credKey)}
                     sx={{
                       justifyContent: "space-between",
                       alignItems: "center",
@@ -193,7 +190,7 @@ export function ReviewSummaryCard({
                         variant="body1"
                         sx={{ fontWeight: 600, color: "text.primary" }}
                       >
-                        {user.user_alias || "Unnamed"}
+                        {user.userAlias || "Unnamed"}
                       </Typography>
                       <Typography
                         variant="body1"
@@ -215,12 +212,12 @@ export function ReviewSummaryCard({
                       title={
                         isCopied
                           ? "Copied!"
-                          : `Copy credentials for ${user.user_alias}`
+                          : `Copy credentials for ${user.userAlias}`
                       }
                     >
                       <IconButton
-                        aria-label={`Copy credentials for ${user.user_alias}`}
-                        onClick={() => copyToClipboard(formattedLine, credKey)}
+                        aria-label={`Copy credentials for ${user.userAlias}`}
+                        onClick={() => handleCopy(formattedLine, credKey)}
                         size="small"
                         color={isCopied ? "success" : "default"}
                       >
