@@ -1,3 +1,5 @@
+"use client";
+
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
@@ -59,8 +61,8 @@ export function EmptyNotesState() {
               No notes yet
             </Typography>
             <Typography variant="body1" sx={{ color: "text.secondary" }}>
-              Notes created by participants on this dashboard will appear here as
-              tiles.
+              Notes created by participants on this dashboard will appear here
+              as tiles.
             </Typography>
           </Box>
 
@@ -78,7 +80,7 @@ export function EmptyNotesState() {
                   textTransform: "none",
                 }}
               >
-                + New Note
+                New Note
               </Button>
             </span>
           </Tooltip>
