@@ -67,8 +67,14 @@ export async function createDashboardAction(
       credentials: cleartextCredentials,
     };
   } catch (error) {
+    console.error("[createDashboardAction] Error:", error);
     const errorMessage =
-      error instanceof Error ? error.message : "Failed to create dashboard";
+      error instanceof Error
+        ? error.message.includes("unique constraint") ||
+          error.message.includes("duplicate key")
+          ? "A dashboard with this identifier already exists. Please try again."
+          : error.message
+        : "Failed to create dashboard";
     return {
       success: false,
       error: errorMessage,

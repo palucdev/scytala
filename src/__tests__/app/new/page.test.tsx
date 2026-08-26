@@ -234,6 +234,59 @@ describe("DashboardCreationWizard (/new)", () => {
       expect(duplicateErrors.length).toBeGreaterThanOrEqual(1);
     });
 
+    it("validates password field when under 6 chars or over 128 chars and renders error under password", async () => {
+      const addBtn = screen.getByRole("button", { name: /add participant/i });
+      fireEvent.click(addBtn);
+
+      const aliasInput = screen.getByLabelText("Participant 1 Alias");
+      const passwordInput = screen.getByLabelText("Participant 1 Password");
+      const nextBtn = screen.getByRole("button", { name: /next/i });
+
+      // Valid alias, short password (< 6 chars)
+      fireEvent.change(aliasInput, { target: { value: "ValidAlias" } });
+      fireEvent.change(passwordInput, { target: { value: "123" } });
+      fireEvent.click(nextBtn);
+
+      expect(
+        await screen.findByText("Password must be at least 6 characters"),
+      ).toBeInTheDocument();
+      // Alias should not have error
+      expect(screen.queryByText("Alias is required")).not.toBeInTheDocument();
+
+      // Password too long (> 128 chars)
+      fireEvent.change(passwordInput, { target: { value: "a".repeat(129) } });
+      fireEvent.click(nextBtn);
+
+      expect(
+        await screen.findByText("Password must be at most 128 characters"),
+      ).toBeInTheDocument();
+
+      // Regenerating password clears the password error
+      const regenBtn = screen.getByRole("button", { name: /regenerate password/i });
+      fireEvent.click(regenBtn);
+      expect(
+        screen.queryByText("Password must be at most 128 characters"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("renders both alias and password error simultaneously when both are invalid", async () => {
+      const addBtn = screen.getByRole("button", { name: /add participant/i });
+      fireEvent.click(addBtn);
+
+      const aliasInput = screen.getByLabelText("Participant 1 Alias");
+      const passwordInput = screen.getByLabelText("Participant 1 Password");
+      const nextBtn = screen.getByRole("button", { name: /next/i });
+
+      fireEvent.change(aliasInput, { target: { value: "" } });
+      fireEvent.change(passwordInput, { target: { value: "12" } });
+      fireEvent.click(nextBtn);
+
+      expect(await screen.findByText("Alias is required")).toBeInTheDocument();
+      expect(
+        await screen.findByText("Password must be at least 6 characters"),
+      ).toBeInTheDocument();
+    });
+
     it("allows stepping back to Step 1 and preserves entered details", async () => {
       const backBtn = screen.getByRole("button", { name: /back/i });
       fireEvent.click(backBtn);

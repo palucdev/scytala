@@ -31,6 +31,9 @@ export function useWizardState() {
 
   const [users, setUsers] = useState<ParticipantRow[]>([]);
   const [aliasErrors, setAliasErrors] = useState<Record<string, string>>({});
+  const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>(
+    {},
+  );
   const [emptyParticipantsError, setEmptyParticipantsError] =
     useState<boolean>(false);
 
@@ -82,6 +85,13 @@ export function useWizardState() {
   const handleRemoveParticipant = useCallback((id: string) => {
     setUsers((prev) => prev.filter((u) => u.id !== id));
     setAliasErrors((prev) => {
+      if (!prev[id]) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    setPasswordErrors((prev) => {
+      if (!prev[id]) return prev;
       const next = { ...prev };
       delete next[id];
       return next;
@@ -101,6 +111,14 @@ export function useWizardState() {
           return next;
         });
       }
+      if (field === "password") {
+        setPasswordErrors((prev) => {
+          if (!prev[id]) return prev;
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+      }
     },
     [],
   );
@@ -110,6 +128,12 @@ export function useWizardState() {
     setUsers((prev) =>
       prev.map((u) => (u.id === id ? { ...u, password: newPassword } : u)),
     );
+    setPasswordErrors((prev) => {
+      if (!prev[id]) return prev;
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   }, []);
 
   const validateStep1 = useCallback((): boolean => {
@@ -133,40 +157,46 @@ export function useWizardState() {
     }
     setEmptyParticipantsError(false);
 
-    const errors: Record<string, string> = {};
+    const aErrors: Record<string, string> = {};
+    const pErrors: Record<string, string> = {};
     const seenAliases = new Map<string, string>();
 
     for (const user of users) {
       const trimmedAlias = user.userAlias.trim();
       if (!trimmedAlias) {
-        errors[user.id] = "Alias is required";
+        aErrors[user.id] = "Alias is required";
       } else if (trimmedAlias.length < 2) {
-        errors[user.id] = "Alias must be at least 2 characters";
+        aErrors[user.id] = "Alias must be at least 2 characters";
       } else if (trimmedAlias.length > 30) {
-        errors[user.id] = "Alias must be at most 30 characters";
+        aErrors[user.id] = "Alias must be at most 30 characters";
       } else if (!ALIAS_REGEX.test(trimmedAlias)) {
-        errors[user.id] =
+        aErrors[user.id] =
           "Alias can only contain letters, numbers, hyphens, and underscores";
-      } else if (!user.password || user.password.length < 6) {
-        errors[user.id] = "Password must be at least 6 characters";
-      } else if (user.password.length > 128) {
-        errors[user.id] = "Password must be at most 128 characters";
       } else {
         const lower = trimmedAlias.toLowerCase();
         if (seenAliases.has(lower)) {
-          errors[user.id] = "Participant aliases must be unique";
+          aErrors[user.id] = "Participant aliases must be unique";
           const prevId = seenAliases.get(lower)!;
-          if (!errors[prevId]) {
-            errors[prevId] = "Participant aliases must be unique";
+          if (!aErrors[prevId]) {
+            aErrors[prevId] = "Participant aliases must be unique";
           }
         } else {
           seenAliases.set(lower, user.id);
         }
       }
+
+      if (!user.password || user.password.length < 6) {
+        pErrors[user.id] = "Password must be at least 6 characters";
+      } else if (user.password.length > 128) {
+        pErrors[user.id] = "Password must be at most 128 characters";
+      }
     }
 
-    setAliasErrors(errors);
-    return Object.keys(errors).length === 0;
+    setAliasErrors(aErrors);
+    setPasswordErrors(pErrors);
+    return (
+      Object.keys(aErrors).length === 0 && Object.keys(pErrors).length === 0
+    );
   }, [users]);
 
   const handleSubmit = useCallback(async () => {
@@ -233,6 +263,7 @@ export function useWizardState() {
     titleError,
     users,
     aliasErrors,
+    passwordErrors,
     emptyParticipantsError,
     isSubmitting,
     submitError,

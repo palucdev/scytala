@@ -19,6 +19,7 @@ export interface ParticipantCardProps {
   user: ParticipantRow;
   index: number;
   aliasError?: string;
+  passwordError?: string;
   isPasswordVisible: boolean;
   onTogglePasswordVisibility: () => void;
   onUpdateAlias: (value: string) => void;
@@ -31,6 +32,7 @@ export function ParticipantCard({
   user,
   index,
   aliasError,
+  passwordError,
   isPasswordVisible,
   onTogglePasswordVisibility,
   onUpdateAlias,
@@ -43,7 +45,7 @@ export function ParticipantCard({
       variant="outlined"
       sx={{
         p: 2,
-        borderColor: aliasError ? "error.main" : "divider",
+        borderColor: aliasError || passwordError ? "error.main" : "divider",
         bgcolor: "background.paper",
       }}
     >
@@ -81,6 +83,8 @@ export function ParticipantCard({
           value={user.password}
           onChange={(e) => onUpdatePassword(e.target.value)}
           type={isPasswordVisible ? "text" : "password"}
+          error={Boolean(passwordError)}
+          helperText={passwordError}
           sx={{
             flex: 1.2,
             "& input": {

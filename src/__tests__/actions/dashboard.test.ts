@@ -256,7 +256,7 @@ describe("src/actions/dashboard", () => {
       }
     });
 
-    it("returns error response when database client throws an Error", async () => {
+    it("returns sanitized error message when database unique constraint violation occurs", async () => {
       vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
         createDashboard: vi
           .fn()
@@ -272,7 +272,29 @@ describe("src/actions/dashboard", () => {
 
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error).toBe("Database unique constraint violation");
+        expect(result.error).toBe(
+          "A dashboard with this identifier already exists. Please try again.",
+        );
+      }
+    });
+
+    it("returns error message when database client throws a generic Error", async () => {
+      vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
+        createDashboard: vi
+          .fn()
+          .mockRejectedValue(new Error("Database connection timeout")),
+      } as unknown as dbClientModule.DatabaseClient);
+
+      const input = {
+        title: "Valid Title",
+        users: [{ userAlias: "alice", password: "password123" }],
+      };
+
+      const result = await createDashboardAction(input);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe("Database connection timeout");
       }
     });
 

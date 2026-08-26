@@ -22,6 +22,7 @@ export function DashboardCreationWizard() {
     titleError,
     users,
     aliasErrors,
+    passwordErrors,
     emptyParticipantsError,
     isSubmitting,
     submitError,
@@ -82,6 +83,7 @@ export function DashboardCreationWizard() {
               onUpdateParticipant={handleUpdateParticipant}
               onRegeneratePassword={handleRegeneratePassword}
               aliasErrors={aliasErrors}
+              passwordErrors={passwordErrors}
               emptyParticipantsError={emptyParticipantsError}
             />
           )}

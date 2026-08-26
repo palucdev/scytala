@@ -27,6 +27,7 @@ export interface StepParticipantsProps {
   ) => void;
   onRegeneratePassword: (id: string) => void;
   aliasErrors?: Record<string, string>;
+  passwordErrors?: Record<string, string>;
   emptyParticipantsError?: boolean;
 }
 
@@ -37,6 +38,7 @@ export function StepParticipants({
   onUpdateParticipant,
   onRegeneratePassword,
   aliasErrors = {},
+  passwordErrors = {},
   emptyParticipantsError = false,
 }: StepParticipantsProps) {
   const [visiblePasswords, setVisiblePasswords] = useState<
@@ -79,6 +81,7 @@ export function StepParticipants({
               user={user}
               index={index}
               aliasError={aliasErrors[user.id]}
+              passwordError={passwordErrors[user.id]}
               isPasswordVisible={Boolean(visiblePasswords[user.id])}
               onTogglePasswordVisibility={() =>
                 togglePasswordVisibility(user.id)
