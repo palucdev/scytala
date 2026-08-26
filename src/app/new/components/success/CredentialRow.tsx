@@ -77,7 +77,10 @@ export function CredentialRow({
       >
         <IconButton
           aria-label={`Copy credentials for ${credential.userAlias}`}
-          onClick={onCopy}
+          onClick={(e) => {
+            e.stopPropagation();
+            onCopy();
+          }}
           size="small"
           color={isCopied ? "success" : "default"}
         >

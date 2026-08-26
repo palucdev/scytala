@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Card from "@mui/material/Card";
 import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
@@ -20,8 +21,6 @@ export interface ParticipantCardProps {
   index: number;
   aliasError?: string;
   passwordError?: string;
-  isPasswordVisible: boolean;
-  onTogglePasswordVisibility: () => void;
   onUpdateAlias: (value: string) => void;
   onUpdatePassword: (value: string) => void;
   onRegeneratePassword: () => void;
@@ -33,13 +32,12 @@ export function ParticipantCard({
   index,
   aliasError,
   passwordError,
-  isPasswordVisible,
-  onTogglePasswordVisibility,
   onUpdateAlias,
   onUpdatePassword,
   onRegeneratePassword,
   onRemove,
 }: ParticipantCardProps) {
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   return (
     <Card
       variant="outlined"
@@ -105,7 +103,7 @@ export function ParticipantCard({
                           ? `Hide password for ${user.userAlias || `user ${index + 1}`}`
                           : `Show password for ${user.userAlias || `user ${index + 1}`}`
                       }
-                      onClick={onTogglePasswordVisibility}
+                      onClick={() => setIsPasswordVisible((prev) => !prev)}
                       edge="end"
                       size="small"
                     >

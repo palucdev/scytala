@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
@@ -41,17 +40,6 @@ export function StepParticipants({
   passwordErrors = {},
   emptyParticipantsError = false,
 }: StepParticipantsProps) {
-  const [visiblePasswords, setVisiblePasswords] = useState<
-    Record<string, boolean>
-  >({});
-
-  const togglePasswordVisibility = (id: string) => {
-    setVisiblePasswords((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
-  };
-
   return (
     <Stack spacing={3} sx={{ width: "100%", py: 1 }}>
       <Box>
@@ -82,10 +70,6 @@ export function StepParticipants({
               index={index}
               aliasError={aliasErrors[user.id]}
               passwordError={passwordErrors[user.id]}
-              isPasswordVisible={Boolean(visiblePasswords[user.id])}
-              onTogglePasswordVisibility={() =>
-                togglePasswordVisibility(user.id)
-              }
               onUpdateAlias={(val) =>
                 onUpdateParticipant(user.id, "userAlias", val)
               }

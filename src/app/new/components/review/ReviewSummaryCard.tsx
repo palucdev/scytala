@@ -217,7 +217,10 @@ export function ReviewSummaryCard({
                     >
                       <IconButton
                         aria-label={`Copy credentials for ${user.userAlias}`}
-                        onClick={() => handleCopy(formattedLine, credKey)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCopy(formattedLine, credKey);
+                        }}
                         size="small"
                         color={isCopied ? "success" : "default"}
                       >

@@ -294,7 +294,9 @@ describe("src/actions/dashboard", () => {
 
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error).toBe("Database connection timeout");
+        expect(result.error).toBe(
+          "Failed to create dashboard. Please try again later.",
+        );
       }
     });
 

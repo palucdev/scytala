@@ -73,7 +73,7 @@ export async function createDashboardAction(
         ? error.message.includes("unique constraint") ||
           error.message.includes("duplicate key")
           ? "A dashboard with this identifier already exists. Please try again."
-          : error.message
+          : "Failed to create dashboard. Please try again later."
         : "Failed to create dashboard";
     return {
       success: false,

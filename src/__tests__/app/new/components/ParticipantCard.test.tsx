@@ -15,8 +15,6 @@ describe("ParticipantCard", () => {
   const defaultProps = {
     user: defaultUser,
     index: 0,
-    isPasswordVisible: false,
-    onTogglePasswordVisibility: vi.fn(),
     onUpdateAlias: vi.fn(),
     onUpdatePassword: vi.fn(),
     onRegeneratePassword: vi.fn(),
@@ -79,19 +77,31 @@ describe("ParticipantCard", () => {
     expect(onUpdatePassword).toHaveBeenCalledWith("newpass123");
   });
 
-  it("triggers callbacks for toggle visibility, regenerate, and remove buttons", () => {
-    const onTogglePasswordVisibility = vi.fn();
+  it("toggles password visibility between password and text type internally", () => {
+    renderCard();
+
+    const passwordInput = screen.getByLabelText(
+      "Participant 1 Password",
+    ) as HTMLInputElement;
+    expect(passwordInput.type).toBe("password");
+
+    const toggleBtn = screen.getByRole("button", { name: /show password/i });
+    fireEvent.click(toggleBtn);
+    expect(passwordInput.type).toBe("text");
+
+    const hideBtn = screen.getByRole("button", { name: /hide password/i });
+    fireEvent.click(hideBtn);
+    expect(passwordInput.type).toBe("password");
+  });
+
+  it("triggers callbacks for regenerate and remove buttons", () => {
     const onRegeneratePassword = vi.fn();
     const onRemove = vi.fn();
 
     renderCard({
-      onTogglePasswordVisibility,
       onRegeneratePassword,
       onRemove,
     });
-
-    fireEvent.click(screen.getByRole("button", { name: /show password/i }));
-    expect(onTogglePasswordVisibility).toHaveBeenCalledTimes(1);
 
     fireEvent.click(
       screen.getByRole("button", { name: /regenerate password/i }),
