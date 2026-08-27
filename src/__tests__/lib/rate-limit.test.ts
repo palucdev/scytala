@@ -253,5 +253,21 @@ describe("src/lib/rate-limit", () => {
       expect(result.retryAfterSeconds).toBe(0);
       expect(mockLimit).toHaveBeenCalledWith("redis-test-ip-success");
     });
+
+    it("falls back to in-memory store when Upstash limit throws an exception", async () => {
+      const mockLimit = vi.fn().mockRejectedValue(new Error("Redis connection timeout"));
+
+      const mockLimiter = {
+        limit: mockLimit,
+      } as unknown as import("@upstash/ratelimit").Ratelimit;
+
+      const { rateLimiters, checkRateLimit } = await import("@/lib/rate-limit");
+      rateLimiters.authIp = mockLimiter;
+
+      const result = await checkRateLimit("authIp", "redis-test-ip-fallback");
+      expect(result.success).toBe(true);
+      expect(result.retryAfterSeconds).toBe(0);
+      expect(mockLimit).toHaveBeenCalledWith("redis-test-ip-fallback");
+    });
   });
 });

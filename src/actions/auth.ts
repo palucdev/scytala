@@ -60,47 +60,44 @@ export async function loginToDashboardAction(
       };
     }
 
-    const accountIdentifier = `${dashboardHash}:${userAlias.toLowerCase()}`;
-    const accountCheck = await checkRateLimit("authAccount", accountIdentifier);
-    if (!accountCheck.success) {
-      log.warn("Login request throttled by account rate limit", {
-        accountIdentifier,
-        retryAfterSeconds: accountCheck.retryAfterSeconds,
-      });
+    const handleFailedAttempt = async (): Promise<LoginDashboardActionResult> => {
+      const accountIdentifier = `${dashboardHash}:${userAlias.toLowerCase()}`;
+      const accountCheck = await checkRateLimit("authAccount", accountIdentifier);
+      if (!accountCheck.success) {
+        log.warn("Login request throttled by account rate limit", {
+          accountIdentifier,
+          retryAfterSeconds: accountCheck.retryAfterSeconds,
+        });
+        return {
+          success: false,
+          error: `Too many failed attempts for this account. Please try again in ${accountCheck.retryAfterSeconds} seconds.`,
+          rateLimited: true,
+          retryAfterSeconds: accountCheck.retryAfterSeconds,
+        };
+      }
       return {
         success: false,
-        error: `Too many failed attempts for this account. Please try again in ${accountCheck.retryAfterSeconds} seconds.`,
-        rateLimited: true,
-        retryAfterSeconds: accountCheck.retryAfterSeconds,
+        error: "Invalid alias or password.",
       };
-    }
+    };
 
     const db = createDatabaseClient();
     const dashboard = await db.getDashboardByHash(dashboardHash);
     if (!dashboard) {
       // Run dummy password check to equalize timing before returning generic error
       await verifyPassword(password, DUMMY_PBKDF2_HASH);
-      return {
-        success: false,
-        error: "Invalid alias or password.",
-      };
+      return handleFailedAttempt();
     }
 
     const user = await db.getDashboardUserByAlias(dashboard.id, userAlias);
     if (!user) {
       await verifyPassword(password, DUMMY_PBKDF2_HASH);
-      return {
-        success: false,
-        error: "Invalid alias or password.",
-      };
+      return handleFailedAttempt();
     }
 
     const isValidPassword = await verifyPassword(password, user.password_hash);
     if (!isValidPassword) {
-      return {
-        success: false,
-        error: "Invalid alias or password.",
-      };
+      return handleFailedAttempt();
     }
 
     const secret = getSessionSecret();

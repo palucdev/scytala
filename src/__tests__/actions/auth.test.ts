@@ -311,7 +311,17 @@ describe("src/actions/auth", () => {
       expect(mockCookieSet).not.toHaveBeenCalled();
     });
 
-    it("throttles request when account exceeds rate limit", async () => {
+    it("throttles request when account exceeds rate limit on failed authentication", async () => {
+      const mockGetDashboardByHash = vi.fn().mockResolvedValue(mockDashboard);
+      const mockGetDashboardUserByAlias = vi.fn().mockResolvedValue(mockUser);
+
+      vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
+        getDashboardByHash: mockGetDashboardByHash,
+        getDashboardUserByAlias: mockGetDashboardUserByAlias,
+      } as unknown as dbClientModule.DatabaseClient);
+
+      vi.spyOn(cryptoModule, "verifyPassword").mockResolvedValue(false);
+
       vi.spyOn(rateLimitModule, "checkRateLimit").mockImplementation(
         async (limiterType: string) => {
           if (limiterType === "authAccount") {
@@ -324,7 +334,7 @@ describe("src/actions/auth", () => {
       const result = await loginToDashboardAction({
         dashboardHash: "AbCdEfGh12345678",
         userAlias: "alice_agent",
-        password: "some-password",
+        password: "wrong-password",
       });
 
       expect(result.success).toBe(false);

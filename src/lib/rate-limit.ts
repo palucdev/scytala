@@ -1,6 +1,9 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { headers } from "next/headers";
+import { logger } from "@/lib/logger";
+
+const log = logger.child({ module: "rate-limit" });
 
 const ephemeralCache = new Map<string, number>();
 
@@ -20,6 +23,9 @@ export class InMemorySlidingWindowStore {
     const now = Date.now();
     const windowStart = now - windowMs;
     const timestamps = (this.hits.get(key) || []).filter((t) => t > windowStart);
+    if (timestamps.length === 0) {
+      this.hits.delete(key);
+    }
 
     if (timestamps.length >= maxRequests) {
       const oldest = timestamps[0] || now;
@@ -146,15 +152,22 @@ export async function checkRateLimit(
   const limiter = rateLimiters[limiterType];
 
   if (limiter) {
-    const result = await limiter.limit(identifier);
-    if (!result.success) {
-      const retryAfterSeconds = Math.max(
-        1,
-        Math.ceil((result.reset - Date.now()) / 1000),
-      );
-      return { success: false, retryAfterSeconds };
+    try {
+      const result = await limiter.limit(identifier);
+      if (!result.success) {
+        const retryAfterSeconds = Math.max(
+          1,
+          Math.ceil((result.reset - Date.now()) / 1000),
+        );
+        return { success: false, retryAfterSeconds };
+      }
+      return { success: true, retryAfterSeconds: 0 };
+    } catch (error) {
+      log.warn("Upstash Redis rate limit check failed, falling back to in-memory store", {
+        limiterType,
+        error,
+      });
     }
-    return { success: true, retryAfterSeconds: 0 };
   }
 
   const config = RATE_LIMIT_CONFIGS[limiterType];
@@ -178,7 +191,5 @@ export async function checkRateLimit(
 export function resetRateLimits(): void {
   inMemoryStore.reset();
   ephemeralCache.clear();
-  rateLimiters.authIp = null;
-  rateLimiters.authAccount = null;
-  rateLimiters.dashboardCreate = null;
+  Object.assign(rateLimiters, createRateLimiters());
 }
