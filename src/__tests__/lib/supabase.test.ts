@@ -23,6 +23,7 @@ interface MockQueryBuilder {
   single: ReturnType<typeof vi.fn>;
   maybeSingle: ReturnType<typeof vi.fn>;
   returns: ReturnType<typeof vi.fn>;
+  abortSignal: ReturnType<typeof vi.fn>;
   then: (
     onResolve?: (value: unknown) => unknown,
     onReject?: (reason: unknown) => unknown
@@ -106,6 +107,7 @@ describe('src/lib/supabase domain adapter', () => {
         single: vi.fn().mockResolvedValue(resolvedValue),
         maybeSingle: vi.fn().mockResolvedValue(resolvedValue),
         returns: vi.fn().mockResolvedValue(resolvedValue),
+        abortSignal: vi.fn().mockReturnThis(),
         then: (onResolve, onReject) =>
           Promise.resolve(resolvedValue).then(onResolve, onReject),
       };
@@ -957,5 +959,80 @@ describe('src/lib/supabase domain adapter', () => {
         );
       });
     });
+
+    describe('checkHealth', () => {
+      it('returns status up and latencyMs on successful probe', async () => {
+        const mockSupabase = {
+          from: vi.fn(() => createQueryBuilderMock({ data: [{ id: 1 }], error: null })),
+        } as unknown as SupabaseClient;
+
+        const db = new SupabaseDatabaseClient(mockSupabase);
+        const result = await db.checkHealth();
+
+        expect(result.status).toBe('up');
+        expect(typeof result.latencyMs).toBe('number');
+        expect(result.error).toBeUndefined();
+      });
+
+      it('passes abortSignal to query builder when signal is provided', async () => {
+        const queryMock = createQueryBuilderMock({ data: [{ id: 1 }], error: null });
+        const mockSupabase = {
+          from: vi.fn(() => queryMock),
+        } as unknown as SupabaseClient;
+
+        const db = new SupabaseDatabaseClient(mockSupabase);
+        const signal = AbortSignal.timeout(5000);
+        const result = await db.checkHealth(signal);
+
+        expect(result.status).toBe('up');
+        expect(queryMock.abortSignal).toHaveBeenCalledWith(signal);
+      });
+
+      it('returns status down, latencyMs, and error message when query fails with database error', async () => {
+        const mockSupabase = {
+          from: vi.fn(() =>
+            createQueryBuilderMock({ data: null, error: { message: 'Connection timeout' } })
+          ),
+        } as unknown as SupabaseClient;
+
+        const db = new SupabaseDatabaseClient(mockSupabase);
+        const result = await db.checkHealth();
+
+        expect(result.status).toBe('down');
+        expect(typeof result.latencyMs).toBe('number');
+        expect(result.error).toBe('Connection timeout');
+      });
+
+      it('catches thrown exceptions during probe and returns status down with error message', async () => {
+        const mockSupabase = {
+          from: vi.fn(() => {
+            throw new Error('Immediate network crash');
+          }),
+        } as unknown as SupabaseClient;
+
+        const db = new SupabaseDatabaseClient(mockSupabase);
+        const result = await db.checkHealth();
+
+        expect(result.status).toBe('down');
+        expect(typeof result.latencyMs).toBe('number');
+        expect(result.error).toBe('Immediate network crash');
+      });
+
+      it('handles non-Error thrown values gracefully', async () => {
+        const mockSupabase = {
+          from: vi.fn(() => {
+            throw 'String failure';
+          }),
+        } as unknown as SupabaseClient;
+
+        const db = new SupabaseDatabaseClient(mockSupabase);
+        const result = await db.checkHealth();
+
+        expect(result.status).toBe('down');
+        expect(typeof result.latencyMs).toBe('number');
+        expect(result.error).toBe('Unknown health check error');
+      });
+    });
   });
 });
+

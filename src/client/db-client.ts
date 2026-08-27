@@ -32,6 +32,13 @@ export interface AuditResult {
   record?: AuditRecord;
 }
 
+/** Result of probing database connectivity. */
+export interface HealthCheckResult {
+  status: "up" | "down";
+  latencyMs: number;
+  error?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Domain Models
 // ---------------------------------------------------------------------------
@@ -136,6 +143,11 @@ export interface DatabaseClient {
    * Return all audit records ordered by `created_at` descending.
    */
   getAuditHistory(): Promise<AuditRecord[]>;
+
+  /**
+   * Health check probe to verify database connectivity.
+   */
+  checkHealth(signal?: AbortSignal): Promise<HealthCheckResult>;
 
   /**
    * Create a new dashboard along with its initial participant users.

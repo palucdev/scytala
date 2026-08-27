@@ -12,6 +12,7 @@ import type {
   Dashboard,
   DashboardUser,
   DatabaseClient,
+  HealthCheckResult,
   Note,
   NoteVersion,
   UpdateNoteInput,
@@ -127,6 +128,45 @@ export class SupabaseDatabaseClient implements DatabaseClient {
     }
 
     return data ?? [];
+  }
+
+  /**
+   * Check database connectivity by querying the `info` table with latency tracking and timeout support.
+   */
+  async checkHealth(signal?: AbortSignal): Promise<HealthCheckResult> {
+    const start = performance.now();
+    try {
+      let query = this.client.from("info").select("id").limit(1);
+
+      if (signal && typeof query.abortSignal === "function") {
+        query = query.abortSignal(signal);
+      }
+
+      const { error } = await query;
+      const latencyMs = Math.round(performance.now() - start);
+
+      if (error) {
+        return {
+          status: "down",
+          latencyMs,
+          error: error.message,
+        };
+      }
+
+      return {
+        status: "up",
+        latencyMs,
+      };
+    } catch (err: unknown) {
+      const latencyMs = Math.round(performance.now() - start);
+      const errorMessage =
+        err instanceof Error ? err.message : "Unknown health check error";
+      return {
+        status: "down",
+        latencyMs,
+        error: errorMessage,
+      };
+    }
   }
 
   private async getAuditRecordByVersion(
