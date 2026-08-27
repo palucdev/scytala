@@ -58,7 +58,13 @@ describe("Dashboard Subcomponents", () => {
       expect(button).not.toBeDisabled();
     });
 
-    it("triggers logoutFromDashboardAction and calls router.refresh on click", async () => {
+    it("triggers logoutFromDashboardAction and calls window.location.replace on click", async () => {
+      const originalLocation = window.location;
+      const replaceMock = vi.fn();
+      // @ts-expect-error - mock window.location
+      delete window.location;
+      window.location = { ...originalLocation, replace: replaceMock, pathname: "/dashboard/test-hash" } as Location;
+
       mockLogoutAction.mockResolvedValueOnce({ success: true });
 
       renderWithTheme(<LogoutButton dashboardHash="test-hash" />);
@@ -71,11 +77,19 @@ describe("Dashboard Subcomponents", () => {
       });
 
       await waitFor(() => {
-        expect(mockRefresh).toHaveBeenCalled();
+        expect(replaceMock).toHaveBeenCalledWith("/dashboard/test-hash");
       });
+
+      window.location = originalLocation;
     });
 
-    it("redirects to custom redirectTo URL via router.push when specified", async () => {
+    it("redirects to custom redirectTo URL via window.location.replace when specified", async () => {
+      const originalLocation = window.location;
+      const replaceMock = vi.fn();
+      // @ts-expect-error - mock window.location
+      delete window.location;
+      window.location = { ...originalLocation, replace: replaceMock, pathname: "/dashboard/test-hash" } as Location;
+
       mockLogoutAction.mockResolvedValueOnce({ success: true });
 
       renderWithTheme(<LogoutButton redirectTo="/goodbye" />);
@@ -88,8 +102,58 @@ describe("Dashboard Subcomponents", () => {
       });
 
       await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith("/goodbye");
+        expect(replaceMock).toHaveBeenCalledWith("/goodbye");
       });
+
+      window.location = originalLocation;
+    });
+
+    it("handles logout action failure without redirecting", async () => {
+      const originalLocation = window.location;
+      const replaceMock = vi.fn();
+      // @ts-expect-error - mock window.location
+      delete window.location;
+      window.location = { ...originalLocation, replace: replaceMock, pathname: "/dashboard/test-hash" } as Location;
+
+      mockLogoutAction.mockResolvedValueOnce({ success: false, error: "Network error" });
+
+      renderWithTheme(<LogoutButton dashboardHash="test-hash" />);
+
+      const button = screen.getByRole("button", { name: /log out/i });
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        expect(mockLogoutAction).toHaveBeenCalledWith({ dashboardHash: "test-hash" });
+      });
+
+      expect(replaceMock).not.toHaveBeenCalled();
+      expect(button).not.toBeDisabled();
+
+      window.location = originalLocation;
+    });
+
+    it("handles logout action exception gracefully", async () => {
+      const originalLocation = window.location;
+      const replaceMock = vi.fn();
+      // @ts-expect-error - mock window.location
+      delete window.location;
+      window.location = { ...originalLocation, replace: replaceMock, pathname: "/dashboard/test-hash" } as Location;
+
+      mockLogoutAction.mockRejectedValueOnce(new Error("Fatal connection failure"));
+
+      renderWithTheme(<LogoutButton dashboardHash="test-hash" />);
+
+      const button = screen.getByRole("button", { name: /log out/i });
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        expect(mockLogoutAction).toHaveBeenCalledWith({ dashboardHash: "test-hash" });
+      });
+
+      expect(replaceMock).not.toHaveBeenCalled();
+      expect(button).not.toBeDisabled();
+
+      window.location = originalLocation;
     });
   });
 

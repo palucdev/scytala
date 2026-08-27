@@ -1,7 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import LogoutIcon from "@mui/icons-material/Logout";
@@ -21,26 +20,36 @@ export function LogoutButton({
   dashboardHash,
   redirectTo,
 }: LogoutButtonProps) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
 
-  const handleLogout = () => {
-    startTransition(async () => {
+  const handleLogout = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (isPending) return;
+
+    setIsPending(true);
+    try {
       const result = await logoutFromDashboardAction(
         dashboardHash ? { dashboardHash } : undefined,
       );
-      if (result.success) {
-        if (redirectTo) {
-          router.push(redirectTo);
-        } else {
-          router.refresh();
+      if (result?.success) {
+        if (typeof window !== "undefined") {
+          const targetUrl = redirectTo || window.location.pathname;
+          window.location.replace(targetUrl);
         }
+      } else {
+        setIsPending(false);
       }
-    });
+    } catch {
+      setIsPending(false);
+    }
   };
 
   return (
     <Button
+      type="button"
       variant={variant}
       size={size}
       color="primary"

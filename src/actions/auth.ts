@@ -141,10 +141,19 @@ export async function logoutFromDashboardAction(
 ): Promise<LogoutDashboardActionResult> {
   try {
     const cookieStore = await cookies();
+    const deleteCookieOptions = {
+      path: "/",
+      maxAge: 0,
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: true,
+      sameSite: "lax" as const,
+    };
     if (input?.dashboardHash) {
       const scopedCookieName = getSessionCookieName(input.dashboardHash);
+      cookieStore.set(scopedCookieName, "", deleteCookieOptions);
       cookieStore.delete(scopedCookieName);
     }
+    cookieStore.set(SESSION_COOKIE_NAME, "", deleteCookieOptions);
     cookieStore.delete(SESSION_COOKIE_NAME);
     return { success: true };
   } catch (error) {
