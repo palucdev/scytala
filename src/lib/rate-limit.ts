@@ -1,11 +1,8 @@
-import { Ratelimit } from "@upstash/ratelimit";
-import { Redis } from "@upstash/redis";
 import { headers } from "next/headers";
+import { createDatabaseClient } from "@/client/db-client";
 import { logger } from "@/lib/logger";
 
 const log = logger.child({ module: "rate-limit" });
-
-const ephemeralCache = new Map<string, number>();
 
 export class InMemorySlidingWindowStore {
   private hits = new Map<string, number[]>();
@@ -50,64 +47,7 @@ export class InMemorySlidingWindowStore {
 
 export const inMemoryStore = new InMemorySlidingWindowStore();
 
-function getUpstashRedis(): Redis | null {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (url && token) {
-    return new Redis({ url, token });
-  }
-  return null;
-}
-
 export type RateLimiterType = "authIp" | "authAccount" | "dashboardCreate";
-
-export function createRateLimiters(redis: Redis | null = getUpstashRedis()): {
-  authIp: Ratelimit | null;
-  authAccount: Ratelimit | null;
-  dashboardCreate: Ratelimit | null;
-} {
-  if (!redis) {
-    return {
-      authIp: null,
-      authAccount: null,
-      dashboardCreate: null,
-    };
-  }
-
-  return {
-    authIp: new Ratelimit({
-      redis,
-      limiter: Ratelimit.slidingWindow(10, "60 s"),
-      ephemeralCache,
-      timeout: 1000,
-      prefix: "rl:auth:ip",
-    }),
-    authAccount: new Ratelimit({
-      redis,
-      limiter: Ratelimit.slidingWindow(5, "900 s"),
-      ephemeralCache,
-      timeout: 1000,
-      prefix: "rl:auth:account",
-    }),
-    dashboardCreate: new Ratelimit({
-      redis,
-      limiter: Ratelimit.slidingWindow(5, "3600 s"),
-      ephemeralCache,
-      timeout: 1000,
-      prefix: "rl:dash:create",
-    }),
-  };
-}
-
-export const rateLimiters: {
-  authIp: Ratelimit | null;
-  authAccount: Ratelimit | null;
-  dashboardCreate: Ratelimit | null;
-} = createRateLimiters();
-
-export function getRateLimiters() {
-  return createRateLimiters();
-}
 
 export async function getClientIp(): Promise<string> {
   try {
@@ -138,39 +78,91 @@ export interface RateLimitCheckResult {
 
 export const RATE_LIMIT_CONFIGS: Record<
   RateLimiterType,
-  { max: number; windowMs: number }
+  { max: number; windowMs: number; refillRate: number }
 > = {
-  authIp: { max: 10, windowMs: 60 * 1000 },
-  authAccount: { max: 5, windowMs: 15 * 60 * 1000 },
-  dashboardCreate: { max: 5, windowMs: 60 * 60 * 1000 },
+  authIp: { max: 10, windowMs: 60 * 1000, refillRate: 10 / 60 },
+  authAccount: { max: 5, windowMs: 15 * 60 * 1000, refillRate: 5 / 900 },
+  dashboardCreate: { max: 5, windowMs: 60 * 60 * 1000, refillRate: 5 / 3600 },
 };
 
+/**
+ * Check rate limit using Cloudflare native rate limiter for IP limits,
+ * Supabase PostgreSQL Token Bucket RPC for account and resource limits,
+ * and falling back gracefully to inMemoryStore.
+ */
 export async function checkRateLimit(
   limiterType: RateLimiterType,
   identifier: string,
 ): Promise<RateLimitCheckResult> {
-  const limiter = rateLimiters[limiterType];
+  const config = RATE_LIMIT_CONFIGS[limiterType];
 
-  if (limiter) {
+  if (limiterType === "authIp") {
+    // 1. Attempt Cloudflare native rate limiting binding
     try {
-      const result = await limiter.limit(identifier);
-      if (!result.success) {
-        const retryAfterSeconds = Math.max(
-          1,
-          Math.ceil((result.reset - Date.now()) / 1000),
-        );
-        return { success: false, retryAfterSeconds };
+      const { getCloudflareContext } = await import("@opennextjs/cloudflare");
+      const cfContext = await getCloudflareContext({ async: true });
+      const cfEnv = cfContext?.env as
+        | {
+            AUTH_IP_LIMITER?: {
+              limit: (options: { key: string }) => Promise<{ success: boolean }>;
+            };
+          }
+        | undefined;
+
+      if (cfEnv?.AUTH_IP_LIMITER && typeof cfEnv.AUTH_IP_LIMITER.limit === "function") {
+        const cfResult = await cfEnv.AUTH_IP_LIMITER.limit({ key: identifier });
+        if (!cfResult.success) {
+          return { success: false, retryAfterSeconds: 60 };
+        }
+        return { success: true, retryAfterSeconds: 0 };
       }
-      return { success: true, retryAfterSeconds: 0 };
     } catch (error) {
-      log.warn("Upstash Redis rate limit check failed, falling back to in-memory store", {
-        limiterType,
+      log.debug("Cloudflare rate limiter binding unavailable or failed, falling back to in-memory store", {
         error,
       });
     }
+
+    // Fallback to in-memory store for authIp
+    const result = await inMemoryStore.limit(
+      `authIp:${identifier}`,
+      config.max,
+      config.windowMs,
+    );
+    if (!result.success) {
+      const retryAfterSeconds = Math.max(
+        1,
+        Math.ceil((result.reset - Date.now()) / 1000),
+      );
+      return { success: false, retryAfterSeconds };
+    }
+    return { success: true, retryAfterSeconds: 0 };
   }
 
-  const config = RATE_LIMIT_CONFIGS[limiterType];
+  // 2. For authAccount and dashboardCreate: Attempt Supabase RPC
+  try {
+    const db = createDatabaseClient();
+    const rpcResult = await db.checkRateLimit(
+      `${limiterType}:${identifier}`,
+      config.max,
+      config.refillRate,
+      1.0,
+    );
+
+    if (!rpcResult.success) {
+      return {
+        success: false,
+        retryAfterSeconds: Math.max(1, rpcResult.retry_after_seconds),
+      };
+    }
+    return { success: true, retryAfterSeconds: 0 };
+  } catch (error) {
+    log.warn("Supabase rate limit RPC failed, falling back to in-memory store", {
+      limiterType,
+      error,
+    });
+  }
+
+  // Fallback to in-memory store for account / resource limiters
   const result = await inMemoryStore.limit(
     `${limiterType}:${identifier}`,
     config.max,
@@ -190,6 +182,4 @@ export async function checkRateLimit(
 
 export function resetRateLimits(): void {
   inMemoryStore.reset();
-  ephemeralCache.clear();
-  Object.assign(rateLimiters, createRateLimiters());
 }

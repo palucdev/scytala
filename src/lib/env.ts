@@ -7,8 +7,6 @@ export const envSchema = z.object({
   SESSION_SECRET: z.string().min(32, "SESSION_SECRET must be at least 32 characters long"),
   DEPLOY_ID: z.string().optional().default("development"),
   APP_VERSION: z.string().optional().default("0.1.5"),
-  UPSTASH_REDIS_REST_URL: z.string().url("UPSTASH_REDIS_REST_URL must be a valid URL").optional(),
-  UPSTASH_REDIS_REST_TOKEN: z.string().optional(),
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error", "fatal"]).optional().default("info"),
 });
 
@@ -32,8 +30,6 @@ export function getEnv(customEnv?: Record<string, string | undefined>): Env {
     SESSION_SECRET: source.SESSION_SECRET,
     DEPLOY_ID: source.DEPLOY_ID,
     APP_VERSION: source.APP_VERSION,
-    UPSTASH_REDIS_REST_URL: source.UPSTASH_REDIS_REST_URL || undefined,
-    UPSTASH_REDIS_REST_TOKEN: source.UPSTASH_REDIS_REST_TOKEN || undefined,
     LOG_LEVEL: source.LOG_LEVEL,
   });
 

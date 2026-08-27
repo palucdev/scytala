@@ -1033,6 +1033,62 @@ describe('src/lib/supabase domain adapter', () => {
         expect(result.error).toBe('Unknown health check error');
       });
     });
+
+    describe('checkRateLimit', () => {
+      it('invokes check_rate_limit RPC and returns RateLimitRpcResult', async () => {
+        const mockSupabase = {
+          rpc: vi.fn().mockResolvedValue({
+            data: {
+              success: true,
+              remaining: 4,
+              retry_after_seconds: 0,
+            },
+            error: null,
+          }),
+        } as unknown as SupabaseClient;
+
+        const db = new SupabaseDatabaseClient(mockSupabase);
+        const result = await db.checkRateLimit('authAccount:dash:user', 5, 5 / 900);
+
+        expect(result).toEqual({
+          success: true,
+          remaining: 4,
+          retry_after_seconds: 0,
+        });
+        expect(mockSupabase.rpc).toHaveBeenCalledWith('check_rate_limit', {
+          p_key: 'authAccount:dash:user',
+          p_max_tokens: 5,
+          p_refill_rate: 5 / 900,
+          p_cost: 1.0,
+        });
+      });
+
+      it('throws descriptive error when RPC returns error or null data', async () => {
+        const mockSupabaseErr = {
+          rpc: vi.fn().mockResolvedValue({
+            data: null,
+            error: { message: 'Database connection failed' },
+          }),
+        } as unknown as SupabaseClient;
+
+        const dbErr = new SupabaseDatabaseClient(mockSupabaseErr);
+        await expect(dbErr.checkRateLimit('key', 5, 1)).rejects.toThrow(
+          '[SupabaseDatabaseClient] checkRateLimit RPC failed: Database connection failed'
+        );
+
+        const mockSupabaseNull = {
+          rpc: vi.fn().mockResolvedValue({
+            data: null,
+            error: null,
+          }),
+        } as unknown as SupabaseClient;
+
+        const dbNull = new SupabaseDatabaseClient(mockSupabaseNull);
+        await expect(dbNull.checkRateLimit('key', 5, 1)).rejects.toThrow(
+          '[SupabaseDatabaseClient] checkRateLimit RPC failed: Unknown error'
+        );
+      });
+    });
   });
 });
 

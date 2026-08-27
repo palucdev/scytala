@@ -39,6 +39,13 @@ export interface HealthCheckResult {
   error?: string;
 }
 
+/** Result of check_rate_limit PostgreSQL RPC call. */
+export interface RateLimitRpcResult {
+  success: boolean;
+  remaining: number;
+  retry_after_seconds: number;
+}
+
 // ---------------------------------------------------------------------------
 // Domain Models
 // ---------------------------------------------------------------------------
@@ -148,6 +155,16 @@ export interface DatabaseClient {
    * Health check probe to verify database connectivity.
    */
   checkHealth(signal?: AbortSignal): Promise<HealthCheckResult>;
+
+  /**
+   * Check rate limit token bucket for a given key via PostgreSQL RPC.
+   */
+  checkRateLimit(
+    key: string,
+    maxTokens: number,
+    refillRate: number,
+    cost?: number,
+  ): Promise<RateLimitRpcResult>;
 
   /**
    * Create a new dashboard along with its initial participant users.

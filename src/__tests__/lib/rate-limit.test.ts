@@ -3,14 +3,19 @@ import {
   InMemorySlidingWindowStore,
   checkRateLimit,
   getClientIp,
-  getRateLimiters,
   resetRateLimits,
   RATE_LIMIT_CONFIGS,
 } from "@/lib/rate-limit";
 import * as nextHeaders from "next/headers";
+import * as dbClientModule from "@/client/db-client";
+import * as opennextModule from "@opennextjs/cloudflare";
 
 vi.mock("next/headers", () => ({
   headers: vi.fn(),
+}));
+
+vi.mock("@opennextjs/cloudflare", () => ({
+  getCloudflareContext: vi.fn(),
 }));
 
 describe("src/lib/rate-limit", () => {
@@ -22,8 +27,6 @@ describe("src/lib/rate-limit", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     resetRateLimits();
-    delete process.env.UPSTASH_REDIS_REST_URL;
-    delete process.env.UPSTASH_REDIS_REST_TOKEN;
   });
 
   describe("InMemorySlidingWindowStore", () => {
@@ -133,26 +136,136 @@ describe("src/lib/rate-limit", () => {
     });
   });
 
-  describe("checkRateLimit (in-memory mode)", () => {
-    it("enforces authIp limits correctly", async () => {
+  describe("checkRateLimit - Cloudflare native rate limiter (authIp)", () => {
+    it("allows request when Cloudflare AUTH_IP_LIMITER binding succeeds", async () => {
+      const mockLimit = vi.fn().mockResolvedValue({ success: true });
+      vi.spyOn(opennextModule, "getCloudflareContext").mockResolvedValue({
+        env: {
+          AUTH_IP_LIMITER: { limit: mockLimit },
+        },
+      } as unknown as Awaited<ReturnType<typeof opennextModule.getCloudflareContext>>);
+
+      const result = await checkRateLimit("authIp", "1.2.3.4");
+      expect(result.success).toBe(true);
+      expect(result.retryAfterSeconds).toBe(0);
+      expect(mockLimit).toHaveBeenCalledWith({ key: "1.2.3.4" });
+    });
+
+    it("blocks request and returns 60s retry time when Cloudflare AUTH_IP_LIMITER limits", async () => {
+      const mockLimit = vi.fn().mockResolvedValue({ success: false });
+      vi.spyOn(opennextModule, "getCloudflareContext").mockResolvedValue({
+        env: {
+          AUTH_IP_LIMITER: { limit: mockLimit },
+        },
+      } as unknown as Awaited<ReturnType<typeof opennextModule.getCloudflareContext>>);
+
+      const result = await checkRateLimit("authIp", "1.2.3.4");
+      expect(result.success).toBe(false);
+      expect(result.retryAfterSeconds).toBe(60);
+      expect(mockLimit).toHaveBeenCalledWith({ key: "1.2.3.4" });
+    });
+
+    it("falls back to in-memory store when Cloudflare binding throws an error", async () => {
+      vi.spyOn(opennextModule, "getCloudflareContext").mockRejectedValue(new Error("No Cloudflare context"));
+
       const max = RATE_LIMIT_CONFIGS.authIp.max;
       for (let i = 0; i < max; i++) {
-        const result = await checkRateLimit("authIp", "1.2.3.4");
+        const result = await checkRateLimit("authIp", "fallback-ip-1");
         expect(result.success).toBe(true);
-        expect(result.retryAfterSeconds).toBe(0);
       }
 
-      const blocked = await checkRateLimit("authIp", "1.2.3.4");
+      const blocked = await checkRateLimit("authIp", "fallback-ip-1");
       expect(blocked.success).toBe(false);
       expect(blocked.retryAfterSeconds).toBeGreaterThan(0);
     });
 
-    it("enforces authAccount limits correctly", async () => {
+    it("falls back to in-memory store when AUTH_IP_LIMITER binding is not defined in env", async () => {
+      vi.spyOn(opennextModule, "getCloudflareContext").mockResolvedValue({
+        env: {},
+      } as unknown as Awaited<ReturnType<typeof opennextModule.getCloudflareContext>>);
+
+      const result = await checkRateLimit("authIp", "no-binding-ip");
+      expect(result.success).toBe(true);
+      expect(result.retryAfterSeconds).toBe(0);
+    });
+  });
+
+  describe("checkRateLimit - Supabase RPC (authAccount & dashboardCreate)", () => {
+    it("allows request when Supabase checkRateLimit RPC succeeds", async () => {
+      const mockCheckRateLimit = vi.fn().mockResolvedValue({
+        success: true,
+        remaining: 4,
+        retry_after_seconds: 0,
+      });
+
+      vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
+        checkRateLimit: mockCheckRateLimit,
+      } as unknown as dbClientModule.DatabaseClient);
+
+      const result = await checkRateLimit("authAccount", "dash-hash:user");
+      expect(result.success).toBe(true);
+      expect(result.retryAfterSeconds).toBe(0);
+      expect(mockCheckRateLimit).toHaveBeenCalledWith(
+        "authAccount:dash-hash:user",
+        5,
+        RATE_LIMIT_CONFIGS.authAccount.refillRate,
+        1.0,
+      );
+    });
+
+    it("blocks request and returns retryAfterSeconds when Supabase checkRateLimit RPC indicates quota exceeded", async () => {
+      const mockCheckRateLimit = vi.fn().mockResolvedValue({
+        success: false,
+        remaining: 0,
+        retry_after_seconds: 180,
+      });
+
+      vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
+        checkRateLimit: mockCheckRateLimit,
+      } as unknown as dbClientModule.DatabaseClient);
+
+      const result = await checkRateLimit("dashboardCreate", "client-ip-1");
+      expect(result.success).toBe(false);
+      expect(result.retryAfterSeconds).toBe(180);
+      expect(mockCheckRateLimit).toHaveBeenCalledWith(
+        "dashboardCreate:client-ip-1",
+        5,
+        RATE_LIMIT_CONFIGS.dashboardCreate.refillRate,
+        1.0,
+      );
+    });
+
+    it("falls back to in-memory store when Supabase RPC throws an error", async () => {
+      vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
+        checkRateLimit: vi.fn().mockRejectedValue(new Error("Database RPC failure")),
+      } as unknown as dbClientModule.DatabaseClient);
+
+      const max = RATE_LIMIT_CONFIGS.authAccount.max;
+      for (let i = 0; i < max; i++) {
+        const result = await checkRateLimit("authAccount", "fallback-account");
+        expect(result.success).toBe(true);
+      }
+
+      const blocked = await checkRateLimit("authAccount", "fallback-account");
+      expect(blocked.success).toBe(false);
+      expect(blocked.retryAfterSeconds).toBeGreaterThan(0);
+    });
+  });
+
+  describe("checkRateLimit - In-memory isolation and limits", () => {
+    beforeEach(() => {
+      // Force in-memory by having CF and DB throw
+      vi.spyOn(opennextModule, "getCloudflareContext").mockRejectedValue(new Error("No CF"));
+      vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
+        checkRateLimit: vi.fn().mockRejectedValue(new Error("No DB")),
+      } as unknown as dbClientModule.DatabaseClient);
+    });
+
+    it("enforces authAccount limits in memory", async () => {
       const max = RATE_LIMIT_CONFIGS.authAccount.max;
       for (let i = 0; i < max; i++) {
         const result = await checkRateLimit("authAccount", "dash123:alice");
         expect(result.success).toBe(true);
-        expect(result.retryAfterSeconds).toBe(0);
       }
 
       const blocked = await checkRateLimit("authAccount", "dash123:alice");
@@ -160,12 +273,11 @@ describe("src/lib/rate-limit", () => {
       expect(blocked.retryAfterSeconds).toBeGreaterThan(0);
     });
 
-    it("enforces dashboardCreate limits correctly", async () => {
+    it("enforces dashboardCreate limits in memory", async () => {
       const max = RATE_LIMIT_CONFIGS.dashboardCreate.max;
       for (let i = 0; i < max; i++) {
         const result = await checkRateLimit("dashboardCreate", "5.6.7.8");
         expect(result.success).toBe(true);
-        expect(result.retryAfterSeconds).toBe(0);
       }
 
       const blocked = await checkRateLimit("dashboardCreate", "5.6.7.8");
@@ -173,7 +285,7 @@ describe("src/lib/rate-limit", () => {
       expect(blocked.retryAfterSeconds).toBeGreaterThan(0);
     });
 
-    it("isolates different identifiers", async () => {
+    it("isolates different identifiers in memory", async () => {
       const max = RATE_LIMIT_CONFIGS.authIp.max;
       for (let i = 0; i < max; i++) {
         await checkRateLimit("authIp", "ip-1");
@@ -184,90 +296,6 @@ describe("src/lib/rate-limit", () => {
 
       const allowedIp2 = await checkRateLimit("authIp", "ip-2");
       expect(allowedIp2.success).toBe(true);
-    });
-  });
-
-  describe("Upstash Redis configuration", () => {
-    it("returns null limiters when environment variables are absent", () => {
-      delete process.env.UPSTASH_REDIS_REST_URL;
-      delete process.env.UPSTASH_REDIS_REST_TOKEN;
-
-      const limiters = getRateLimiters();
-      expect(limiters.authIp).toBeNull();
-      expect(limiters.authAccount).toBeNull();
-      expect(limiters.dashboardCreate).toBeNull();
-    });
-
-    it("instantiates Upstash Ratelimit instances when env vars are present", () => {
-      process.env.UPSTASH_REDIS_REST_URL = "https://test-redis.upstash.io";
-      process.env.UPSTASH_REDIS_REST_TOKEN = "test-token-123";
-
-      const limiters = getRateLimiters();
-      expect(limiters.authIp).not.toBeNull();
-      expect(limiters.authAccount).not.toBeNull();
-      expect(limiters.dashboardCreate).not.toBeNull();
-    });
-
-    it("calculates retryAfterSeconds from reset timestamp when Upstash limit fails", async () => {
-      const resetTime = Date.now() + 45000;
-      const mockLimit = vi.fn().mockResolvedValue({
-        success: false,
-        limit: 10,
-        remaining: 0,
-        reset: resetTime,
-        pending: Promise.resolve(),
-      });
-
-      const mockLimiter = {
-        limit: mockLimit,
-      } as unknown as import("@upstash/ratelimit").Ratelimit;
-
-      const { rateLimiters, checkRateLimit } = await import("@/lib/rate-limit");
-      rateLimiters.authIp = mockLimiter;
-
-      const result = await checkRateLimit("authIp", "redis-test-ip");
-      expect(result.success).toBe(false);
-      expect(result.retryAfterSeconds).toBeGreaterThanOrEqual(40);
-      expect(result.retryAfterSeconds).toBeLessThanOrEqual(46);
-      expect(mockLimit).toHaveBeenCalledWith("redis-test-ip");
-    });
-
-    it("returns retryAfterSeconds: 0 when Upstash limit succeeds", async () => {
-      const mockLimit = vi.fn().mockResolvedValue({
-        success: true,
-        limit: 10,
-        remaining: 9,
-        reset: Date.now() + 60000,
-        pending: Promise.resolve(),
-      });
-
-      const mockLimiter = {
-        limit: mockLimit,
-      } as unknown as import("@upstash/ratelimit").Ratelimit;
-
-      const { rateLimiters, checkRateLimit } = await import("@/lib/rate-limit");
-      rateLimiters.authIp = mockLimiter;
-
-      const result = await checkRateLimit("authIp", "redis-test-ip-success");
-      expect(result.success).toBe(true);
-      expect(result.retryAfterSeconds).toBe(0);
-      expect(mockLimit).toHaveBeenCalledWith("redis-test-ip-success");
-    });
-
-    it("falls back to in-memory store when Upstash limit throws an exception", async () => {
-      const mockLimit = vi.fn().mockRejectedValue(new Error("Redis connection timeout"));
-
-      const mockLimiter = {
-        limit: mockLimit,
-      } as unknown as import("@upstash/ratelimit").Ratelimit;
-
-      const { rateLimiters, checkRateLimit } = await import("@/lib/rate-limit");
-      rateLimiters.authIp = mockLimiter;
-
-      const result = await checkRateLimit("authIp", "redis-test-ip-fallback");
-      expect(result.success).toBe(true);
-      expect(result.retryAfterSeconds).toBe(0);
-      expect(mockLimit).toHaveBeenCalledWith("redis-test-ip-fallback");
     });
   });
 });

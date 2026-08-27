@@ -15,6 +15,7 @@ import type {
   HealthCheckResult,
   Note,
   NoteVersion,
+  RateLimitRpcResult,
   UpdateNoteInput,
 } from "../client/db-client";
 import { generateDashboardSlug } from "./crypto";
@@ -167,6 +168,31 @@ export class SupabaseDatabaseClient implements DatabaseClient {
         error: errorMessage,
       };
     }
+  }
+
+  /**
+   * Check rate limit token bucket for a given key via PostgreSQL RPC.
+   */
+  async checkRateLimit(
+    key: string,
+    maxTokens: number,
+    refillRate: number,
+    cost: number = 1.0,
+  ): Promise<RateLimitRpcResult> {
+    const { data, error } = await this.client.rpc("check_rate_limit", {
+      p_key: key,
+      p_max_tokens: maxTokens,
+      p_refill_rate: refillRate,
+      p_cost: cost,
+    });
+
+    if (error || !data) {
+      throw new Error(
+        `[SupabaseDatabaseClient] checkRateLimit RPC failed: ${error?.message || "Unknown error"}`,
+      );
+    }
+
+    return data as RateLimitRpcResult;
   }
 
   private async getAuditRecordByVersion(

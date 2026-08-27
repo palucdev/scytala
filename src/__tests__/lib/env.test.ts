@@ -35,8 +35,6 @@ describe("src/lib/env", () => {
       expect(parsed.DEPLOY_ID).toBe("development");
       expect(parsed.APP_VERSION).toBe("0.1.5");
       expect(parsed.LOG_LEVEL).toBe("info");
-      expect(parsed.UPSTASH_REDIS_REST_URL).toBeUndefined();
-      expect(parsed.UPSTASH_REDIS_REST_TOKEN).toBeUndefined();
     });
 
     it("parses optional custom values when provided", () => {
@@ -45,8 +43,6 @@ describe("src/lib/env", () => {
         DEPLOY_ID: "prod-deploy-42",
         APP_VERSION: "1.0.0",
         LOG_LEVEL: "debug",
-        UPSTASH_REDIS_REST_URL: "https://my-redis.upstash.io",
-        UPSTASH_REDIS_REST_TOKEN: "redis-secret-token",
       };
 
       const parsed = getEnv(customVars);
@@ -54,8 +50,6 @@ describe("src/lib/env", () => {
       expect(parsed.DEPLOY_ID).toBe("prod-deploy-42");
       expect(parsed.APP_VERSION).toBe("1.0.0");
       expect(parsed.LOG_LEVEL).toBe("debug");
-      expect(parsed.UPSTASH_REDIS_REST_URL).toBe("https://my-redis.upstash.io");
-      expect(parsed.UPSTASH_REDIS_REST_TOKEN).toBe("redis-secret-token");
     });
 
     it("throws a descriptive error when SUPABASE_URL is missing or invalid", () => {
@@ -108,15 +102,6 @@ describe("src/lib/env", () => {
           LOG_LEVEL: "verbose",
         }),
       ).toThrowError(/LOG_LEVEL/);
-    });
-
-    it("throws an error when UPSTASH_REDIS_REST_URL is invalid", () => {
-      expect(() =>
-        getEnv({
-          ...validEnvVars,
-          UPSTASH_REDIS_REST_URL: "invalid-url",
-        }),
-      ).toThrowError(/UPSTASH_REDIS_REST_URL must be a valid URL/);
     });
 
     it("reads from process.env and caches result when called with no arguments", () => {
