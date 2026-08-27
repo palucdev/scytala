@@ -31,6 +31,8 @@ export type LoginDashboardActionResult =
       success: false;
       error: string;
       fieldErrors?: Record<string, string[]>;
+      rateLimited?: boolean;
+      retryAfterSeconds?: number;
     };
 
 export type LogoutDashboardActionResult = {

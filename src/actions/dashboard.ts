@@ -7,6 +7,7 @@ import {
   hashPassword,
 } from "@/lib/crypto";
 import { logger } from "@/lib/logger";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import {
   createDashboardSchema,
   type CreateDashboardActionResult,
@@ -41,6 +42,20 @@ export async function createDashboardAction(
   }
 
   try {
+    const clientIp = await getClientIp();
+    const ipCheck = await checkRateLimit("dashboardCreate", clientIp);
+    if (!ipCheck.success) {
+      log.warn("Dashboard creation throttled by IP rate limit", {
+        clientIp,
+        retryAfterSeconds: ipCheck.retryAfterSeconds,
+      });
+      return {
+        success: false,
+        error: `Too many dashboard creation requests. Please try again in ${ipCheck.retryAfterSeconds} seconds.`,
+        rateLimited: true,
+        retryAfterSeconds: ipCheck.retryAfterSeconds,
+      };
+    }
     const slug = generateDashboardSlug(DEFAULT_DASHBOARD_SLUG_LENGTH);
     const hashedUsers = await Promise.all(
       parsed.data.users.map(async (u) => ({

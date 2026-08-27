@@ -10,6 +10,7 @@ import {
   SESSION_COOKIE_NAME,
 } from "@/lib/session";
 import { logger } from "@/lib/logger";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import {
   loginDashboardSchema,
   type LoginDashboardActionResult,
@@ -44,6 +45,36 @@ export async function loginToDashboardAction(
   const { dashboardHash, userAlias, password } = parsed.data;
 
   try {
+    const clientIp = await getClientIp();
+    const ipCheck = await checkRateLimit("authIp", clientIp);
+    if (!ipCheck.success) {
+      log.warn("Login request throttled by IP rate limit", {
+        clientIp,
+        retryAfterSeconds: ipCheck.retryAfterSeconds,
+      });
+      return {
+        success: false,
+        error: `Too many login attempts. Please try again in ${ipCheck.retryAfterSeconds} seconds.`,
+        rateLimited: true,
+        retryAfterSeconds: ipCheck.retryAfterSeconds,
+      };
+    }
+
+    const accountIdentifier = `${dashboardHash}:${userAlias.toLowerCase()}`;
+    const accountCheck = await checkRateLimit("authAccount", accountIdentifier);
+    if (!accountCheck.success) {
+      log.warn("Login request throttled by account rate limit", {
+        accountIdentifier,
+        retryAfterSeconds: accountCheck.retryAfterSeconds,
+      });
+      return {
+        success: false,
+        error: `Too many failed attempts for this account. Please try again in ${accountCheck.retryAfterSeconds} seconds.`,
+        rateLimited: true,
+        retryAfterSeconds: accountCheck.retryAfterSeconds,
+      };
+    }
+
     const db = createDatabaseClient();
     const dashboard = await db.getDashboardByHash(dashboardHash);
     if (!dashboard) {

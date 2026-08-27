@@ -4,6 +4,8 @@ import { loginDashboardSchema } from "@/schemas/auth";
 import * as dbClientModule from "@/client/db-client";
 import * as cryptoModule from "@/lib/crypto";
 import * as sessionModule from "@/lib/session";
+import * as rateLimitModule from "@/lib/rate-limit";
+import { resetRateLimits } from "@/lib/rate-limit";
 
 const mockCookieSet = vi.fn();
 const mockCookieDelete = vi.fn();
@@ -14,6 +16,9 @@ vi.mock("next/headers", () => ({
     set: mockCookieSet,
     delete: mockCookieDelete,
     get: mockCookieGet,
+  })),
+  headers: vi.fn(async () => ({
+    get: vi.fn(() => "127.0.0.1"),
   })),
 }));
 
@@ -37,6 +42,7 @@ describe("src/actions/auth", () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    resetRateLimits();
     mockCookieSet.mockClear();
     mockCookieDelete.mockClear();
     mockCookieGet.mockClear();
@@ -44,6 +50,7 @@ describe("src/actions/auth", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    resetRateLimits();
   });
 
   describe("loginDashboardSchema", () => {
@@ -275,6 +282,56 @@ describe("src/actions/auth", () => {
         expect(result.error).toBe(
           "Authentication service temporarily unavailable. Please try again.",
         );
+      }
+      expect(mockCookieSet).not.toHaveBeenCalled();
+    });
+
+    it("throttles request when client IP exceeds rate limit", async () => {
+      vi.spyOn(rateLimitModule, "checkRateLimit").mockImplementation(
+        async (limiterType: string) => {
+          if (limiterType === "authIp") {
+            return { success: false, retryAfterSeconds: 45 };
+          }
+          return { success: true, retryAfterSeconds: 0 };
+        },
+      );
+
+      const result = await loginToDashboardAction({
+        dashboardHash: "AbCdEfGh12345678",
+        userAlias: "alice_agent",
+        password: "some-password",
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.rateLimited).toBe(true);
+        expect(result.retryAfterSeconds).toBe(45);
+        expect(result.error).toContain("Too many login attempts. Please try again in 45 seconds.");
+      }
+      expect(mockCookieSet).not.toHaveBeenCalled();
+    });
+
+    it("throttles request when account exceeds rate limit", async () => {
+      vi.spyOn(rateLimitModule, "checkRateLimit").mockImplementation(
+        async (limiterType: string) => {
+          if (limiterType === "authAccount") {
+            return { success: false, retryAfterSeconds: 300 };
+          }
+          return { success: true, retryAfterSeconds: 0 };
+        },
+      );
+
+      const result = await loginToDashboardAction({
+        dashboardHash: "AbCdEfGh12345678",
+        userAlias: "alice_agent",
+        password: "some-password",
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.rateLimited).toBe(true);
+        expect(result.retryAfterSeconds).toBe(300);
+        expect(result.error).toContain("Too many failed attempts for this account. Please try again in 300 seconds.");
       }
       expect(mockCookieSet).not.toHaveBeenCalled();
     });
