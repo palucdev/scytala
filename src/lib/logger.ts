@@ -59,18 +59,18 @@ export function sanitizeValue(value: unknown, seen = new WeakSet<object>()): unk
   }
   if (typeof value === "number" || typeof value === "boolean") return value;
 
-  if (value instanceof Error) {
-    return {
-      name: value.name,
-      message: typeof value.message === "string" ? sanitizeString(value.message) : value.message,
-      stack: typeof value.stack === "string" ? sanitizeString(value.stack) : value.stack,
-      cause: value.cause ? sanitizeValue(value.cause, seen) : undefined,
-    };
-  }
-
   if (typeof value === "object") {
     if (seen.has(value as object)) return "[CIRCULAR]";
     seen.add(value as object);
+
+    if (value instanceof Error) {
+      return {
+        name: value.name,
+        message: typeof value.message === "string" ? sanitizeString(value.message) : value.message,
+        stack: typeof value.stack === "string" ? sanitizeString(value.stack) : value.stack,
+        cause: value.cause ? sanitizeValue(value.cause, seen) : undefined,
+      };
+    }
 
     if (Array.isArray(value)) {
       return value.map((item) => sanitizeValue(item, seen));

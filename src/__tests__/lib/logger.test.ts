@@ -100,6 +100,15 @@ describe("src/lib/logger", () => {
       expect(sanitized.stack).toBeDefined();
       expect((sanitized.cause as Record<string, unknown>).message).toBe("[REDACTED]");
     });
+
+    it("handles circular references on Error cause without crashing", () => {
+      const err = new Error("Self-referencing error");
+      err.cause = err;
+
+      const sanitized = sanitizeValue(err) as Record<string, unknown>;
+      expect(sanitized.name).toBe("Error");
+      expect(sanitized.cause).toBe("[CIRCULAR]");
+    });
   });
 
   describe("Logger class", () => {
