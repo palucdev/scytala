@@ -12,6 +12,31 @@ export const SESSION_COOKIE_NAME =
     ? "__Host-scytala_session"
     : "scytala_session";
 
+/**
+ * Returns the scoped cookie name for a specific dashboard hash or the global default.
+ * Provides multi-dashboard cookie namespacing so sessions across multiple browser tabs
+ * or dashboards do not overwrite each other.
+ */
+export function getSessionCookieName(dashboardHash?: string): string {
+  const prefix =
+    process.env.NODE_ENV === "production"
+      ? "__Host-scytala_session"
+      : "scytala_session";
+
+  if (
+    dashboardHash &&
+    typeof dashboardHash === "string" &&
+    dashboardHash.trim().length > 0
+  ) {
+    const safeHash = dashboardHash.trim().replace(/[^a-zA-Z0-9_-]/g, "");
+    if (safeHash.length > 0) {
+      return `${prefix}_${safeHash}`;
+    }
+  }
+
+  return prefix;
+}
+
 export interface SessionPayload {
   dashboard_id: string;
   dashboard_hash: string;

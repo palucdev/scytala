@@ -268,5 +268,96 @@ describe("src/app/dashboard/[hash]/page.tsx (DashboardPage SSR)", () => {
         screen.getByRole("button", { name: /new note/i }),
       ).toBeDisabled();
     });
+
+    it("resolves session token from scoped cookie name", async () => {
+      const scopedCookieName = sessionModule.getSessionCookieName(mockDashboard.hash);
+      mockCookieGet.mockImplementation((name: string) => {
+        if (name === scopedCookieName) {
+          return { value: "scoped.jwt.token" };
+        }
+        return undefined;
+      });
+
+      mockGetNotesByDashboard.mockResolvedValue([]);
+
+      const page = await DashboardPage({
+        params: Promise.resolve({ hash: mockDashboard.hash }),
+      });
+      renderWithTheme(page);
+
+      expect(screen.getByText("Commander_Shepard")).toBeInTheDocument();
+      expect(mockCookieGet).toHaveBeenCalledWith(scopedCookieName);
+    });
+
+    it("propagates database error when getNotesByDashboard fails for error boundary", async () => {
+      mockGetNotesByDashboard.mockRejectedValue(new Error("Database connection lost"));
+
+      await expect(
+        DashboardPage({
+          params: Promise.resolve({ hash: mockDashboard.hash }),
+        }),
+      ).rejects.toThrow("Database connection lost");
+    });
+  });
+
+  describe("DTO Mappers & RSC Boundary Defense", () => {
+    it("mapDashboardToDto strips internal database properties", async () => {
+      const { mapDashboardToDto } = await import("@/app/dashboard/[hash]/page");
+      const dto = mapDashboardToDto(mockDashboard);
+
+      expect(dto).toEqual({
+        title: "Secret Operations Room",
+        description: "Encrypted planning board",
+      });
+
+      // Explicitly verify sensitive / internal database fields are omitted
+      expect((dto as unknown as Record<string, unknown>).id).toBeUndefined();
+      expect((dto as unknown as Record<string, unknown>).hash).toBeUndefined();
+      expect((dto as unknown as Record<string, unknown>).created_at).toBeUndefined();
+    });
+
+    it("mapNotesToDto strips note internals and sorts by updated_at desc", async () => {
+      const { mapNotesToDto } = await import("@/app/dashboard/[hash]/page");
+      const unorderedNotes: Note[] = [
+        {
+          id: "note-1",
+          dashboard_id: "dash-1234-uuid",
+          title: "First Note",
+          content: "Content 1",
+          version: 1,
+          created_at: "2026-08-26T08:00:00Z",
+          updated_at: "2026-08-26T09:00:00Z",
+        },
+        {
+          id: "note-2",
+          dashboard_id: "dash-1234-uuid",
+          title: "Second Note",
+          content: "Content 2",
+          version: 2,
+          created_at: "2026-08-26T08:30:00Z",
+          updated_at: "2026-08-26T12:00:00Z",
+        },
+      ];
+
+      const dtos = mapNotesToDto(unorderedNotes);
+
+      expect(dtos).toHaveLength(2);
+      // Note 2 (updated at 12:00) should be first
+      expect(dtos[0].id).toBe("note-2");
+      expect(dtos[1].id).toBe("note-1");
+
+      // Verify omitted properties
+      expect((dtos[0] as unknown as Record<string, unknown>).dashboard_id).toBeUndefined();
+      expect((dtos[0] as unknown as Record<string, unknown>).created_at).toBeUndefined();
+
+      // Verify preserved properties
+      expect(dtos[0]).toEqual({
+        id: "note-2",
+        title: "Second Note",
+        content: "Content 2",
+        version: 2,
+        updated_at: "2026-08-26T12:00:00Z",
+      });
+    });
   });
 });

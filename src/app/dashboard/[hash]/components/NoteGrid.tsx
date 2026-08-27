@@ -2,11 +2,11 @@
 
 import Box from "@mui/material/Box";
 
-import type { Note } from "@/client/db-client";
+import type { NoteDto } from "./DashboardView";
 import { NoteTile } from "./NoteTile";
 
 export interface NoteGridProps {
-  notes: Note[];
+  notes: NoteDto[];
 }
 
 export function NoteGrid({ notes }: NoteGridProps) {

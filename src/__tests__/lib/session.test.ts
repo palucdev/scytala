@@ -12,6 +12,7 @@ import {
   stringToBase64Url,
   base64UrlToString,
   getSessionSecret,
+  getSessionCookieName,
 } from '@/lib/session';
 
 describe('src/lib/session', () => {
@@ -436,6 +437,34 @@ describe('src/lib/session', () => {
       expect(extractSessionTokenFromCookieHeader('')).toBeNull();
       // @ts-expect-error testing invalid runtime input
       expect(extractSessionTokenFromCookieHeader(12345)).toBeNull();
+    });
+
+    it('returns unscoped cookie name when dashboardHash is not provided or empty', () => {
+      expect(getSessionCookieName()).toBe(SESSION_COOKIE_NAME);
+      expect(getSessionCookieName('')).toBe(SESSION_COOKIE_NAME);
+      expect(getSessionCookieName('   ')).toBe(SESSION_COOKIE_NAME);
+    });
+
+    it('returns scoped cookie name with sanitized hash', () => {
+      expect(getSessionCookieName('AbCdEfGh12345678')).toBe('scytala_session_AbCdEfGh12345678');
+      expect(getSessionCookieName('  AbCd_Ef-Gh  ')).toBe('scytala_session_AbCd_Ef-Gh');
+      expect(getSessionCookieName('invalid@#hash!')).toBe('scytala_session_invalidhash');
+      expect(getSessionCookieName('!@#$%^')).toBe(SESSION_COOKIE_NAME);
+    });
+
+    it('uses __Host- prefix in production environment for getSessionCookieName', async () => {
+      try {
+        vi.resetModules();
+        vi.stubEnv('NODE_ENV', 'production');
+        const sessionModule = await import('@/lib/session');
+        expect(sessionModule.getSessionCookieName()).toBe('__Host-scytala_session');
+        expect(sessionModule.getSessionCookieName('AbCdEfGh12345678')).toBe(
+          '__Host-scytala_session_AbCdEfGh12345678'
+        );
+      } finally {
+        vi.unstubAllEnvs();
+        vi.resetModules();
+      }
     });
   });
 

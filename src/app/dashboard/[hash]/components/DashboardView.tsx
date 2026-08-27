@@ -3,19 +3,33 @@
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 
-import type { Dashboard, Note } from "@/client/db-client";
 import { DashboardHeader } from "./DashboardHeader";
 import { NoteGrid } from "./NoteGrid";
 import { EmptyNotesState } from "./EmptyNotesState";
 
+export interface DashboardDto {
+  title: string;
+  description: string | null;
+}
+
+export interface NoteDto {
+  id: string;
+  title: string;
+  content: string;
+  version: number;
+  updated_at: string;
+}
+
 export interface DashboardViewProps {
-  dashboard: Dashboard;
+  dashboard: DashboardDto;
+  dashboardHash?: string;
   userAlias: string;
-  notes: Note[];
+  notes: NoteDto[];
 }
 
 export function DashboardView({
   dashboard,
+  dashboardHash,
   userAlias,
   notes,
 }: DashboardViewProps) {
@@ -32,6 +46,7 @@ export function DashboardView({
         <DashboardHeader
           title={dashboard.title}
           description={dashboard.description}
+          dashboardHash={dashboardHash}
           userAlias={userAlias}
         />
 

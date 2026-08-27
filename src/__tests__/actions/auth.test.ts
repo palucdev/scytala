@@ -164,7 +164,7 @@ describe("src/actions/auth", () => {
       );
 
       expect(mockCookieSet).toHaveBeenCalledWith(
-        sessionModule.SESSION_COOKIE_NAME,
+        sessionModule.getSessionCookieName("AbCdEfGh12345678"),
         "mocked.jwt.token",
         expect.objectContaining({
           httpOnly: true,
@@ -348,10 +348,20 @@ describe("src/actions/auth", () => {
   });
 
   describe("logoutFromDashboardAction", () => {
-    it("deletes session cookie and returns success", async () => {
+    it("deletes session cookie and returns success without dashboardHash", async () => {
       const result = await logoutFromDashboardAction();
 
       expect(result.success).toBe(true);
+      expect(mockCookieDelete).toHaveBeenCalledWith(sessionModule.SESSION_COOKIE_NAME);
+    });
+
+    it("deletes scoped session cookie and default cookie when dashboardHash is supplied", async () => {
+      const result = await logoutFromDashboardAction({ dashboardHash: "AbCdEfGh12345678" });
+
+      expect(result.success).toBe(true);
+      expect(mockCookieDelete).toHaveBeenCalledWith(
+        sessionModule.getSessionCookieName("AbCdEfGh12345678"),
+      );
       expect(mockCookieDelete).toHaveBeenCalledWith(sessionModule.SESSION_COOKIE_NAME);
     });
 

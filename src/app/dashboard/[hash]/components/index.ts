@@ -10,5 +10,7 @@ export { EmptyNotesState } from "./EmptyNotesState";
 export {
   DashboardView,
   type DashboardViewProps,
+  type DashboardDto,
+  type NoteDto,
 } from "./DashboardView";
 export { FormattedDate, type FormattedDateProps } from "./FormattedDate";

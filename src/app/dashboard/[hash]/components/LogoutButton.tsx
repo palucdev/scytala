@@ -11,19 +11,31 @@ import { logoutFromDashboardAction } from "@/actions/auth";
 export interface LogoutButtonProps {
   variant?: "text" | "outlined" | "contained";
   size?: "small" | "medium" | "large";
+  dashboardHash?: string;
+  redirectTo?: string;
 }
 
 export function LogoutButton({
   variant = "outlined",
   size = "small",
+  dashboardHash,
+  redirectTo,
 }: LogoutButtonProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const handleLogout = () => {
     startTransition(async () => {
-      await logoutFromDashboardAction();
-      router.refresh();
+      const result = await logoutFromDashboardAction(
+        dashboardHash ? { dashboardHash } : undefined,
+      );
+      if (result.success) {
+        if (redirectTo) {
+          router.push(redirectTo);
+        } else {
+          router.refresh();
+        }
+      }
     });
   };
 

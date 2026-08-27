@@ -6,6 +6,7 @@ import { verifyPassword } from "@/lib/crypto";
 import {
   createSessionToken,
   DEFAULT_SESSION_TTL_SECONDS,
+  getSessionCookieName,
   getSessionSecret,
   SESSION_COOKIE_NAME,
 } from "@/lib/session";
@@ -112,8 +113,9 @@ export async function loginToDashboardAction(
       DEFAULT_SESSION_TTL_SECONDS,
     );
 
+    const cookieName = getSessionCookieName(dashboard.hash);
     const cookieStore = await cookies();
-    cookieStore.set(SESSION_COOKIE_NAME, token, {
+    cookieStore.set(cookieName, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
@@ -134,9 +136,15 @@ export async function loginToDashboardAction(
   }
 }
 
-export async function logoutFromDashboardAction(): Promise<LogoutDashboardActionResult> {
+export async function logoutFromDashboardAction(
+  input?: { dashboardHash?: string },
+): Promise<LogoutDashboardActionResult> {
   try {
     const cookieStore = await cookies();
+    if (input?.dashboardHash) {
+      const scopedCookieName = getSessionCookieName(input.dashboardHash);
+      cookieStore.delete(scopedCookieName);
+    }
     cookieStore.delete(SESSION_COOKIE_NAME);
     return { success: true };
   } catch (error) {

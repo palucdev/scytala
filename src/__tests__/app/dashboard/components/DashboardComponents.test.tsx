@@ -10,16 +10,19 @@ import {
   LogoutButton,
   DashboardView,
   FormattedDate,
+  type DashboardDto,
+  type NoteDto,
 } from "@/app/dashboard/[hash]/components";
 import { PapyrusThemeLight } from "@/theme/papyrus-theme-light";
 import * as authActionModule from "@/actions/auth";
-import type { Dashboard, Note } from "@/client/db-client";
 
 const mockRefresh = vi.fn();
+const mockPush = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
     refresh: mockRefresh,
+    push: mockPush,
   }),
 }));
 
@@ -55,20 +58,37 @@ describe("Dashboard Subcomponents", () => {
       expect(button).not.toBeDisabled();
     });
 
-    it("triggers logoutFromDashboardAction and refreshes router on click", async () => {
+    it("triggers logoutFromDashboardAction and calls router.refresh on click", async () => {
       mockLogoutAction.mockResolvedValueOnce({ success: true });
 
-      renderWithTheme(<LogoutButton />);
+      renderWithTheme(<LogoutButton dashboardHash="test-hash" />);
 
       const button = screen.getByRole("button", { name: /log out/i });
       fireEvent.click(button);
 
       await waitFor(() => {
-        expect(mockLogoutAction).toHaveBeenCalledTimes(1);
+        expect(mockLogoutAction).toHaveBeenCalledWith({ dashboardHash: "test-hash" });
       });
 
       await waitFor(() => {
-        expect(mockRefresh).toHaveBeenCalledTimes(1);
+        expect(mockRefresh).toHaveBeenCalled();
+      });
+    });
+
+    it("redirects to custom redirectTo URL via router.push when specified", async () => {
+      mockLogoutAction.mockResolvedValueOnce({ success: true });
+
+      renderWithTheme(<LogoutButton redirectTo="/goodbye" />);
+
+      const button = screen.getByRole("button", { name: /log out/i });
+      fireEvent.click(button);
+
+      await waitFor(() => {
+        expect(mockLogoutAction).toHaveBeenCalledWith(undefined);
+      });
+
+      await waitFor(() => {
+        expect(mockPush).toHaveBeenCalledWith("/goodbye");
       });
     });
   });
@@ -118,13 +138,11 @@ describe("Dashboard Subcomponents", () => {
   });
 
   describe("NoteTile Component", () => {
-    const sampleNote: Note = {
+    const sampleNote: NoteDto = {
       id: "note-1",
-      dashboard_id: "dash-1",
       title: "Reconnaissance Alpha",
       content: "All perimeter points secure. Proceed to checkpoint Bravo.",
       version: 3,
-      created_at: "2026-08-26T10:00:00.000Z",
       updated_at: "2026-08-26T12:34:56.000Z",
     };
 
@@ -145,7 +163,7 @@ describe("Dashboard Subcomponents", () => {
     });
 
     it("falls back to 'Untitled Note' when title is empty or whitespace", () => {
-      const untitledNote: Note = {
+      const untitledNote: NoteDto = {
         ...sampleNote,
         title: "   ",
       };
@@ -158,7 +176,7 @@ describe("Dashboard Subcomponents", () => {
     });
 
     it("falls back to 'v1' badge when version is falsy", () => {
-      const unversionedNote: Note = {
+      const unversionedNote: NoteDto = {
         ...sampleNote,
         version: 0,
       };
@@ -185,23 +203,19 @@ describe("Dashboard Subcomponents", () => {
   });
 
   describe("NoteGrid Component", () => {
-    const notes: Note[] = [
+    const notes: NoteDto[] = [
       {
         id: "note-1",
-        dashboard_id: "dash-1",
         title: "First Note",
         content: "Content 1",
         version: 1,
-        created_at: "2026-08-26T10:00:00.000Z",
         updated_at: "2026-08-26T10:00:00.000Z",
       },
       {
         id: "note-2",
-        dashboard_id: "dash-1",
         title: "Second Note",
         content: "Content 2",
         version: 2,
-        created_at: "2026-08-26T11:00:00.000Z",
         updated_at: "2026-08-26T11:00:00.000Z",
       },
     ];
@@ -237,31 +251,26 @@ describe("Dashboard Subcomponents", () => {
   });
 
   describe("DashboardView Container Component", () => {
-    const mockDashboard: Dashboard = {
-      id: "dash-uuid-1",
-      hash: "secret-hash-16c",
+    const mockDashboardDto: DashboardDto = {
       title: "Mission Andromeda",
       description: "Galactic operations dashboard.",
-      created_at: "2026-08-26T00:00:00.000Z",
-      updated_at: "2026-08-26T01:00:00.000Z",
     };
 
     it("renders header and NoteGrid when notes are present", () => {
-      const notes: Note[] = [
+      const notes: NoteDto[] = [
         {
           id: "note-1",
-          dashboard_id: "dash-uuid-1",
           title: "Stargate Coordinates",
           content: "Glyphs: 1-4-9-16-25-36-7",
           version: 1,
-          created_at: "2026-08-26T02:00:00.000Z",
           updated_at: "2026-08-26T02:00:00.000Z",
         },
       ];
 
       renderWithTheme(
         <DashboardView
-          dashboard={mockDashboard}
+          dashboard={mockDashboardDto}
+          dashboardHash="secret-hash-16c"
           userAlias="Commander_Shepard"
           notes={notes}
         />,
@@ -278,7 +287,8 @@ describe("Dashboard Subcomponents", () => {
     it("renders header and EmptyNotesState when notes array is empty", () => {
       renderWithTheme(
         <DashboardView
-          dashboard={mockDashboard}
+          dashboard={mockDashboardDto}
+          dashboardHash="secret-hash-16c"
           userAlias="Commander_Shepard"
           notes={[]}
         />,

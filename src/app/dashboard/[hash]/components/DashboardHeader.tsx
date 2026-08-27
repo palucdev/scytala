@@ -15,12 +15,14 @@ export interface DashboardHeaderProps {
   title: string;
   description?: string | null;
   userAlias: string;
+  dashboardHash?: string;
 }
 
 export function DashboardHeader({
   title,
   description,
   userAlias,
+  dashboardHash,
 }: DashboardHeaderProps) {
   return (
     <Box
@@ -103,7 +105,7 @@ export function DashboardHeader({
             </span>
           </Tooltip>
 
-          <LogoutButton />
+          <LogoutButton dashboardHash={dashboardHash} />
         </Stack>
       </Stack>
     </Box>

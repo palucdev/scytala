@@ -6,11 +6,11 @@ import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
-import type { Note } from "@/client/db-client";
+import type { NoteDto } from "./DashboardView";
 import { FormattedDate } from "./FormattedDate";
 
 export interface NoteTileProps {
-  note: Note;
+  note: NoteDto;
 }
 
 export function NoteTile({ note }: NoteTileProps) {
