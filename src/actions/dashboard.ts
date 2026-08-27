@@ -6,12 +6,15 @@ import {
   generateDashboardSlug,
   hashPassword,
 } from "@/lib/crypto";
+import { logger } from "@/lib/logger";
 import {
   createDashboardSchema,
   type CreateDashboardActionResult,
   type CreateDashboardInput,
   type ParticipantCredential,
 } from "@/schemas/dashboard";
+
+const log = logger.child({ module: "dashboard" });
 
 export type {
   CreateDashboardActionResult,
@@ -67,7 +70,10 @@ export async function createDashboardAction(
       credentials: cleartextCredentials,
     };
   } catch (error) {
-    console.error("[createDashboardAction] Error:", error);
+    log.error("createDashboardAction failed", error, {
+      title: parsed.data?.title,
+      userCount: parsed.data?.users?.length,
+    });
     const errorMessage =
       error instanceof Error
         ? error.message.includes("unique constraint") ||

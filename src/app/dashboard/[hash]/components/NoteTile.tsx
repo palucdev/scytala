@@ -1,6 +1,5 @@
 "use client";
 
-import dayjs from "dayjs";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Chip from "@mui/material/Chip";
@@ -8,6 +7,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
 import type { Note } from "@/client/db-client";
+import { FormattedDate } from "./FormattedDate";
 
 export interface NoteTileProps {
   note: Note;
@@ -15,7 +15,6 @@ export interface NoteTileProps {
 
 export function NoteTile({ note }: NoteTileProps) {
   const displayTitle = note.title?.trim() || "Untitled Note";
-  const formattedDate = dayjs(note.updated_at).format("YYYY-MM-DD HH:mm");
   const versionLabel = `v${note.version || 1}`;
 
   return (
@@ -96,16 +95,14 @@ export function NoteTile({ note }: NoteTileProps) {
               color: "text.secondary",
             }}
           />
-          <Typography
-            variant="caption"
+          <FormattedDate
+            date={note.updated_at}
             sx={{
               color: "text.disabled",
               fontFamily: "monospace",
               fontSize: "0.75rem",
             }}
-          >
-            {formattedDate}
-          </Typography>
+          />
         </Stack>
       </CardContent>
     </Card>

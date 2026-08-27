@@ -9,12 +9,15 @@ import {
   getSessionSecret,
   SESSION_COOKIE_NAME,
 } from "@/lib/session";
+import { logger } from "@/lib/logger";
 import {
   loginDashboardSchema,
   type LoginDashboardActionResult,
   type LoginDashboardInput,
   type LogoutDashboardActionResult,
 } from "@/schemas/auth";
+
+const log = logger.child({ module: "auth" });
 
 export type {
   LoginDashboardActionResult,
@@ -92,7 +95,10 @@ export async function loginToDashboardAction(
 
     return { success: true };
   } catch (error) {
-    console.error("[loginToDashboardAction] Error:", error);
+    log.error("loginToDashboardAction failed", error, {
+      dashboardHash,
+      userAlias,
+    });
     return {
       success: false,
       error: "Authentication service temporarily unavailable. Please try again.",
@@ -106,7 +112,7 @@ export async function logoutFromDashboardAction(): Promise<LogoutDashboardAction
     cookieStore.delete(SESSION_COOKIE_NAME);
     return { success: true };
   } catch (error) {
-    console.error("[logoutFromDashboardAction] Error:", error);
+    log.error("logoutFromDashboardAction failed", error);
     return { success: false, error: "Failed to log out." };
   }
 }

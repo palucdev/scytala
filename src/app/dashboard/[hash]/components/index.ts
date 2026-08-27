@@ -11,3 +11,4 @@ export {
   DashboardView,
   type DashboardViewProps,
 } from "./DashboardView";
+export { FormattedDate, type FormattedDateProps } from "./FormattedDate";

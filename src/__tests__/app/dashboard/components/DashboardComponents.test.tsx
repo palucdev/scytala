@@ -9,6 +9,7 @@ import {
   EmptyNotesState,
   LogoutButton,
   DashboardView,
+  FormattedDate,
 } from "@/app/dashboard/[hash]/components";
 import { PapyrusThemeLight } from "@/theme/papyrus-theme-light";
 import * as authActionModule from "@/actions/auth";
@@ -165,6 +166,21 @@ describe("Dashboard Subcomponents", () => {
       renderWithTheme(<NoteTile note={unversionedNote} />);
 
       expect(screen.getByText("v1")).toBeInTheDocument();
+    });
+  });
+
+  describe("FormattedDate Client Component", () => {
+    it("renders formatted date string on mount", () => {
+      renderWithTheme(
+        <FormattedDate date="2026-08-26T14:30:00.000Z" format="YYYY-MM-DD HH:mm" />,
+      );
+
+      expect(screen.getByText(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/)).toBeInTheDocument();
+    });
+
+    it("handles empty date gracefully", () => {
+      const { container } = renderWithTheme(<FormattedDate date="" />);
+      expect(container.querySelector("span") || container.firstChild).toHaveTextContent("");
     });
   });
 
