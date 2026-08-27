@@ -139,8 +139,8 @@ export class Logger {
       service: "scytala",
       environment: process.env.NODE_ENV || "development",
       version: process.env.APP_VERSION || "0.1.5",
-      ...(sanitizedContext && { context: sanitizedContext }),
-      ...(sanitizedError && { error: sanitizedError }),
+      ...(sanitizedContext !== undefined ? { context: sanitizedContext } : {}),
+      ...(sanitizedError !== undefined ? { error: sanitizedError } : {}),
     };
 
     if (process.env.NODE_ENV === "development") {

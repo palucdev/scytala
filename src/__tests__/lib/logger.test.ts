@@ -10,6 +10,7 @@ describe("src/lib/logger", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     process.env = { ...originalEnv };
     vi.restoreAllMocks();
   });
@@ -103,7 +104,7 @@ describe("src/lib/logger", () => {
 
   describe("Logger class", () => {
     it("emits formatted JSON in production mode", () => {
-      process.env.NODE_ENV = "production";
+      vi.stubEnv("NODE_ENV", "production");
       const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
       const testLogger = new Logger({}, "info");
@@ -122,7 +123,7 @@ describe("src/lib/logger", () => {
     });
 
     it("emits to console.error for error and fatal levels in production", () => {
-      process.env.NODE_ENV = "production";
+      vi.stubEnv("NODE_ENV", "production");
       const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
       const testLogger = new Logger({}, "info");
@@ -141,7 +142,7 @@ describe("src/lib/logger", () => {
     });
 
     it("emits to console.warn for warn level in production", () => {
-      process.env.NODE_ENV = "production";
+      vi.stubEnv("NODE_ENV", "production");
       const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
       const testLogger = new Logger({}, "info");
@@ -154,7 +155,7 @@ describe("src/lib/logger", () => {
     });
 
     it("respects log level severity filtering", () => {
-      process.env.NODE_ENV = "production";
+      vi.stubEnv("NODE_ENV", "production");
       const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
       const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -168,7 +169,7 @@ describe("src/lib/logger", () => {
     });
 
     it("formats colored output in development mode", () => {
-      process.env.NODE_ENV = "development";
+      vi.stubEnv("NODE_ENV", "development");
       const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
       const devLogger = new Logger({}, "debug");
@@ -182,7 +183,7 @@ describe("src/lib/logger", () => {
     });
 
     it("creates child loggers with merged context", () => {
-      process.env.NODE_ENV = "production";
+      vi.stubEnv("NODE_ENV", "production");
       const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
 
       const rootLogger = new Logger({ app: "scytala" }, "info");
