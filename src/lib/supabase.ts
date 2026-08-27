@@ -382,14 +382,14 @@ export class SupabaseDatabaseClient implements DatabaseClient {
   }
 
   /**
-   * Retrieve all notes belonging to a dashboard ordered by creation date ascending.
+   * Retrieve all notes belonging to a dashboard ordered by update date descending.
    */
   async getNotesByDashboard(dashboard_id: string): Promise<Note[]> {
     const { data, error } = await this.client
       .from("notes")
       .select("*")
       .eq("dashboard_id", dashboard_id)
-      .order("created_at", { ascending: true })
+      .order("updated_at", { ascending: false })
       .returns<Note[]>();
 
     if (error) {

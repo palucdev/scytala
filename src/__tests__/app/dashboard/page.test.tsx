@@ -224,14 +224,16 @@ describe("src/app/dashboard/[hash]/page.tsx (DashboardPage SSR)", () => {
       });
     });
 
-    it("renders DashboardView with header, participant chip, and note tiles sorted recently-updated first", async () => {
-      // Mock returns older note first, page component should sort with newer note first
-      mockGetNotesByDashboard.mockResolvedValue(mockNotes);
+    it("renders DashboardView with header, participant chip, and note tiles", async () => {
+      // Mock returns notes ordered by updated_at desc
+      mockGetNotesByDashboard.mockResolvedValue([mockNotes[1], mockNotes[0]]);
 
       const page = await DashboardPage({
         params: Promise.resolve({ hash: mockDashboard.hash }),
       });
       renderWithTheme(page);
+
+      expect(mockGetNotesByDashboard).toHaveBeenCalledWith(mockDashboard.id);
 
       expect(
         screen.getByRole("heading", { level: 1 }),

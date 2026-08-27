@@ -41,10 +41,7 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     return <LoginForm dashboardHash={hash.trim()} />;
   }
 
-  const rawNotes = await db.getNotesByDashboard(dashboard.id);
-  const notes = [...rawNotes].sort(
-    (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
-  );
+  const notes = await db.getNotesByDashboard(dashboard.id);
 
   return (
     <DashboardView
