@@ -8,14 +8,24 @@ import {
 } from "@/schemas/dashboard";
 import * as dbClientModule from "@/client/db-client";
 import * as cryptoModule from "@/lib/crypto";
+import * as rateLimitModule from "@/lib/rate-limit";
+import { resetRateLimits } from "@/lib/rate-limit";
+
+vi.mock("next/headers", () => ({
+  headers: vi.fn(async () => ({
+    get: vi.fn(() => "127.0.0.1"),
+  })),
+}));
 
 describe("src/actions/dashboard", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    resetRateLimits();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    resetRateLimits();
   });
 
   describe("ALIAS_REGEX", () => {
@@ -317,6 +327,29 @@ describe("src/actions/dashboard", () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error).toBe("Failed to create dashboard");
+      }
+    });
+
+    it("throttles dashboard creation when client IP exceeds rate limit", async () => {
+      vi.spyOn(rateLimitModule, "checkRateLimit").mockResolvedValue({
+        success: false,
+        retryAfterSeconds: 1200,
+      });
+
+      const input = {
+        title: "Valid Title",
+        users: [{ userAlias: "alice", password: "password123" }],
+      };
+
+      const result = await createDashboardAction(input);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.rateLimited).toBe(true);
+        expect(result.retryAfterSeconds).toBe(1200);
+        expect(result.error).toContain(
+          "Too many dashboard creation requests. Please try again in 1200 seconds.",
+        );
       }
     });
   });

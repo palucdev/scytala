@@ -1,3 +1,7 @@
+import { logger } from "@/lib/logger";
+
+const log = logger.child({ module: "clipboard" });
+
 /**
  * Copies text to the clipboard using the Clipboard API.
  * Returns true on success, false on failure.
@@ -10,7 +14,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
     }
     return false;
   } catch (err) {
-    console.error("Failed to copy to clipboard:", err);
+    log.error("Failed to copy to clipboard", err);
     return false;
   }
 }

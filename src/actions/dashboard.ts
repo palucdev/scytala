@@ -6,12 +6,16 @@ import {
   generateDashboardSlug,
   hashPassword,
 } from "@/lib/crypto";
+import { logger } from "@/lib/logger";
+import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
 import {
   createDashboardSchema,
   type CreateDashboardActionResult,
   type CreateDashboardInput,
   type ParticipantCredential,
 } from "@/schemas/dashboard";
+
+const log = logger.child({ module: "dashboard" });
 
 export type {
   CreateDashboardActionResult,
@@ -38,6 +42,20 @@ export async function createDashboardAction(
   }
 
   try {
+    const clientIp = await getClientIp();
+    const ipCheck = await checkRateLimit("dashboardCreate", clientIp);
+    if (!ipCheck.success) {
+      log.warn("Dashboard creation throttled by IP rate limit", {
+        clientIp,
+        retryAfterSeconds: ipCheck.retryAfterSeconds,
+      });
+      return {
+        success: false,
+        error: `Too many dashboard creation requests. Please try again in ${ipCheck.retryAfterSeconds} seconds.`,
+        rateLimited: true,
+        retryAfterSeconds: ipCheck.retryAfterSeconds,
+      };
+    }
     const slug = generateDashboardSlug(DEFAULT_DASHBOARD_SLUG_LENGTH);
     const hashedUsers = await Promise.all(
       parsed.data.users.map(async (u) => ({
@@ -67,7 +85,10 @@ export async function createDashboardAction(
       credentials: cleartextCredentials,
     };
   } catch (error) {
-    console.error("[createDashboardAction] Error:", error);
+    log.error("createDashboardAction failed", error, {
+      title: parsed.data?.title,
+      userCount: parsed.data?.users?.length,
+    });
     const errorMessage =
       error instanceof Error
         ? error.message.includes("unique constraint") ||

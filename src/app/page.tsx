@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { getLatestDeploymentInfo } from "@/actions/audit";
-import dayjs from "dayjs";
+import { FormattedDate } from "@/app/dashboard/[hash]/components/FormattedDate";
 
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -191,9 +191,12 @@ export default async function Home() {
           <Typography variant="caption" component="p">
             Version: {deploymentInfo?.app_version}
           </Typography>
-          <Typography variant="caption" component="p">
-            {dayjs(deploymentInfo?.created_at).format("YYYY-MM-DD HH:mm")}
-          </Typography>
+          {deploymentInfo?.created_at && (
+            <FormattedDate
+              date={deploymentInfo.created_at}
+              variant="caption"
+            />
+          )}
         </Box>
       </Container>
     </Box>

@@ -61,6 +61,8 @@ export type CreateDashboardActionResult =
       success: false;
       error: string;
       fieldErrors?: Record<string, string[]>;
+      rateLimited?: boolean;
+      retryAfterSeconds?: number;
     };
 
 /**

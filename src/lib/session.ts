@@ -12,6 +12,31 @@ export const SESSION_COOKIE_NAME =
     ? "__Host-scytala_session"
     : "scytala_session";
 
+/**
+ * Returns the scoped cookie name for a specific dashboard hash or the global default.
+ * Provides multi-dashboard cookie namespacing so sessions across multiple browser tabs
+ * or dashboards do not overwrite each other.
+ */
+export function getSessionCookieName(dashboardHash?: string): string {
+  const prefix =
+    process.env.NODE_ENV === "production"
+      ? "__Host-scytala_session"
+      : "scytala_session";
+
+  if (
+    dashboardHash &&
+    typeof dashboardHash === "string" &&
+    dashboardHash.trim().length > 0
+  ) {
+    const safeHash = dashboardHash.trim().replace(/[^a-zA-Z0-9_-]/g, "");
+    if (safeHash.length > 0) {
+      return `${prefix}_${safeHash}`;
+    }
+  }
+
+  return prefix;
+}
+
 export interface SessionPayload {
   dashboard_id: string;
   dashboard_hash: string;
@@ -342,4 +367,28 @@ export function extractSessionTokenFromCookieHeader(
   }
 
   return null;
+}
+
+/**
+ * Retrieves the session signing secret key from environment variables.
+ * In production, throws an error if neither SESSION_SECRET nor SUPABASE_SERVICE_ROLE_KEY is configured.
+ * In development/test environments, falls back to a development secret if unset.
+ */
+export function getSessionSecret(): string {
+  const secret =
+    process.env.SESSION_SECRET ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_KEY;
+
+  if (secret && secret.trim().length > 0) {
+    return secret.trim();
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Missing required session secret. Set SESSION_SECRET or SUPABASE_SERVICE_ROLE_KEY in production.",
+    );
+  }
+
+  return "scytala-insecure-dev-secret-key-change-in-production-1234567890";
 }

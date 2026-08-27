@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { copyToClipboard } from "@/utils/clipboard";
+import { Logger } from "@/lib/logger";
 
 describe("src/utils/clipboard", () => {
   const originalClipboard = navigator.clipboard;
@@ -30,8 +31,8 @@ describe("src/utils/clipboard", () => {
   });
 
   it("returns false and logs error when writeText rejects", async () => {
-    const consoleErrorSpy = vi
-      .spyOn(console, "error")
+    const logErrorSpy = vi
+      .spyOn(Logger.prototype, "error")
       .mockImplementation(() => {});
     const writeTextMock = vi
       .fn()
@@ -45,8 +46,8 @@ describe("src/utils/clipboard", () => {
 
     const result = await copyToClipboard("sample text");
     expect(result).toBe(false);
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "Failed to copy to clipboard:",
+    expect(logErrorSpy).toHaveBeenCalledWith(
+      "Failed to copy to clipboard",
       expect.any(Error),
     );
   });

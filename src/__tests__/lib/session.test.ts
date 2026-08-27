@@ -11,6 +11,8 @@ import {
   base64UrlToBytes,
   stringToBase64Url,
   base64UrlToString,
+  getSessionSecret,
+  getSessionCookieName,
 } from '@/lib/session';
 
 describe('src/lib/session', () => {
@@ -435,6 +437,94 @@ describe('src/lib/session', () => {
       expect(extractSessionTokenFromCookieHeader('')).toBeNull();
       // @ts-expect-error testing invalid runtime input
       expect(extractSessionTokenFromCookieHeader(12345)).toBeNull();
+    });
+
+    it('returns unscoped cookie name when dashboardHash is not provided or empty', () => {
+      expect(getSessionCookieName()).toBe(SESSION_COOKIE_NAME);
+      expect(getSessionCookieName('')).toBe(SESSION_COOKIE_NAME);
+      expect(getSessionCookieName('   ')).toBe(SESSION_COOKIE_NAME);
+    });
+
+    it('returns scoped cookie name with sanitized hash', () => {
+      expect(getSessionCookieName('AbCdEfGh12345678')).toBe('scytala_session_AbCdEfGh12345678');
+      expect(getSessionCookieName('  AbCd_Ef-Gh  ')).toBe('scytala_session_AbCd_Ef-Gh');
+      expect(getSessionCookieName('invalid@#hash!')).toBe('scytala_session_invalidhash');
+      expect(getSessionCookieName('!@#$%^')).toBe(SESSION_COOKIE_NAME);
+    });
+
+    it('uses __Host- prefix in production environment for getSessionCookieName', async () => {
+      try {
+        vi.resetModules();
+        vi.stubEnv('NODE_ENV', 'production');
+        const sessionModule = await import('@/lib/session');
+        expect(sessionModule.getSessionCookieName()).toBe('__Host-scytala_session');
+        expect(sessionModule.getSessionCookieName('AbCdEfGh12345678')).toBe(
+          '__Host-scytala_session_AbCdEfGh12345678'
+        );
+      } finally {
+        vi.unstubAllEnvs();
+        vi.resetModules();
+      }
+    });
+  });
+
+  describe('getSessionSecret', () => {
+    it('returns SESSION_SECRET when present', () => {
+      vi.stubEnv('SESSION_SECRET', 'custom-session-secret-key-12345');
+      try {
+        expect(getSessionSecret()).toBe('custom-session-secret-key-12345');
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    it('falls back to SUPABASE_SERVICE_ROLE_KEY when SESSION_SECRET is unset', () => {
+      vi.stubEnv('SESSION_SECRET', '');
+      vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-secret-key-12345');
+      try {
+        expect(getSessionSecret()).toBe('service-role-secret-key-12345');
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    it('falls back to SUPABASE_KEY when SESSION_SECRET and service role key are unset', () => {
+      vi.stubEnv('SESSION_SECRET', '');
+      vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
+      vi.stubEnv('SUPABASE_KEY', 'supabase-key-12345');
+      try {
+        expect(getSessionSecret()).toBe('supabase-key-12345');
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    it('returns dev fallback key in development/test when all secrets are unset', () => {
+      vi.stubEnv('SESSION_SECRET', '');
+      vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
+      vi.stubEnv('SUPABASE_KEY', '');
+      vi.stubEnv('NODE_ENV', 'development');
+      try {
+        expect(getSessionSecret()).toBe(
+          'scytala-insecure-dev-secret-key-change-in-production-1234567890'
+        );
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    it('throws error in production when all secrets are unset', () => {
+      vi.stubEnv('SESSION_SECRET', '');
+      vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
+      vi.stubEnv('SUPABASE_KEY', '');
+      vi.stubEnv('NODE_ENV', 'production');
+      try {
+        expect(() => getSessionSecret()).toThrow(
+          'Missing required session secret. Set SESSION_SECRET or SUPABASE_SERVICE_ROLE_KEY in production.'
+        );
+      } finally {
+        vi.unstubAllEnvs();
+      }
     });
   });
 });

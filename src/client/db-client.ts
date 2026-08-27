@@ -32,6 +32,20 @@ export interface AuditResult {
   record?: AuditRecord;
 }
 
+/** Result of probing database connectivity. */
+export interface HealthCheckResult {
+  status: "up" | "down";
+  latencyMs: number;
+  error?: string;
+}
+
+/** Result of check_rate_limit PostgreSQL RPC call. */
+export interface RateLimitRpcResult {
+  success: boolean;
+  remaining: number;
+  retry_after_seconds: number;
+}
+
 // ---------------------------------------------------------------------------
 // Domain Models
 // ---------------------------------------------------------------------------
@@ -136,6 +150,21 @@ export interface DatabaseClient {
    * Return all audit records ordered by `created_at` descending.
    */
   getAuditHistory(): Promise<AuditRecord[]>;
+
+  /**
+   * Health check probe to verify database connectivity.
+   */
+  checkHealth(signal?: AbortSignal): Promise<HealthCheckResult>;
+
+  /**
+   * Check rate limit token bucket for a given key via PostgreSQL RPC.
+   */
+  checkRateLimit(
+    key: string,
+    maxTokens: number,
+    refillRate: number,
+    cost?: number,
+  ): Promise<RateLimitRpcResult>;
 
   /**
    * Create a new dashboard along with its initial participant users.

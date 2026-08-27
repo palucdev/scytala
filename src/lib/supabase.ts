@@ -12,8 +12,10 @@ import type {
   Dashboard,
   DashboardUser,
   DatabaseClient,
+  HealthCheckResult,
   Note,
   NoteVersion,
+  RateLimitRpcResult,
   UpdateNoteInput,
 } from "../client/db-client";
 import { generateDashboardSlug } from "./crypto";
@@ -127,6 +129,70 @@ export class SupabaseDatabaseClient implements DatabaseClient {
     }
 
     return data ?? [];
+  }
+
+  /**
+   * Check database connectivity by querying the `info` table with latency tracking and timeout support.
+   */
+  async checkHealth(signal?: AbortSignal): Promise<HealthCheckResult> {
+    const start = performance.now();
+    try {
+      let query = this.client.from("info").select("id").limit(1);
+
+      if (signal && typeof query.abortSignal === "function") {
+        query = query.abortSignal(signal);
+      }
+
+      const { error } = await query;
+      const latencyMs = Math.round(performance.now() - start);
+
+      if (error) {
+        return {
+          status: "down",
+          latencyMs,
+          error: error.message,
+        };
+      }
+
+      return {
+        status: "up",
+        latencyMs,
+      };
+    } catch (err: unknown) {
+      const latencyMs = Math.round(performance.now() - start);
+      const errorMessage =
+        err instanceof Error ? err.message : "Unknown health check error";
+      return {
+        status: "down",
+        latencyMs,
+        error: errorMessage,
+      };
+    }
+  }
+
+  /**
+   * Check rate limit token bucket for a given key via PostgreSQL RPC.
+   */
+  async checkRateLimit(
+    key: string,
+    maxTokens: number,
+    refillRate: number,
+    cost: number = 1.0,
+  ): Promise<RateLimitRpcResult> {
+    const { data, error } = await this.client.rpc("check_rate_limit", {
+      p_key: key,
+      p_max_tokens: maxTokens,
+      p_refill_rate: refillRate,
+      p_cost: cost,
+    });
+
+    if (error || !data) {
+      throw new Error(
+        `[SupabaseDatabaseClient] checkRateLimit RPC failed: ${error?.message || "Unknown error"}`,
+      );
+    }
+
+    return data as RateLimitRpcResult;
   }
 
   private async getAuditRecordByVersion(
@@ -342,14 +408,14 @@ export class SupabaseDatabaseClient implements DatabaseClient {
   }
 
   /**
-   * Retrieve all notes belonging to a dashboard ordered by creation date ascending.
+   * Retrieve all notes belonging to a dashboard ordered by update date descending.
    */
   async getNotesByDashboard(dashboard_id: string): Promise<Note[]> {
     const { data, error } = await this.client
       .from("notes")
       .select("*")
       .eq("dashboard_id", dashboard_id)
-      .order("created_at", { ascending: true })
+      .order("updated_at", { ascending: false })
       .returns<Note[]>();
 
     if (error) {
