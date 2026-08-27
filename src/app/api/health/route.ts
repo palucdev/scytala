@@ -20,13 +20,15 @@ export async function GET() {
     const payload = {
       status: isHealthy ? ("healthy" as const) : ("unhealthy" as const),
       timestamp: new Date().toISOString(),
-      version: process.env.APP_VERSION || "0.1.5",
+      version: process.env.APP_VERSION || "undefined",
       uptime_seconds: uptimeSeconds,
       checks: {
         database: {
           status: dbHealth.status,
           latency_ms: dbHealth.latencyMs,
-          ...(dbHealth.error && { error: "Database connectivity check failed" }),
+          ...(dbHealth.error && {
+            error: "Database connectivity check failed",
+          }),
         },
       },
     };
@@ -38,7 +40,8 @@ export async function GET() {
     return NextResponse.json(payload, {
       status: isHealthy ? 200 : 503,
       headers: {
-        "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+        "Cache-Control":
+          "no-store, no-cache, must-revalidate, proxy-revalidate",
       },
     });
   } catch (error) {
@@ -48,7 +51,7 @@ export async function GET() {
       {
         status: "unhealthy",
         timestamp: new Date().toISOString(),
-        version: process.env.APP_VERSION || "0.1.5",
+        version: process.env.APP_VERSION || "undefined",
         uptime_seconds: Math.floor((Date.now() - WORKER_START_TIME) / 1000),
         checks: {
           database: {
@@ -61,7 +64,8 @@ export async function GET() {
       {
         status: 503,
         headers: {
-          "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+          "Cache-Control":
+            "no-store, no-cache, must-revalidate, proxy-revalidate",
         },
       },
     );

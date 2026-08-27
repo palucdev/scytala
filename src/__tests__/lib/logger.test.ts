@@ -57,17 +57,27 @@ describe("src/lib/logger", () => {
       expect(sanitized.authorization).toBe("[REDACTED]");
       expect(sanitized.apiKey).toBe("[REDACTED]");
       expect(sanitized.userCredential).toBe("[REDACTED]");
-      expect((sanitized.nested as Record<string, unknown>).userPassword).toBe("[REDACTED]");
-      expect((sanitized.nested as Record<string, unknown>).safeField).toBe("safe value");
+      expect((sanitized.nested as Record<string, unknown>).userPassword).toBe(
+        "[REDACTED]",
+      );
+      expect((sanitized.nested as Record<string, unknown>).safeField).toBe(
+        "safe value",
+      );
     });
 
     it("redacts sensitive pattern values in strings", () => {
-      expect(sanitizeValue("Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xyz")).toBe("[REDACTED]");
       expect(
-        sanitizeValue("$pbkdf2$100000$00000000000000000000000000000000$00000000000000000000000000000000"),
+        sanitizeValue("Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xyz"),
       ).toBe("[REDACTED]");
       expect(
-        sanitizeValue("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgN7"),
+        sanitizeValue(
+          "$pbkdf2$100000$00000000000000000000000000000000$00000000000000000000000000000000",
+        ),
+      ).toBe("[REDACTED]");
+      expect(
+        sanitizeValue(
+          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgN7",
+        ),
       ).toBe("[REDACTED]");
     });
 
@@ -77,7 +87,9 @@ describe("src/lib/logger", () => {
 
       expect(sanitized[0]).toBe("safe");
       expect(sanitized[1]).toBe("[REDACTED]");
-      expect((sanitized[2] as Record<string, string>).password).toBe("[REDACTED]");
+      expect((sanitized[2] as Record<string, string>).password).toBe(
+        "[REDACTED]",
+      );
     });
 
     it("handles circular references without throwing", () => {
@@ -98,7 +110,9 @@ describe("src/lib/logger", () => {
       expect(sanitized.name).toBe("Error");
       expect(sanitized.message).toBe("Something went wrong");
       expect(sanitized.stack).toBeDefined();
-      expect((sanitized.cause as Record<string, unknown>).message).toBe("[REDACTED]");
+      expect((sanitized.cause as Record<string, unknown>).message).toBe(
+        "[REDACTED]",
+      );
     });
 
     it("handles circular references on Error cause without crashing", () => {
@@ -114,10 +128,15 @@ describe("src/lib/logger", () => {
   describe("Logger class", () => {
     it("emits formatted JSON in production mode", () => {
       vi.stubEnv("NODE_ENV", "production");
-      const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const consoleLogSpy = vi
+        .spyOn(console, "log")
+        .mockImplementation(() => {});
 
       const testLogger = new Logger({}, "info");
-      testLogger.info("User signed in", { userId: "user-123", password: "should-redact" });
+      testLogger.info("User signed in", {
+        userId: "user-123",
+        password: "should-redact",
+      });
 
       expect(consoleLogSpy).toHaveBeenCalledTimes(1);
       const loggedJson = JSON.parse(consoleLogSpy.mock.calls[0][0]);
@@ -126,18 +145,22 @@ describe("src/lib/logger", () => {
       expect(loggedJson.message).toBe("User signed in");
       expect(loggedJson.service).toBe("scytala");
       expect(loggedJson.environment).toBe("production");
-      expect(loggedJson.version).toBe("0.1.5");
+      expect(loggedJson.version).toBe("undefined");
       expect(loggedJson.context.userId).toBe("user-123");
       expect(loggedJson.context.password).toBe("[REDACTED]");
     });
 
     it("emits to console.error for error and fatal levels in production", () => {
       vi.stubEnv("NODE_ENV", "production");
-      const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const consoleErrorSpy = vi
+        .spyOn(console, "error")
+        .mockImplementation(() => {});
 
       const testLogger = new Logger({}, "info");
       const err = new Error("Database timeout");
-      testLogger.error("Failed to fetch dashboard", err, { dashboardHash: "abc12345" });
+      testLogger.error("Failed to fetch dashboard", err, {
+        dashboardHash: "abc12345",
+      });
       testLogger.fatal("System crash", err);
 
       expect(consoleErrorSpy).toHaveBeenCalledTimes(2);
@@ -152,7 +175,9 @@ describe("src/lib/logger", () => {
 
     it("emits to console.warn for warn level in production", () => {
       vi.stubEnv("NODE_ENV", "production");
-      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const consoleWarnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
 
       const testLogger = new Logger({}, "info");
       testLogger.warn("Rate limit approaching", { remaining: 1 });
@@ -165,8 +190,12 @@ describe("src/lib/logger", () => {
 
     it("respects log level severity filtering", () => {
       vi.stubEnv("NODE_ENV", "production");
-      const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
-      const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const consoleLogSpy = vi
+        .spyOn(console, "log")
+        .mockImplementation(() => {});
+      const consoleWarnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => {});
 
       const warnLogger = new Logger({}, "warn");
       warnLogger.debug("Debug msg");
@@ -179,7 +208,9 @@ describe("src/lib/logger", () => {
 
     it("formats colored output in development mode", () => {
       vi.stubEnv("NODE_ENV", "development");
-      const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const consoleLogSpy = vi
+        .spyOn(console, "log")
+        .mockImplementation(() => {});
 
       const devLogger = new Logger({}, "debug");
       devLogger.debug("Debug event", { topic: "testing" });
@@ -193,7 +224,9 @@ describe("src/lib/logger", () => {
 
     it("creates child loggers with merged context", () => {
       vi.stubEnv("NODE_ENV", "production");
-      const consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+      const consoleLogSpy = vi
+        .spyOn(console, "log")
+        .mockImplementation(() => {});
 
       const rootLogger = new Logger({ app: "scytala" }, "info");
       const childLogger = rootLogger.child({ module: "auth", action: "login" });

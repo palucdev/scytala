@@ -52,7 +52,10 @@ function sanitizeString(str: string): string {
   return str;
 }
 
-export function sanitizeValue(value: unknown, seen = new WeakSet<object>()): unknown {
+export function sanitizeValue(
+  value: unknown,
+  seen = new WeakSet<object>(),
+): unknown {
   if (value === null || value === undefined) return value;
   if (typeof value === "string") {
     return sanitizeString(value);
@@ -66,8 +69,14 @@ export function sanitizeValue(value: unknown, seen = new WeakSet<object>()): unk
     if (value instanceof Error) {
       return {
         name: value.name,
-        message: typeof value.message === "string" ? sanitizeString(value.message) : value.message,
-        stack: typeof value.stack === "string" ? sanitizeString(value.stack) : value.stack,
+        message:
+          typeof value.message === "string"
+            ? sanitizeString(value.message)
+            : value.message,
+        stack:
+          typeof value.stack === "string"
+            ? sanitizeString(value.stack)
+            : value.stack,
         cause: value.cause ? sanitizeValue(value.cause, seen) : undefined,
       };
     }
@@ -102,7 +111,8 @@ export class Logger {
 
   constructor(context: Record<string, unknown> = {}, minLevel?: LogLevel) {
     this.context = context;
-    const envLevel = (process.env.LOG_LEVEL?.toLowerCase() as LogLevel) || "info";
+    const envLevel =
+      (process.env.LOG_LEVEL?.toLowerCase() as LogLevel) || "info";
     this.minLevel =
       minLevel || (process.env.NODE_ENV === "development" ? "debug" : envLevel);
   }
@@ -112,8 +122,10 @@ export class Logger {
   }
 
   private shouldLog(level: LogLevel): boolean {
-    const minSeverity = LOG_LEVEL_SEVERITY[this.minLevel] ?? LOG_LEVEL_SEVERITY.info;
-    const currentSeverity = LOG_LEVEL_SEVERITY[level] ?? LOG_LEVEL_SEVERITY.info;
+    const minSeverity =
+      LOG_LEVEL_SEVERITY[this.minLevel] ?? LOG_LEVEL_SEVERITY.info;
+    const currentSeverity =
+      LOG_LEVEL_SEVERITY[level] ?? LOG_LEVEL_SEVERITY.info;
     return currentSeverity >= minSeverity;
   }
 
@@ -138,7 +150,7 @@ export class Logger {
       message,
       service: "scytala",
       environment: process.env.NODE_ENV || "development",
-      version: process.env.APP_VERSION || "0.1.5",
+      version: process.env.APP_VERSION || "undefined",
       ...(sanitizedContext !== undefined ? { context: sanitizedContext } : {}),
       ...(sanitizedError !== undefined ? { error: sanitizedError } : {}),
     };
@@ -181,11 +193,19 @@ export class Logger {
     this.emit("warn", message, meta, error);
   }
 
-  error(message: string, error?: unknown, meta?: Record<string, unknown>): void {
+  error(
+    message: string,
+    error?: unknown,
+    meta?: Record<string, unknown>,
+  ): void {
     this.emit("error", message, meta, error);
   }
 
-  fatal(message: string, error?: unknown, meta?: Record<string, unknown>): void {
+  fatal(
+    message: string,
+    error?: unknown,
+    meta?: Record<string, unknown>,
+  ): void {
     this.emit("fatal", message, meta, error);
   }
 }

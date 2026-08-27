@@ -33,7 +33,7 @@ describe("GET /api/health", () => {
 
     const data = await response.json();
     expect(data.status).toBe("healthy");
-    expect(data.version).toBe(process.env.APP_VERSION || "0.1.5");
+    expect(data.version).toBe(process.env.APP_VERSION || "undefined");
     expect(typeof data.uptime_seconds).toBe("number");
     expect(typeof data.timestamp).toBe("string");
     expect(data.checks).toEqual({

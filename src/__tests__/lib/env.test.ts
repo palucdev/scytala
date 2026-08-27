@@ -28,12 +28,14 @@ describe("src/lib/env", () => {
 
       expect(parsed.SUPABASE_URL).toBe("https://xyzcompany.supabase.co");
       expect(parsed.SUPABASE_ANON_KEY).toBe("anon-key-1234567890");
-      expect(parsed.SUPABASE_SERVICE_ROLE_KEY).toBe("service-role-key-1234567890");
+      expect(parsed.SUPABASE_SERVICE_ROLE_KEY).toBe(
+        "service-role-key-1234567890",
+      );
       expect(parsed.SESSION_SECRET).toBe(
         "a-very-long-secret-key-that-is-at-least-32-chars-long",
       );
       expect(parsed.DEPLOY_ID).toBe("development");
-      expect(parsed.APP_VERSION).toBe("0.1.5");
+      expect(parsed.APP_VERSION).toBe("undefined");
       expect(parsed.LOG_LEVEL).toBe("info");
     });
 
@@ -108,7 +110,8 @@ describe("src/lib/env", () => {
       process.env.SUPABASE_URL = "https://live.supabase.co";
       process.env.SUPABASE_ANON_KEY = "live-anon-key";
       process.env.SUPABASE_SERVICE_ROLE_KEY = "live-service-key";
-      process.env.SESSION_SECRET = "this-is-a-32-char-secret-for-testing-purposes";
+      process.env.SESSION_SECRET =
+        "this-is-a-32-char-secret-for-testing-purposes";
 
       const firstCall = getEnv();
       expect(firstCall.SUPABASE_URL).toBe("https://live.supabase.co");
