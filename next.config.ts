@@ -25,6 +25,9 @@ const cspHeader = `
   .trim();
 
 const nextConfig: NextConfig = {
+  typescript: {
+    tsconfigPath: "tsconfig.build.json",
+  },
   env: {
     APP_VERSION: pkg.version,
   },
