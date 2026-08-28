@@ -13,6 +13,8 @@ import {
   base64UrlToString,
   getSessionSecret,
   getSessionCookieName,
+  getSessionCookieOptions,
+  getDeleteSessionCookieOptions,
 } from '@/lib/session';
 
 describe('src/lib/session', () => {
@@ -464,6 +466,75 @@ describe('src/lib/session', () => {
       } finally {
         vi.unstubAllEnvs();
         vi.resetModules();
+      }
+    });
+  });
+
+  describe('getSessionCookieOptions and getDeleteSessionCookieOptions', () => {
+    it('returns default cookie options in non-production environment', () => {
+      vi.stubEnv('NODE_ENV', 'development');
+      try {
+        const options = getSessionCookieOptions();
+        expect(options).toEqual({
+          path: '/',
+          secure: false,
+          httpOnly: true,
+          sameSite: 'lax',
+          maxAge: DEFAULT_SESSION_TTL_SECONDS,
+        });
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    it('returns custom maxAge options in production environment', () => {
+      vi.stubEnv('NODE_ENV', 'production');
+      try {
+        const customTtl = 3600;
+        const options = getSessionCookieOptions(customTtl);
+        expect(options).toEqual({
+          path: '/',
+          secure: true,
+          httpOnly: true,
+          sameSite: 'lax',
+          maxAge: customTtl,
+        });
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    it('returns delete cookie options with maxAge 0 and epoch date in development', () => {
+      vi.stubEnv('NODE_ENV', 'development');
+      try {
+        const deleteOptions = getDeleteSessionCookieOptions();
+        expect(deleteOptions).toEqual({
+          path: '/',
+          secure: false,
+          httpOnly: true,
+          sameSite: 'lax',
+          maxAge: 0,
+          expires: new Date(0),
+        });
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+
+    it('returns delete cookie options with secure flag in production to satisfy RFC 6265bis', () => {
+      vi.stubEnv('NODE_ENV', 'production');
+      try {
+        const deleteOptions = getDeleteSessionCookieOptions();
+        expect(deleteOptions).toEqual({
+          path: '/',
+          secure: true,
+          httpOnly: true,
+          sameSite: 'lax',
+          maxAge: 0,
+          expires: new Date(0),
+        });
+      } finally {
+        vi.unstubAllEnvs();
       }
     });
   });

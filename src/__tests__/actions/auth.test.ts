@@ -166,12 +166,9 @@ describe("src/actions/auth", () => {
       expect(mockCookieSet).toHaveBeenCalledWith(
         sessionModule.getSessionCookieName("AbCdEfGh12345678"),
         "mocked.jwt.token",
-        expect.objectContaining({
-          httpOnly: true,
-          sameSite: "lax",
-          path: "/",
-          maxAge: sessionModule.DEFAULT_SESSION_TTL_SECONDS,
-        }),
+        sessionModule.getSessionCookieOptions(
+          sessionModule.DEFAULT_SESSION_TTL_SECONDS,
+        ),
       );
     });
 
@@ -348,26 +345,38 @@ describe("src/actions/auth", () => {
   });
 
   describe("logoutFromDashboardAction", () => {
-    it("deletes session cookie and returns success without dashboardHash", async () => {
+    it("sets expired session cookie and returns success without dashboardHash", async () => {
       const result = await logoutFromDashboardAction();
 
       expect(result.success).toBe(true);
-      expect(mockCookieDelete).toHaveBeenCalledWith(sessionModule.SESSION_COOKIE_NAME);
+      expect(mockCookieSet).toHaveBeenCalledWith(
+        sessionModule.SESSION_COOKIE_NAME,
+        "",
+        sessionModule.getDeleteSessionCookieOptions(),
+      );
+      expect(mockCookieDelete).not.toHaveBeenCalled();
     });
 
-    it("deletes scoped session cookie and default cookie when dashboardHash is supplied", async () => {
+    it("sets expired scoped session cookie and default cookie when dashboardHash is supplied", async () => {
       const result = await logoutFromDashboardAction({ dashboardHash: "AbCdEfGh12345678" });
 
       expect(result.success).toBe(true);
-      expect(mockCookieDelete).toHaveBeenCalledWith(
+      expect(mockCookieSet).toHaveBeenCalledWith(
         sessionModule.getSessionCookieName("AbCdEfGh12345678"),
+        "",
+        sessionModule.getDeleteSessionCookieOptions(),
       );
-      expect(mockCookieDelete).toHaveBeenCalledWith(sessionModule.SESSION_COOKIE_NAME);
+      expect(mockCookieSet).toHaveBeenCalledWith(
+        sessionModule.SESSION_COOKIE_NAME,
+        "",
+        sessionModule.getDeleteSessionCookieOptions(),
+      );
+      expect(mockCookieDelete).not.toHaveBeenCalled();
     });
 
-    it("returns error when cookie deletion throws an unexpected exception", async () => {
-      mockCookieDelete.mockImplementation(() => {
-        throw new Error("Cookie deletion failed");
+    it("returns error when cookie setting throws an unexpected exception", async () => {
+      mockCookieSet.mockImplementation(() => {
+        throw new Error("Cookie setting failed");
       });
 
       const result = await logoutFromDashboardAction();

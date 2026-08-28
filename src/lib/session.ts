@@ -37,6 +37,45 @@ export function getSessionCookieName(dashboardHash?: string): string {
   return prefix;
 }
 
+export interface SessionCookieOptions {
+  path: string;
+  secure: boolean;
+  httpOnly: boolean;
+  sameSite: "lax" | "strict" | "none";
+  maxAge?: number;
+  expires?: Date;
+}
+
+/**
+ * Returns standardized cookie options for creating/updating a session cookie.
+ */
+export function getSessionCookieOptions(
+  maxAgeSeconds = DEFAULT_SESSION_TTL_SECONDS,
+): SessionCookieOptions {
+  return {
+    path: "/",
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: maxAgeSeconds,
+  };
+}
+
+/**
+ * Returns standardized cookie options for deleting/evicting a session cookie.
+ * Complies with RFC 6265bis for __Host- prefixed cookies in production.
+ */
+export function getDeleteSessionCookieOptions(): SessionCookieOptions {
+  return {
+    path: "/",
+    secure: process.env.NODE_ENV === "production",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: 0,
+    expires: new Date(0),
+  };
+}
+
 export interface SessionPayload {
   dashboard_id: string;
   dashboard_hash: string;
