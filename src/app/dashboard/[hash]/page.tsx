@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 import {
@@ -6,12 +5,7 @@ import {
   type Dashboard,
   type Note,
 } from "@/client/db-client";
-import {
-  getSessionCookieName,
-  getSessionSecret,
-  SESSION_COOKIE_NAME,
-  verifySessionToken,
-} from "@/lib/session";
+import { verifyDashboardSession } from "@/lib/auth-guard";
 import {
   LoginForm,
   DashboardView,
@@ -59,18 +53,9 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     notFound();
   }
 
-  const cookieStore = await cookies();
-  const scopedCookieName = getSessionCookieName(dashboard.hash);
-  const rawToken =
-    cookieStore.get(scopedCookieName)?.value ||
-    cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  const secret = getSessionSecret();
-
-  const session = rawToken ? await verifySessionToken(rawToken, secret) : null;
+  const session = await verifyDashboardSession(dashboard.hash);
   const isAuthenticated =
-    session !== null &&
-    session.dashboard_id === dashboard.id &&
-    session.dashboard_hash === dashboard.hash;
+    session !== null && session.dashboard_id === dashboard.id;
 
   if (!isAuthenticated) {
     return <LoginForm dashboardHash={hash.trim()} />;
