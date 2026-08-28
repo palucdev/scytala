@@ -49,6 +49,20 @@ describe("Dashboard Subcomponents", () => {
   });
 
   describe("LogoutButton Client Component", () => {
+    let originalLocation: Location;
+
+    beforeEach(() => {
+      originalLocation = window.location;
+    });
+
+    afterEach(() => {
+      Object.defineProperty(window, "location", {
+        value: originalLocation,
+        writable: true,
+        configurable: true,
+      });
+    });
+
     it("renders logout button with icon and text", () => {
       renderWithTheme(<LogoutButton />);
 
@@ -59,11 +73,12 @@ describe("Dashboard Subcomponents", () => {
     });
 
     it("triggers logoutFromDashboardAction and calls window.location.replace on click", async () => {
-      const originalLocation = window.location;
       const replaceMock = vi.fn();
-      // @ts-expect-error - mock window.location
-      delete window.location;
-      window.location = { ...originalLocation, replace: replaceMock, pathname: "/dashboard/test-hash" } as Location;
+      Object.defineProperty(window, "location", {
+        value: { ...originalLocation, replace: replaceMock, pathname: "/dashboard/test-hash" },
+        writable: true,
+        configurable: true,
+      });
 
       mockLogoutAction.mockResolvedValueOnce({ success: true });
 
@@ -79,16 +94,15 @@ describe("Dashboard Subcomponents", () => {
       await waitFor(() => {
         expect(replaceMock).toHaveBeenCalledWith("/dashboard/test-hash");
       });
-
-      window.location = originalLocation;
     });
 
     it("redirects to custom redirectTo URL via window.location.replace when specified", async () => {
-      const originalLocation = window.location;
       const replaceMock = vi.fn();
-      // @ts-expect-error - mock window.location
-      delete window.location;
-      window.location = { ...originalLocation, replace: replaceMock, pathname: "/dashboard/test-hash" } as Location;
+      Object.defineProperty(window, "location", {
+        value: { ...originalLocation, replace: replaceMock, pathname: "/dashboard/test-hash" },
+        writable: true,
+        configurable: true,
+      });
 
       mockLogoutAction.mockResolvedValueOnce({ success: true });
 
@@ -104,16 +118,15 @@ describe("Dashboard Subcomponents", () => {
       await waitFor(() => {
         expect(replaceMock).toHaveBeenCalledWith("/goodbye");
       });
-
-      window.location = originalLocation;
     });
 
     it("handles logout action failure without redirecting", async () => {
-      const originalLocation = window.location;
       const replaceMock = vi.fn();
-      // @ts-expect-error - mock window.location
-      delete window.location;
-      window.location = { ...originalLocation, replace: replaceMock, pathname: "/dashboard/test-hash" } as Location;
+      Object.defineProperty(window, "location", {
+        value: { ...originalLocation, replace: replaceMock, pathname: "/dashboard/test-hash" },
+        writable: true,
+        configurable: true,
+      });
 
       mockLogoutAction.mockResolvedValueOnce({ success: false, error: "Network error" });
 
@@ -128,16 +141,15 @@ describe("Dashboard Subcomponents", () => {
 
       expect(replaceMock).not.toHaveBeenCalled();
       expect(button).not.toBeDisabled();
-
-      window.location = originalLocation;
     });
 
     it("handles logout action exception gracefully", async () => {
-      const originalLocation = window.location;
       const replaceMock = vi.fn();
-      // @ts-expect-error - mock window.location
-      delete window.location;
-      window.location = { ...originalLocation, replace: replaceMock, pathname: "/dashboard/test-hash" } as Location;
+      Object.defineProperty(window, "location", {
+        value: { ...originalLocation, replace: replaceMock, pathname: "/dashboard/test-hash" },
+        writable: true,
+        configurable: true,
+      });
 
       mockLogoutAction.mockRejectedValueOnce(new Error("Fatal connection failure"));
 
@@ -152,8 +164,6 @@ describe("Dashboard Subcomponents", () => {
 
       expect(replaceMock).not.toHaveBeenCalled();
       expect(button).not.toBeDisabled();
-
-      window.location = originalLocation;
     });
   });
 
