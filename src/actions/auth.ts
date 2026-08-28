@@ -6,7 +6,9 @@ import { verifyPassword } from "@/lib/crypto";
 import {
   createSessionToken,
   DEFAULT_SESSION_TTL_SECONDS,
+  getDeleteSessionCookieOptions,
   getSessionCookieName,
+  getSessionCookieOptions,
   getSessionSecret,
   SESSION_COOKIE_NAME,
 } from "@/lib/session";
@@ -115,13 +117,11 @@ export async function loginToDashboardAction(
 
     const cookieName = getSessionCookieName(dashboard.hash);
     const cookieStore = await cookies();
-    cookieStore.set(cookieName, token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: DEFAULT_SESSION_TTL_SECONDS,
-    });
+    cookieStore.set(
+      cookieName,
+      token,
+      getSessionCookieOptions(DEFAULT_SESSION_TTL_SECONDS),
+    );
 
     return { success: true };
   } catch (error) {
@@ -141,20 +141,14 @@ export async function logoutFromDashboardAction(
 ): Promise<LogoutDashboardActionResult> {
   try {
     const cookieStore = await cookies();
-    const deleteCookieOptions = {
-      path: "/",
-      maxAge: 0,
-      secure: process.env.NODE_ENV === "production",
-      httpOnly: true,
-      sameSite: "lax" as const,
-    };
+    const deleteOptions = getDeleteSessionCookieOptions();
+
     if (input?.dashboardHash) {
       const scopedCookieName = getSessionCookieName(input.dashboardHash);
-      cookieStore.set(scopedCookieName, "", deleteCookieOptions);
-      cookieStore.delete(scopedCookieName);
+      cookieStore.set(scopedCookieName, "", deleteOptions);
     }
-    cookieStore.set(SESSION_COOKIE_NAME, "", deleteCookieOptions);
-    cookieStore.delete(SESSION_COOKIE_NAME);
+    cookieStore.set(SESSION_COOKIE_NAME, "", deleteOptions);
+
     return { success: true };
   } catch (error) {
     log.error("logoutFromDashboardAction failed", error);

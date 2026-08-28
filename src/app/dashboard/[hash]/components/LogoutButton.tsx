@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import LogoutIcon from "@mui/icons-material/Logout";
-
-import { logoutFromDashboardAction } from "@/actions/auth";
 
 export interface LogoutButtonProps {
   variant?: "text" | "outlined" | "contained";
@@ -20,58 +19,47 @@ export function LogoutButton({
   dashboardHash,
   redirectTo,
 }: LogoutButtonProps) {
-  const [isPending, setIsPending] = useState(false);
-
-  const handleLogout = async (e?: React.MouseEvent) => {
-    if (e) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
-    if (isPending) return;
-
-    setIsPending(true);
-    try {
-      const result = await logoutFromDashboardAction(
-        dashboardHash ? { dashboardHash } : undefined,
-      );
-      if (result?.success) {
-        if (typeof window !== "undefined") {
-          const targetUrl = redirectTo || window.location.pathname;
-          window.location.replace(targetUrl);
-        }
-      } else {
-        setIsPending(false);
-      }
-    } catch {
-      setIsPending(false);
-    }
-  };
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   return (
-    <Button
-      type="button"
-      variant={variant}
-      size={size}
-      color="primary"
-      onClick={handleLogout}
-      disabled={isPending}
-      startIcon={
-        isPending ? (
-          <CircularProgress size={16} color="inherit" />
-        ) : (
-          <LogoutIcon fontSize="small" />
-        )
-      }
-      aria-label="Log out"
-      id="dashboard-logout-btn"
-      sx={{
-        textTransform: "none",
-        minWidth: 90,
-      }}
+    <Box
+      component="form"
+      action="/api/auth/logout"
+      method="POST"
+      onSubmit={() => setIsSubmitting(true)}
+      sx={{ display: "inline-block" }}
     >
-      {isPending ? "Logging out..." : "Log out"}
-    </Button>
+      {dashboardHash && (
+        <input type="hidden" name="dashboardHash" value={dashboardHash} />
+      )}
+      {redirectTo && (
+        <input type="hidden" name="redirectTo" value={redirectTo} />
+      )}
+      <Button
+        type="submit"
+        variant={variant}
+        size={size}
+        color="primary"
+        disabled={isSubmitting}
+        startIcon={
+          isSubmitting ? (
+            <CircularProgress size={16} color="inherit" />
+          ) : (
+            <LogoutIcon fontSize="small" />
+          )
+        }
+        aria-label="Log out"
+        id="dashboard-logout-btn"
+        sx={{
+          textTransform: "none",
+          minWidth: 90,
+        }}
+      >
+        {isSubmitting ? "Logging out..." : "Log out"}
+      </Button>
+    </Box>
   );
 }
 
 export default LogoutButton;
+

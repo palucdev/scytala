@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { ThemeProvider } from "@mui/material/styles";
 
 import {
@@ -14,32 +14,11 @@ import {
   type NoteDto,
 } from "@/app/dashboard/[hash]/components";
 import { PapyrusThemeLight } from "@/theme/papyrus-theme-light";
-import * as authActionModule from "@/actions/auth";
-
-const mockRefresh = vi.fn();
-const mockPush = vi.fn();
-
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({
-    refresh: mockRefresh,
-    push: mockPush,
-  }),
-}));
-
-vi.mock("@/actions/auth", () => ({
-  logoutFromDashboardAction: vi.fn(),
-  loginToDashboardAction: vi.fn(),
-}));
-
 function renderWithTheme(ui: React.ReactElement) {
   return render(<ThemeProvider theme={PapyrusThemeLight}>{ui}</ThemeProvider>);
 }
 
 describe("Dashboard Subcomponents", () => {
-  const mockLogoutAction = vi.mocked(
-    authActionModule.logoutFromDashboardAction,
-  );
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -49,121 +28,87 @@ describe("Dashboard Subcomponents", () => {
   });
 
   describe("LogoutButton Client Component", () => {
-    let originalLocation: Location;
+    it("renders logout form with correct action, method, and button", () => {
+      const { container } = renderWithTheme(<LogoutButton />);
 
-    beforeEach(() => {
-      originalLocation = window.location;
-    });
-
-    afterEach(() => {
-      Object.defineProperty(window, "location", {
-        value: originalLocation,
-        writable: true,
-        configurable: true,
-      });
-    });
-
-    it("renders logout button with icon and text", () => {
-      renderWithTheme(<LogoutButton />);
+      const form = container.querySelector("form");
+      expect(form).toBeInTheDocument();
+      expect(form).toHaveAttribute("action", "/api/auth/logout");
+      expect(form).toHaveAttribute("method", "POST");
 
       const button = screen.getByRole("button", { name: /log out/i });
       expect(button).toBeInTheDocument();
+      expect(button).toHaveAttribute("type", "submit");
       expect(button).toHaveTextContent("Log out");
       expect(button).not.toBeDisabled();
     });
 
-    it("triggers logoutFromDashboardAction and calls window.location.replace on click", async () => {
-      const replaceMock = vi.fn();
-      Object.defineProperty(window, "location", {
-        value: { ...originalLocation, replace: replaceMock, pathname: "/dashboard/test-hash" },
-        writable: true,
-        configurable: true,
-      });
+    it("renders hidden input for dashboardHash when provided", () => {
+      const { container } = renderWithTheme(
+        <LogoutButton dashboardHash="test-hash-123" />,
+      );
 
-      mockLogoutAction.mockResolvedValueOnce({ success: true });
+      const hashInput = container.querySelector('input[name="dashboardHash"]');
+      expect(hashInput).toBeInTheDocument();
+      expect(hashInput).toHaveAttribute("type", "hidden");
+      expect(hashInput).toHaveAttribute("value", "test-hash-123");
 
-      renderWithTheme(<LogoutButton dashboardHash="test-hash" />);
-
-      const button = screen.getByRole("button", { name: /log out/i });
-      fireEvent.click(button);
-
-      await waitFor(() => {
-        expect(mockLogoutAction).toHaveBeenCalledWith({ dashboardHash: "test-hash" });
-      });
-
-      await waitFor(() => {
-        expect(replaceMock).toHaveBeenCalledWith("/dashboard/test-hash");
-      });
+      const redirectInput = container.querySelector('input[name="redirectTo"]');
+      expect(redirectInput).toBeNull();
     });
 
-    it("redirects to custom redirectTo URL via window.location.replace when specified", async () => {
-      const replaceMock = vi.fn();
-      Object.defineProperty(window, "location", {
-        value: { ...originalLocation, replace: replaceMock, pathname: "/dashboard/test-hash" },
-        writable: true,
-        configurable: true,
-      });
+    it("renders hidden input for redirectTo when provided", () => {
+      const { container } = renderWithTheme(
+        <LogoutButton redirectTo="/custom-redirect" />,
+      );
 
-      mockLogoutAction.mockResolvedValueOnce({ success: true });
+      const redirectInput = container.querySelector('input[name="redirectTo"]');
+      expect(redirectInput).toBeInTheDocument();
+      expect(redirectInput).toHaveAttribute("type", "hidden");
+      expect(redirectInput).toHaveAttribute("value", "/custom-redirect");
 
-      renderWithTheme(<LogoutButton redirectTo="/goodbye" />);
-
-      const button = screen.getByRole("button", { name: /log out/i });
-      fireEvent.click(button);
-
-      await waitFor(() => {
-        expect(mockLogoutAction).toHaveBeenCalledWith(undefined);
-      });
-
-      await waitFor(() => {
-        expect(replaceMock).toHaveBeenCalledWith("/goodbye");
-      });
+      const hashInput = container.querySelector('input[name="dashboardHash"]');
+      expect(hashInput).toBeNull();
     });
 
-    it("handles logout action failure without redirecting", async () => {
-      const replaceMock = vi.fn();
-      Object.defineProperty(window, "location", {
-        value: { ...originalLocation, replace: replaceMock, pathname: "/dashboard/test-hash" },
-        writable: true,
-        configurable: true,
-      });
+    it("renders both hidden inputs when both props are provided", () => {
+      const { container } = renderWithTheme(
+        <LogoutButton dashboardHash="hash-abc" redirectTo="/custom-login" />,
+      );
 
-      mockLogoutAction.mockResolvedValueOnce({ success: false, error: "Network error" });
+      const hashInput = container.querySelector('input[name="dashboardHash"]');
+      const redirectInput = container.querySelector('input[name="redirectTo"]');
 
-      renderWithTheme(<LogoutButton dashboardHash="test-hash" />);
+      expect(hashInput).toHaveAttribute("value", "hash-abc");
+      expect(redirectInput).toHaveAttribute("value", "/custom-login");
+    });
+
+    it("updates button state to submitting when form is submitted", () => {
+      const { container } = renderWithTheme(
+        <LogoutButton dashboardHash="test-hash" />,
+      );
+
+      const form = container.querySelector("form");
+      expect(form).toBeInTheDocument();
 
       const button = screen.getByRole("button", { name: /log out/i });
-      fireEvent.click(button);
-
-      await waitFor(() => {
-        expect(mockLogoutAction).toHaveBeenCalledWith({ dashboardHash: "test-hash" });
-      });
-
-      expect(replaceMock).not.toHaveBeenCalled();
       expect(button).not.toBeDisabled();
+
+      fireEvent.submit(form!);
+
+      expect(button).toBeDisabled();
+      expect(button).toHaveTextContent("Logging out...");
     });
 
-    it("handles logout action exception gracefully", async () => {
-      const replaceMock = vi.fn();
-      Object.defineProperty(window, "location", {
-        value: { ...originalLocation, replace: replaceMock, pathname: "/dashboard/test-hash" },
-        writable: true,
-        configurable: true,
-      });
-
-      mockLogoutAction.mockRejectedValueOnce(new Error("Fatal connection failure"));
-
-      renderWithTheme(<LogoutButton dashboardHash="test-hash" />);
+    it("renders with custom variant and size props", () => {
+      renderWithTheme(
+        <LogoutButton variant="contained" size="large" />,
+      );
 
       const button = screen.getByRole("button", { name: /log out/i });
-      fireEvent.click(button);
-
-      await waitFor(() => {
-        expect(mockLogoutAction).toHaveBeenCalledWith({ dashboardHash: "test-hash" });
-      });
-
-      expect(replaceMock).not.toHaveBeenCalled();
-      expect(button).not.toBeDisabled();
+      expect(button).toBeInTheDocument();
+      expect(button).toHaveClass("MuiButton-contained");
+      expect(button).toHaveClass("MuiButton-sizeLarge");
     });
   });
 
