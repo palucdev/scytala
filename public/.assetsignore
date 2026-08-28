@@ -1,0 +1,6 @@
+**/__tests__/**
+**/*.test.*
+**/*.spec.*
+coverage/**
+*.md
+*.map
