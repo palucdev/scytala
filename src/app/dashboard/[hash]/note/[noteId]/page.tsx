@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { createDatabaseClient } from "@/client/db-client";
 import { verifyDashboardSession } from "@/lib/auth-guard";
 import { LoginForm } from "@/app/dashboard/[hash]/components/LoginForm";
-import { NoteEditor } from "./components/NoteEditor";
+import { NoteEditor } from "./components";
 
 export const dynamic = "force-dynamic";
 

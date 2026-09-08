@@ -1,17 +1,21 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useCallback, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Container from "@mui/material/Container";
+import FormHelperText from "@mui/material/FormHelperText";
 import TextField from "@mui/material/TextField";
 
 import { createNoteAction, updateNoteAction } from "@/actions/notes";
 import { EditorToolbar } from "./EditorToolbar";
 import { LineNumberGutter } from "./LineNumberGutter";
+
+export const MAX_NOTE_CONTENT_LENGTH = 10000;
+export const MAX_NOTE_TITLE_LENGTH = 200;
 
 export interface NoteEditorProps {
   mode: "create" | "edit";
@@ -20,7 +24,9 @@ export interface NoteEditorProps {
   initialTitle?: string;
   initialContent?: string;
   initialVersion?: number;
+  /** Authenticated user ID, reserved for future authorship UI */
   authorId: string;
+  /** Authenticated user alias, reserved for future authorship UI */
   userAlias: string;
 }
 
@@ -39,12 +45,46 @@ export function NoteEditor({
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [versionConflict, setVersionConflict] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const gutterRef = useRef<HTMLDivElement>(null);
 
   const isDirty =
     title !== (initialTitle ?? "") || content !== (initialContent ?? "");
+
+  const canPromptUnloadRef = useRef(false);
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const nextTitle = e.target.value;
+    setTitle(nextTitle);
+    canPromptUnloadRef.current =
+      nextTitle !== (initialTitle ?? "") || content !== (initialContent ?? "");
+  };
+
+  const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const nextContent = e.target.value;
+    setContent(nextContent);
+    canPromptUnloadRef.current =
+      title !== (initialTitle ?? "") || nextContent !== (initialContent ?? "");
+  };
+
+  const handleBeforeUnload = useCallback((e: BeforeUnloadEvent) => {
+    if (canPromptUnloadRef.current) {
+      e.preventDefault();
+    }
+  }, []);
+
+  const containerRef = useCallback(
+    (node: HTMLElement | null) => {
+      if (node) {
+        window.addEventListener("beforeunload", handleBeforeUnload);
+      } else {
+        window.removeEventListener("beforeunload", handleBeforeUnload);
+      }
+    },
+    [handleBeforeUnload],
+  );
 
   const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
     if (gutterRef.current) {
@@ -58,48 +98,56 @@ export function NoteEditor({
     setVersionConflict(false);
 
     startTransition(async () => {
-      if (mode === "create") {
-        const result = await createNoteAction({
-          dashboardHash,
-          title: title.trim().length > 0 ? title.trim() : undefined,
-          content,
-        });
+      try {
+        if (mode === "create") {
+          const result = await createNoteAction({
+            dashboardHash,
+            title: title.trim().length > 0 ? title.trim() : undefined,
+            content,
+          });
 
-        if (result.success) {
-          router.push(`/dashboard/${dashboardHash}`);
-          router.refresh();
+          if (result.success) {
+            setIsSaved(true);
+            canPromptUnloadRef.current = false;
+            router.push(`/dashboard/${dashboardHash}`);
+            router.refresh();
+          } else {
+            setError(result.error);
+            if (result.fieldErrors) {
+              setFieldErrors(result.fieldErrors);
+            }
+          }
         } else {
-          setError(result.error);
-          if (result.fieldErrors) {
-            setFieldErrors(result.fieldErrors);
+          if (!noteId || version === undefined) {
+            setError("Note metadata missing.");
+            return;
           }
-        }
-      } else {
-        if (!noteId || version === undefined) {
-          setError("Note metadata missing.");
-          return;
-        }
 
-        const result = await updateNoteAction({
-          dashboardHash,
-          noteId,
-          title: title.trim().length > 0 ? title.trim() : "",
-          content,
-          expectedVersion: version,
-        });
+          const result = await updateNoteAction({
+            dashboardHash,
+            noteId,
+            title: title.trim().length > 0 ? title.trim() : "",
+            content,
+            expectedVersion: version,
+          });
 
-        if (result.success) {
-          router.push(`/dashboard/${dashboardHash}`);
-          router.refresh();
-        } else {
-          setError(result.error);
-          if (result.versionConflict) {
-            setVersionConflict(true);
-          }
-          if (result.fieldErrors) {
-            setFieldErrors(result.fieldErrors);
+          if (result.success) {
+            setIsSaved(true);
+            canPromptUnloadRef.current = false;
+            router.push(`/dashboard/${dashboardHash}`);
+            router.refresh();
+          } else {
+            setError(result.error);
+            if (result.versionConflict) {
+              setVersionConflict(true);
+            }
+            if (result.fieldErrors) {
+              setFieldErrors(result.fieldErrors);
+            }
           }
         }
+      } catch {
+        setError("Network error. Please check your connection and try again.");
       }
     });
   };
@@ -110,6 +158,7 @@ export function NoteEditor({
 
   return (
     <Box
+      ref={containerRef}
       sx={{
         minHeight: "100vh",
         bgcolor: "background.default",
@@ -162,7 +211,7 @@ export function NoteEditor({
             noteTitle={title}
             version={version}
             dashboardHash={dashboardHash}
-            isSaving={isPending}
+            isSaving={isPending || isSaved}
             isDirty={isDirty}
             onSave={handleSave}
             onDelete={handleDelete}
@@ -173,7 +222,7 @@ export function NoteEditor({
               id="note-title-input"
               placeholder="Title (optional)"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={handleTitleChange}
               fullWidth
               variant="standard"
               error={Boolean(fieldErrors.title)}
@@ -181,7 +230,7 @@ export function NoteEditor({
               slotProps={{
                 htmlInput: {
                   "aria-label": "Note title",
-                  maxLength: 200,
+                  maxLength: MAX_NOTE_TITLE_LENGTH,
                 },
               }}
               sx={{
@@ -212,10 +261,12 @@ export function NoteEditor({
             <LineNumberGutter content={content} ref={gutterRef} />
             <Box
               component="textarea"
+              wrap="off"
               id="note-content-input"
               aria-label="Note content"
+              maxLength={MAX_NOTE_CONTENT_LENGTH}
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              onChange={handleContentChange}
               onScroll={handleScroll}
               placeholder="Type plain text note content here..."
               spellCheck={false}
@@ -226,6 +277,8 @@ export function NoteEditor({
                 outline: "none",
                 resize: "vertical",
                 fontFamily: "monospace",
+                whiteSpace: "pre",
+                overflowX: "auto",
                 fontSize: "0.875rem",
                 lineHeight: 1.5,
                 bgcolor: "transparent",
@@ -236,6 +289,11 @@ export function NoteEditor({
               }}
             />
           </Box>
+          {fieldErrors.content && (
+            <FormHelperText error sx={{ px: { xs: 2, sm: 3 }, pb: 1 }}>
+              {fieldErrors.content[0]}
+            </FormHelperText>
+          )}
         </Card>
       </Container>
     </Box>
