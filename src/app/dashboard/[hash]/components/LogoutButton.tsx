@@ -6,11 +6,14 @@ import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import LogoutIcon from "@mui/icons-material/Logout";
 
+import type { SxProps, Theme } from "@mui/material/styles";
+
 export interface LogoutButtonProps {
   variant?: "text" | "outlined" | "contained";
   size?: "small" | "medium" | "large";
   dashboardHash?: string;
   redirectTo?: string;
+  sx?: SxProps<Theme>;
 }
 
 export function LogoutButton({
@@ -18,6 +21,7 @@ export function LogoutButton({
   size = "medium",
   dashboardHash,
   redirectTo,
+  sx,
 }: LogoutButtonProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -53,6 +57,7 @@ export function LogoutButton({
         sx={{
           textTransform: "none",
           minWidth: 90,
+          ...sx,
         }}
       >
         {isSubmitting ? "Logging out..." : "Log out"}

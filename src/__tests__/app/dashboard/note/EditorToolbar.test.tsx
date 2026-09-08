@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ThemeProvider } from "@mui/material/styles";
 
 import { EditorToolbar } from "@/app/dashboard/[hash]/note/[noteId]/components/EditorToolbar";
@@ -28,7 +28,7 @@ describe("EditorToolbar Component", () => {
   });
 
   describe("Create mode", () => {
-    it("renders 'New Note' title, back button, save button, and no delete button or version chip", () => {
+    it("renders 'Text note' title, back button, save button, and no delete button or version chip", () => {
       renderWithTheme(
         <EditorToolbar
           mode="create"
@@ -42,7 +42,7 @@ describe("EditorToolbar Component", () => {
       );
 
       expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-        "New Note",
+        "Text note",
       );
       expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
       expect(
@@ -56,7 +56,7 @@ describe("EditorToolbar Component", () => {
   });
 
   describe("Edit mode", () => {
-    it("renders note title, version chip, delete button, and save button", () => {
+    it("renders 'Text note' header, version chip, delete button, and save button", () => {
       renderWithTheme(
         <EditorToolbar
           mode="edit"
@@ -71,7 +71,7 @@ describe("EditorToolbar Component", () => {
       );
 
       expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-        "Important Document",
+        "Text note",
       );
       expect(screen.getByText("v3")).toBeInTheDocument();
       expect(
@@ -80,7 +80,7 @@ describe("EditorToolbar Component", () => {
       expect(screen.getByRole("button", { name: /save note/i })).toBeEnabled();
     });
 
-    it("displays 'Untitled Note' fallback when title is blank in edit mode", () => {
+    it("displays 'Text note' header even when title is blank in edit mode", () => {
       renderWithTheme(
         <EditorToolbar
           mode="edit"
@@ -95,7 +95,7 @@ describe("EditorToolbar Component", () => {
       );
 
       expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-        "Untitled Note",
+        "Text note",
       );
     });
   });
@@ -176,9 +176,7 @@ describe("EditorToolbar Component", () => {
       expect(handleDelete).toHaveBeenCalledTimes(1);
     });
 
-    it("prompts before navigating back when dirty and user cancels", () => {
-      vi.mocked(window.confirm).mockReturnValue(false);
-
+    it("prompts with unsaved changes dialog before navigating back when dirty and user cancels", async () => {
       renderWithTheme(
         <EditorToolbar
           mode="create"
@@ -194,15 +192,23 @@ describe("EditorToolbar Component", () => {
       const backLink = screen.getByRole("link", { name: /back to dashboard/i });
       fireEvent.click(backLink);
 
-      expect(window.confirm).toHaveBeenCalledWith(
-        "You have unsaved changes. Are you sure you want to leave?",
-      );
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "You have unsaved changes. Are you sure you want to leave?",
+        ),
+      ).toBeInTheDocument();
+
+      const cancelButton = screen.getByRole("button", { name: /cancel/i });
+      fireEvent.click(cancelButton);
+
+      await waitFor(() => {
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      });
       expect(mockPush).not.toHaveBeenCalled();
     });
 
-    it("prompts before navigating back when dirty and navigates when user confirms", () => {
-      vi.mocked(window.confirm).mockReturnValue(true);
-
+    it("prompts with unsaved changes dialog before navigating back when dirty and navigates when user confirms leave", () => {
       renderWithTheme(
         <EditorToolbar
           mode="create"
@@ -218,7 +224,10 @@ describe("EditorToolbar Component", () => {
       const backLink = screen.getByRole("link", { name: /back to dashboard/i });
       fireEvent.click(backLink);
 
-      expect(window.confirm).toHaveBeenCalled();
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      const leaveButton = screen.getByRole("button", { name: /leave/i });
+      fireEvent.click(leaveButton);
+
       expect(mockPush).toHaveBeenCalledWith("/dashboard/dash-123");
     });
   });

@@ -264,9 +264,16 @@ describe("src/app/dashboard/[hash]/page.tsx (DashboardPage SSR)", () => {
       ).toHaveTextContent("Secret Operations Room");
       expect(screen.getByText("Commander_Shepard")).toBeInTheDocument();
       expect(screen.getByText("No notes yet")).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /new note/i }),
-      ).toBeDisabled();
+      const createNoteLink = screen.getByRole("link", { name: /create note/i });
+      expect(createNoteLink).toHaveAttribute(
+        "href",
+        `/dashboard/${mockDashboard.hash}/note/new`,
+      );
+      const newNoteLink = screen.getByRole("link", { name: /new note/i });
+      expect(newNoteLink).toHaveAttribute(
+        "href",
+        `/dashboard/${mockDashboard.hash}/note/new`,
+      );
     });
 
     it("resolves session token from scoped cookie name", async () => {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Box from "@mui/material/Box";
@@ -12,9 +13,11 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import DeleteIcon from "@mui/icons-material/Delete";
 import SaveIcon from "@mui/icons-material/Save";
 
+import { ConfirmationDialog } from "@/components/ConfirmationDialog";
+
 export interface EditorToolbarProps {
   mode: "create" | "edit";
-  noteTitle: string;
+  noteTitle?: string;
   version?: number;
   dashboardHash: string;
   isSaving: boolean;
@@ -25,7 +28,6 @@ export interface EditorToolbarProps {
 
 export function EditorToolbar({
   mode,
-  noteTitle,
   version,
   dashboardHash,
   isSaving,
@@ -34,23 +36,19 @@ export function EditorToolbar({
   onDelete,
 }: EditorToolbarProps) {
   const router = useRouter();
+  const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
 
   const handleBack = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (isDirty) {
       e.preventDefault();
-      const confirmLeave = window.confirm(
-        "You have unsaved changes. Are you sure you want to leave?",
-      );
-      if (confirmLeave) {
-        router.push(`/dashboard/${dashboardHash}`);
-      }
+      setLeaveDialogOpen(true);
     }
   };
 
-  const displayTitle =
-    mode === "create"
-      ? "New Note"
-      : noteTitle.trim() || "Untitled Note";
+  const handleConfirmLeave = () => {
+    setLeaveDialogOpen(false);
+    router.push(`/dashboard/${dashboardHash}`);
+  };
 
   return (
     <Box
@@ -95,7 +93,7 @@ export function EditorToolbar({
             fontSize: { xs: "1rem", sm: "1.25rem" },
           }}
         >
-          {displayTitle}
+          Text note
         </Typography>
 
         {mode === "edit" && version !== undefined && (
@@ -143,6 +141,17 @@ export function EditorToolbar({
           {isSaving ? "Saving..." : "Save"}
         </Button>
       </Stack>
+
+      <ConfirmationDialog
+        open={leaveDialogOpen}
+        onClose={() => setLeaveDialogOpen(false)}
+        onConfirm={handleConfirmLeave}
+        title="Unsaved Changes"
+        description="You have unsaved changes. Are you sure you want to leave?"
+        confirmLabel="Leave"
+        cancelLabel="Cancel"
+        confirmColor="warning"
+      />
     </Box>
   );
 }

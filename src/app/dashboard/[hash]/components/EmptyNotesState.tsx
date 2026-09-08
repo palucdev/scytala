@@ -1,16 +1,20 @@
 "use client";
 
+import Link from "next/link";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Stack from "@mui/material/Stack";
-import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import AddIcon from "@mui/icons-material/Add";
 
-export function EmptyNotesState() {
+export interface EmptyNotesStateProps {
+  dashboardHash: string;
+}
+
+export function EmptyNotesState({ dashboardHash }: EmptyNotesStateProps) {
   return (
     <Card
       variant="outlined"
@@ -66,24 +70,21 @@ export function EmptyNotesState() {
             </Typography>
           </Box>
 
-          <Tooltip title="Note creation coming in S-03">
-            <span>
-              <Button
-                variant="contained"
-                color="primary"
-                disabled
-                startIcon={<AddIcon />}
-                id="empty-state-new-note-btn"
-                sx={{
-                  mt: 1,
-                  px: 3,
-                  textTransform: "none",
-                }}
-              >
-                New Note
-              </Button>
-            </span>
-          </Tooltip>
+          <Button
+            component={Link}
+            href={`/dashboard/${dashboardHash}/note/new`}
+            variant="contained"
+            color="primary"
+            startIcon={<AddIcon />}
+            id="empty-state-new-note-btn"
+            sx={{
+              mt: 1,
+              px: 3,
+              textTransform: "none",
+            }}
+          >
+            New Note
+          </Button>
         </Stack>
       </CardContent>
     </Card>

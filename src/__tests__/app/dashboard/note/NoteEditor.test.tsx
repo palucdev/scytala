@@ -81,6 +81,25 @@ describe("NoteEditor Client Component", () => {
       expect(contentTextarea).toHaveAttribute("wrap", "off");
     });
 
+    it("renders NoteEditorHeader with user alias, Note history and Contributors buttons", () => {
+      renderWithTheme(
+        <NoteEditor
+          mode="create"
+          dashboardHash="dash-123"
+          authorId="user-uuid-1"
+          userAlias="Alice_Commander"
+        />,
+      );
+
+      expect(screen.getByText("Alice_Commander")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /note history/i }),
+      ).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: /contributors/i }),
+      ).toBeDisabled();
+    });
+
     it("displays content fieldErrors with FormHelperText (F9)", async () => {
       mockCreateNoteAction.mockResolvedValueOnce({
         success: false,
@@ -238,7 +257,7 @@ describe("NoteEditor Client Component", () => {
       );
 
       expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-        "New Note",
+        "Text note",
       );
       const titleInput = screen.getByLabelText("Note title");
       const contentTextarea = screen.getByLabelText("Note content");
@@ -365,7 +384,7 @@ describe("NoteEditor Client Component", () => {
       );
 
       expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-        "Architecture Plan",
+        "Text note",
       );
       expect(screen.getByText("v4")).toBeInTheDocument();
       expect(screen.getByLabelText("Note title")).toHaveValue(

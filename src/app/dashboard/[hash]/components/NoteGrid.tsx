@@ -7,9 +7,10 @@ import { NoteTile } from "./NoteTile";
 
 export interface NoteGridProps {
   notes: NoteDto[];
+  dashboardHash: string;
 }
 
-export function NoteGrid({ notes }: NoteGridProps) {
+export function NoteGrid({ notes, dashboardHash }: NoteGridProps) {
   return (
     <Box
       component="section"
@@ -20,11 +21,12 @@ export function NoteGrid({ notes }: NoteGridProps) {
           xs: "1fr",
           sm: "repeat(auto-fill, minmax(280px, 1fr))",
         },
+        gridAutoRows: "210px",
         gap: 2.5,
       }}
     >
       {notes.map((note) => (
-        <NoteTile key={note.id} note={note} />
+        <NoteTile key={note.id} note={note} dashboardHash={dashboardHash} />
       ))}
     </Box>
   );

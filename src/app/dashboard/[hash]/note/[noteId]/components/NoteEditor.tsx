@@ -14,6 +14,7 @@ import { createNoteAction, updateNoteAction } from "@/actions/notes";
 import { DeleteNoteDialog } from "./DeleteNoteDialog";
 import { EditorToolbar } from "./EditorToolbar";
 import { LineNumberGutter } from "./LineNumberGutter";
+import { NoteEditorHeader } from "./NoteEditorHeader";
 
 export const MAX_NOTE_CONTENT_LENGTH = 10000;
 export const MAX_NOTE_TITLE_LENGTH = 200;
@@ -38,6 +39,7 @@ export function NoteEditor({
   initialTitle = "",
   initialContent = "",
   initialVersion,
+  userAlias,
 }: NoteEditorProps) {
   const router = useRouter();
   const [title, setTitle] = useState(initialTitle);
@@ -164,7 +166,7 @@ export function NoteEditor({
       sx={{
         minHeight: "100vh",
         bgcolor: "background.default",
-        py: { xs: 2, sm: 4 },
+        py: { xs: 2.5, sm: 3.5 },
         px: { xs: 2, sm: 3 },
       }}
     >
@@ -195,6 +197,11 @@ export function NoteEditor({
             {error}
           </Alert>
         )}
+
+        <NoteEditorHeader
+          userAlias={userAlias}
+          dashboardHash={dashboardHash}
+        />
 
         <Card
           sx={{
