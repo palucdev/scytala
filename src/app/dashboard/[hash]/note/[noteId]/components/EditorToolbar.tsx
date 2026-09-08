@@ -80,7 +80,6 @@ export function EditorToolbar({
           onClick={handleBack}
           startIcon={<ArrowBackIcon />}
           variant="outlined"
-          size="small"
           aria-label="Back to dashboard"
         >
           Back
@@ -121,7 +120,6 @@ export function EditorToolbar({
             onClick={onDelete}
             disabled={isSaving}
             startIcon={<DeleteIcon />}
-            size="small"
             aria-label="Delete note"
           >
             Delete
@@ -140,7 +138,6 @@ export function EditorToolbar({
               <SaveIcon />
             )
           }
-          size="small"
           aria-label="Save note"
         >
           {isSaving ? "Saving..." : "Save"}

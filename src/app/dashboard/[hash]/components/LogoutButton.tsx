@@ -15,7 +15,7 @@ export interface LogoutButtonProps {
 
 export function LogoutButton({
   variant = "outlined",
-  size = "small",
+  size = "medium",
   dashboardHash,
   redirectTo,
 }: LogoutButtonProps) {
@@ -45,7 +45,7 @@ export function LogoutButton({
           isSubmitting ? (
             <CircularProgress size={16} color="inherit" />
           ) : (
-            <LogoutIcon fontSize="small" />
+            <LogoutIcon />
           )
         }
         aria-label="Log out"

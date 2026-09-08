@@ -95,9 +95,8 @@ export function DashboardHeader({
             <span>
               <Button
                 variant="outlined"
-                size="small"
                 disabled
-                startIcon={<SyncIcon fontSize="small" />}
+                startIcon={<SyncIcon />}
                 sx={{ textTransform: "none" }}
               >
                 Sync (Up to date)

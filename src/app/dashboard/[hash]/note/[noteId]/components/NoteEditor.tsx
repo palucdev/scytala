@@ -11,6 +11,7 @@ import FormHelperText from "@mui/material/FormHelperText";
 import TextField from "@mui/material/TextField";
 
 import { createNoteAction, updateNoteAction } from "@/actions/notes";
+import { DeleteNoteDialog } from "./DeleteNoteDialog";
 import { EditorToolbar } from "./EditorToolbar";
 import { LineNumberGutter } from "./LineNumberGutter";
 
@@ -45,6 +46,7 @@ export function NoteEditor({
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [versionConflict, setVersionConflict] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [isPending, startTransition] = useTransition();
 
@@ -153,7 +155,7 @@ export function NoteEditor({
   };
 
   const handleDelete = () => {
-    // Delete dialog confirmation is wired in Phase 4
+    setDeleteDialogOpen(true);
   };
 
   return (
@@ -295,6 +297,16 @@ export function NoteEditor({
             </FormHelperText>
           )}
         </Card>
+
+        {mode === "edit" && noteId && deleteDialogOpen && (
+          <DeleteNoteDialog
+            open={deleteDialogOpen}
+            onClose={() => setDeleteDialogOpen(false)}
+            dashboardHash={dashboardHash}
+            noteId={noteId}
+            noteTitle={title}
+          />
+        )}
       </Container>
     </Box>
   );

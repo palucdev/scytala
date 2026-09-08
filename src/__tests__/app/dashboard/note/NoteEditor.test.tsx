@@ -167,7 +167,7 @@ describe("NoteEditor Client Component", () => {
       // Resolve action with success
       resolveAction!({
         success: true,
-        data: { id: "note-1", version: 1 },
+        note: createMockNote({ id: "note-1", version: 1 }),
       });
 
       await waitFor(() => {
@@ -501,4 +501,56 @@ describe("NoteEditor Client Component", () => {
       expect(gutterPre?.scrollTop).toBe(120);
     });
   });
+
+  describe("Delete confirmation dialog integration", () => {
+    it("opens delete confirmation dialog when Delete button is clicked in edit mode", async () => {
+      renderWithTheme(
+        <NoteEditor
+          mode="edit"
+          dashboardHash="dash-123"
+          noteId="note-uuid-1"
+          initialTitle="Test Note"
+          initialContent="Line 1"
+          initialVersion={1}
+          authorId="user-uuid-1"
+          userAlias="Alice"
+        />,
+      );
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+      const deleteBtn = screen.getByRole("button", { name: "Delete note" });
+      fireEvent.click(deleteBtn);
+
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(screen.getByText("Delete Note")).toBeInTheDocument();
+      expect(
+        screen.getByText(/Are you sure you want to delete “Test Note”?/),
+      ).toBeInTheDocument();
+
+      const cancelBtn = screen.getByRole("button", { name: "Cancel" });
+      fireEvent.click(cancelBtn);
+
+      await waitFor(() => {
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      });
+    });
+
+    it("does not render Delete button in create mode", () => {
+      renderWithTheme(
+        <NoteEditor
+          mode="create"
+          dashboardHash="dash-123"
+          authorId="user-uuid-1"
+          userAlias="Alice"
+        />,
+      );
+
+      expect(
+        screen.queryByRole("button", { name: "Delete note" }),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
 });
+
