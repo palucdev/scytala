@@ -47,6 +47,12 @@ export class InMemorySlidingWindowStore {
 
 export const inMemoryStore = new InMemorySlidingWindowStore();
 
+/**
+ * Precomputed valid PBKDF2 hash for constant-time timing equalization on non-existent users.
+ */
+export const DUMMY_PBKDF2_HASH =
+  "$pbkdf2$100000$00000000000000000000000000000000$0000000000000000000000000000000000000000000000000000000000000000";
+
 export type RateLimiterType = "authIp" | "authAccount" | "dashboardCreate";
 
 export async function getClientIp(): Promise<string> {

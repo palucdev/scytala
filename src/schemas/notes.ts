@@ -32,7 +32,7 @@ export const updateNoteSchema = z.object({
     .max(200, "Title must not exceed 200 characters")
     .optional()
     .nullable()
-    .transform((val) => (val && val.length > 0 ? val : undefined)),
+    .transform((val) => (val === undefined ? undefined : val ? val : "")),
   content: z
     .string()
     .min(1, "Note content cannot be empty")
@@ -96,4 +96,6 @@ export type DeleteNoteActionResult =
       success: false;
       error: string;
       fieldErrors?: Record<string, string[]>;
+      rateLimited?: boolean;
+      retryAfterSeconds?: number;
     };

@@ -173,7 +173,7 @@ describe("src/schemas/notes.ts", () => {
       }
     });
 
-    it("transforms null and empty string titles to undefined in updateNoteSchema", () => {
+    it("transforms null and empty string titles to empty string in updateNoteSchema", () => {
       const resultNull = updateNoteSchema.safeParse({
         dashboardHash: "AbCdEfGh12345678",
         noteId: validUuid,
@@ -183,7 +183,30 @@ describe("src/schemas/notes.ts", () => {
       });
       expect(resultNull.success).toBe(true);
       if (resultNull.success) {
-        expect(resultNull.data.title).toBeUndefined();
+        expect(resultNull.data.title).toBe("");
+      }
+
+      const resultEmpty = updateNoteSchema.safeParse({
+        dashboardHash: "AbCdEfGh12345678",
+        noteId: validUuid,
+        title: "",
+        content: "Updated content",
+        expectedVersion: 1,
+      });
+      expect(resultEmpty.success).toBe(true);
+      if (resultEmpty.success) {
+        expect(resultEmpty.data.title).toBe("");
+      }
+
+      const resultUndefined = updateNoteSchema.safeParse({
+        dashboardHash: "AbCdEfGh12345678",
+        noteId: validUuid,
+        content: "Updated content",
+        expectedVersion: 1,
+      });
+      expect(resultUndefined.success).toBe(true);
+      if (resultUndefined.success) {
+        expect(resultUndefined.data.title).toBeUndefined();
       }
     });
 

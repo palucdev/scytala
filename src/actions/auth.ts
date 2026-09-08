@@ -13,7 +13,7 @@ import {
   SESSION_COOKIE_NAME,
 } from "@/lib/session";
 import { logger } from "@/lib/logger";
-import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { checkRateLimit, DUMMY_PBKDF2_HASH, getClientIp } from "@/lib/rate-limit";
 import {
   loginDashboardSchema,
   type LoginDashboardActionResult,
@@ -28,10 +28,6 @@ export type {
   LoginDashboardInput,
   LogoutDashboardActionResult,
 };
-
-// Precomputed valid PBKDF2 hash for constant-time timing equalization on non-existent users
-const DUMMY_PBKDF2_HASH =
-  "$pbkdf2$100000$00000000000000000000000000000000$0000000000000000000000000000000000000000000000000000000000000000";
 
 export async function loginToDashboardAction(
   input: LoginDashboardInput,
