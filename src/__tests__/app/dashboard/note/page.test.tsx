@@ -272,4 +272,45 @@ describe("src/app/dashboard/[hash]/note/[noteId]/page.tsx (NoteEditorPage SSR)",
       ).toBeInTheDocument();
     });
   });
+
+  describe("Rate limiting (RateLimitNotice SSR)", () => {
+    beforeEach(() => {
+      mockGetDashboardByHash.mockResolvedValue(mockDashboard);
+    });
+
+    it("renders RateLimitNotice when verifyDashboardSession throws SessionRateLimitError", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockRejectedValue(
+        new authGuardModule.SessionRateLimitError(55),
+      );
+
+      const page = await NoteEditorPage({
+        params: Promise.resolve({
+          hash: mockDashboard.hash,
+          noteId: "new",
+        }),
+      });
+      renderWithTheme(page);
+
+      expect(screen.getByText(/429 — Too Many Requests/i)).toBeInTheDocument();
+      expect(screen.getByText(/55 seconds/i)).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /retry now/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("re-throws unexpected errors that are not SessionRateLimitError", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockRejectedValue(
+        new Error("Unexpected failure in note editor"),
+      );
+
+      await expect(
+        NoteEditorPage({
+          params: Promise.resolve({
+            hash: mockDashboard.hash,
+            noteId: "new",
+          }),
+        }),
+      ).rejects.toThrow("Unexpected failure in note editor");
+    });
+  });
 });

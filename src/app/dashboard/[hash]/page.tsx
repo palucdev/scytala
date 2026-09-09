@@ -5,7 +5,11 @@ import {
   type Dashboard,
   type Note,
 } from "@/client/db-client";
-import { verifyDashboardSession } from "@/lib/auth-guard";
+import {
+  verifyDashboardSession,
+  SessionRateLimitError,
+} from "@/lib/auth-guard";
+import { RateLimitNotice } from "@/components";
 import {
   LoginForm,
   DashboardView,
@@ -53,7 +57,25 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     notFound();
   }
 
-  const session = await verifyDashboardSession(dashboard.hash);
+  let session = null;
+  let rateLimitError: SessionRateLimitError | null = null;
+
+  try {
+    session = await verifyDashboardSession(dashboard.hash, {
+      throwOnRateLimit: true,
+    });
+  } catch (error) {
+    if (error instanceof SessionRateLimitError) {
+      rateLimitError = error;
+    } else {
+      throw error;
+    }
+  }
+
+  if (rateLimitError) {
+    return <RateLimitNotice retryAfterSeconds={rateLimitError.retryAfterSeconds} />;
+  }
+
   const isAuthenticated =
     session !== null && session.dashboard_id === dashboard.id;
 

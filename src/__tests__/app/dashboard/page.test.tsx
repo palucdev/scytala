@@ -6,6 +6,7 @@ import DashboardPage from "@/app/dashboard/[hash]/page";
 import { PapyrusThemeLight } from "@/theme/papyrus-theme-light";
 import * as dbClientModule from "@/client/db-client";
 import * as sessionModule from "@/lib/session";
+import * as authGuardModule from "@/lib/auth-guard";
 import type { Dashboard, Note } from "@/client/db-client";
 
 const mockNotFound = vi.fn();
@@ -385,6 +386,41 @@ describe("src/app/dashboard/[hash]/page.tsx (DashboardPage SSR)", () => {
       const dtos = mapNotesToDto(notes);
       expect(dtos[0].content).toHaveLength(300);
       expect(dtos[0].content).toBe("A".repeat(300));
+    });
+  });
+
+  describe("Rate limiting (RateLimitNotice SSR)", () => {
+    beforeEach(() => {
+      mockGetDashboardByHash.mockResolvedValue(mockDashboard);
+    });
+
+    it("renders RateLimitNotice when verifyDashboardSession throws SessionRateLimitError", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockRejectedValue(
+        new authGuardModule.SessionRateLimitError(42),
+      );
+
+      const page = await DashboardPage({
+        params: Promise.resolve({ hash: mockDashboard.hash }),
+      });
+      renderWithTheme(page);
+
+      expect(screen.getByText(/429 — Too Many Requests/i)).toBeInTheDocument();
+      expect(screen.getByText(/42 seconds/i)).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /retry now/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("re-throws unexpected errors that are not SessionRateLimitError", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockRejectedValue(
+        new Error("Unexpected system failure"),
+      );
+
+      await expect(
+        DashboardPage({
+          params: Promise.resolve({ hash: mockDashboard.hash }),
+        }),
+      ).rejects.toThrow("Unexpected system failure");
     });
   });
 });

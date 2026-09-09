@@ -6,4 +6,8 @@ export {
   ScytalaUserHeader,
   type ScytalaUserHeaderProps,
 } from "./ScytalaUserHeader";
+export {
+  RateLimitNotice,
+  type RateLimitNoticeProps,
+} from "./RateLimitNotice";
 

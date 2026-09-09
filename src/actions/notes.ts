@@ -2,7 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { createDatabaseClient } from "@/client/db-client";
-import { verifyDashboardSession } from "@/lib/auth-guard";
+import {
+  verifyDashboardSession,
+  SessionRateLimitError,
+} from "@/lib/auth-guard";
 import { verifyPassword } from "@/lib/crypto";
 import { logger } from "@/lib/logger";
 import {
@@ -84,7 +87,9 @@ export async function createNoteAction(
   const { dashboardHash, title, content } = parsed.data;
 
   try {
-    const session = await verifyDashboardSession(dashboardHash);
+    const session = await verifyDashboardSession(dashboardHash, {
+      throwOnRateLimit: true,
+    });
     if (!session) {
       log.warn("Unauthorized attempt to create note", { dashboardHash });
       return {
@@ -115,6 +120,24 @@ export async function createNoteAction(
       note: result.note,
     };
   } catch (error) {
+    if (error instanceof SessionRateLimitError) {
+      const clientIp = await getClientIp();
+      log.warn(
+        "createNoteAction throttled by session verification rate limit",
+        {
+          clientIp,
+          retryAfterSeconds: error.retryAfterSeconds,
+          dashboardHash,
+        },
+      );
+      return {
+        success: false,
+        error: `Too many session attempts. Please try again in ${error.retryAfterSeconds} seconds.`,
+        rateLimited: true,
+        retryAfterSeconds: error.retryAfterSeconds,
+      };
+    }
+
     log.error("createNoteAction failed", error, { dashboardHash });
     return {
       success: false,
@@ -140,12 +163,18 @@ export async function updateNoteAction(
     };
   }
 
-  const { dashboardHash, noteId, title, content, expectedVersion } = parsed.data;
+  const { dashboardHash, noteId, title, content, expectedVersion } =
+    parsed.data;
 
   try {
-    const session = await verifyDashboardSession(dashboardHash);
+    const session = await verifyDashboardSession(dashboardHash, {
+      throwOnRateLimit: true,
+    });
     if (!session) {
-      log.warn("Unauthorized attempt to update note", { dashboardHash, noteId });
+      log.warn("Unauthorized attempt to update note", {
+        dashboardHash,
+        noteId,
+      });
       return {
         success: false,
         error: "Unauthorized. Please log in to this dashboard.",
@@ -189,6 +218,25 @@ export async function updateNoteAction(
       note: result.note,
     };
   } catch (error) {
+    if (error instanceof SessionRateLimitError) {
+      const clientIp = await getClientIp();
+      log.warn(
+        "updateNoteAction throttled by session verification rate limit",
+        {
+          clientIp,
+          retryAfterSeconds: error.retryAfterSeconds,
+          dashboardHash,
+          noteId,
+        },
+      );
+      return {
+        success: false,
+        error: `Too many session attempts. Please try again in ${error.retryAfterSeconds} seconds.`,
+        rateLimited: true,
+        retryAfterSeconds: error.retryAfterSeconds,
+      };
+    }
+
     const errorMessage = error instanceof Error ? error.message : String(error);
     if (errorMessage.toLowerCase().includes("version mismatch")) {
       log.warn("Note update version conflict", {
@@ -246,9 +294,14 @@ export async function deleteNoteAction(
       };
     }
 
-    const session = await verifyDashboardSession(dashboardHash);
+    const session = await verifyDashboardSession(dashboardHash, {
+      throwOnRateLimit: true,
+    });
     if (!session) {
-      log.warn("Unauthorized attempt to delete note", { dashboardHash, noteId });
+      log.warn("Unauthorized attempt to delete note", {
+        dashboardHash,
+        noteId,
+      });
       return {
         success: false,
         error: "Unauthorized. Please log in to this dashboard.",
@@ -277,26 +330,30 @@ export async function deleteNoteAction(
       };
     }
 
-    const handleFailedPasswordAttempt = async (): Promise<DeleteNoteActionResult> => {
-      const accountIdentifier = `${dashboardHash}:${session.user_alias.toLowerCase()}`;
-      const accountCheck = await checkRateLimit("authAccount", accountIdentifier);
-      if (!accountCheck.success) {
-        log.warn("Delete note request throttled by account rate limit", {
+    const handleFailedPasswordAttempt =
+      async (): Promise<DeleteNoteActionResult> => {
+        const accountIdentifier = `${dashboardHash}:${session.user_alias.toLowerCase()}`;
+        const accountCheck = await checkRateLimit(
+          "authAccount",
           accountIdentifier,
-          retryAfterSeconds: accountCheck.retryAfterSeconds,
-        });
+        );
+        if (!accountCheck.success) {
+          log.warn("Delete note request throttled by account rate limit", {
+            accountIdentifier,
+            retryAfterSeconds: accountCheck.retryAfterSeconds,
+          });
+          return {
+            success: false,
+            error: `Too many failed attempts for this account. Please try again in ${accountCheck.retryAfterSeconds} seconds.`,
+            rateLimited: true,
+            retryAfterSeconds: accountCheck.retryAfterSeconds,
+          };
+        }
         return {
           success: false,
-          error: `Too many failed attempts for this account. Please try again in ${accountCheck.retryAfterSeconds} seconds.`,
-          rateLimited: true,
-          retryAfterSeconds: accountCheck.retryAfterSeconds,
+          error: "Invalid password.",
         };
-      }
-      return {
-        success: false,
-        error: "Invalid password.",
       };
-    };
 
     const user = await db.getDashboardUserByAlias(
       session.dashboard_id,
@@ -334,6 +391,25 @@ export async function deleteNoteAction(
       success: true,
     };
   } catch (error) {
+    if (error instanceof SessionRateLimitError) {
+      const clientIp = await getClientIp();
+      log.warn(
+        "deleteNoteAction throttled by session verification rate limit",
+        {
+          clientIp,
+          retryAfterSeconds: error.retryAfterSeconds,
+          dashboardHash,
+          noteId,
+        },
+      );
+      return {
+        success: false,
+        error: `Too many session attempts. Please try again in ${error.retryAfterSeconds} seconds.`,
+        rateLimited: true,
+        retryAfterSeconds: error.retryAfterSeconds,
+      };
+    }
+
     log.error("deleteNoteAction failed", error, { noteId, dashboardHash });
     return {
       success: false,

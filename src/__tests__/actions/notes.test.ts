@@ -136,6 +136,25 @@ describe("src/actions/notes", () => {
       }
     });
 
+    it("returns rate-limited response when session verification rate limit is exceeded", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockRejectedValue(
+        new authGuardModule.SessionRateLimitError(45),
+      );
+
+      const result = await createNoteAction({
+        dashboardHash: validHash,
+        title: "Throttled Session Note",
+        content: "Some content",
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.rateLimited).toBe(true);
+        expect(result.retryAfterSeconds).toBe(45);
+        expect(result.error).toContain("Too many session attempts");
+      }
+    });
+
     it("creates a note successfully with valid session and input", async () => {
       vi.spyOn(authGuardModule, "verifyDashboardSession").mockResolvedValue(
         mockSession,
@@ -258,6 +277,26 @@ describe("src/actions/notes", () => {
         expect(result.rateLimited).toBe(true);
         expect(result.retryAfterSeconds).toBe(30);
         expect(result.error).toContain("Too many note operations");
+      }
+    });
+
+    it("returns rate-limited response when session verification rate limit is exceeded", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockRejectedValue(
+        new authGuardModule.SessionRateLimitError(30),
+      );
+
+      const result = await updateNoteAction({
+        dashboardHash: validHash,
+        noteId: validNoteId,
+        content: "Updated content",
+        expectedVersion: 1,
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.rateLimited).toBe(true);
+        expect(result.retryAfterSeconds).toBe(30);
+        expect(result.error).toContain("Too many session attempts");
       }
     });
 
@@ -541,6 +580,25 @@ describe("src/actions/notes", () => {
         expect(result.rateLimited).toBe(true);
         expect(result.retryAfterSeconds).toBe(60);
         expect(result.error).toContain("Too many attempts");
+      }
+    });
+
+    it("throttles request when session verification rate limit is exceeded", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockRejectedValue(
+        new authGuardModule.SessionRateLimitError(50),
+      );
+
+      const result = await deleteNoteAction({
+        dashboardHash: validHash,
+        noteId: validNoteId,
+        password: "secretPassword",
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.rateLimited).toBe(true);
+        expect(result.retryAfterSeconds).toBe(50);
+        expect(result.error).toContain("Too many session attempts");
       }
     });
 

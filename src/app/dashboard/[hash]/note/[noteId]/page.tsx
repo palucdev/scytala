@@ -1,8 +1,12 @@
 import { notFound } from "next/navigation";
 
 import { createDatabaseClient } from "@/client/db-client";
-import { verifyDashboardSession } from "@/lib/auth-guard";
+import {
+  verifyDashboardSession,
+  SessionRateLimitError,
+} from "@/lib/auth-guard";
 import { LoginForm } from "@/app/dashboard/[hash]/components/LoginForm";
+import { RateLimitNotice } from "@/components";
 import { NoteEditor } from "./components";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +36,25 @@ export default async function NoteEditorPage({ params }: NoteEditorPageProps) {
     notFound();
   }
 
-  const session = await verifyDashboardSession(dashboard.hash);
+  let session = null;
+  let rateLimitError: SessionRateLimitError | null = null;
+
+  try {
+    session = await verifyDashboardSession(dashboard.hash, {
+      throwOnRateLimit: true,
+    });
+  } catch (error) {
+    if (error instanceof SessionRateLimitError) {
+      rateLimitError = error;
+    } else {
+      throw error;
+    }
+  }
+
+  if (rateLimitError) {
+    return <RateLimitNotice retryAfterSeconds={rateLimitError.retryAfterSeconds} />;
+  }
+
   const isAuthenticated =
     session !== null && session.dashboard_id === dashboard.id;
 
