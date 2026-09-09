@@ -1,9 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { revalidatePath } from "next/cache";
 import {
   createNoteAction,
   updateNoteAction,
   deleteNoteAction,
 } from "@/actions/notes";
+
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
+}));
 import * as authGuardModule from "@/lib/auth-guard";
 import * as dbClientModule from "@/client/db-client";
 import * as cryptoModule from "@/lib/crypto";
@@ -108,6 +113,29 @@ describe("src/actions/notes", () => {
       }
     });
 
+    it("returns rate-limited response when note creation limit is exceeded", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockResolvedValue(
+        mockSession,
+      );
+      vi.spyOn(rateLimitModule, "checkRateLimit").mockResolvedValue({
+        success: false,
+        retryAfterSeconds: 45,
+      });
+
+      const result = await createNoteAction({
+        dashboardHash: validHash,
+        title: "Throttled Note",
+        content: "Some content",
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.rateLimited).toBe(true);
+        expect(result.retryAfterSeconds).toBe(45);
+        expect(result.error).toContain("Too many note operations");
+      }
+    });
+
     it("creates a note successfully with valid session and input", async () => {
       vi.spyOn(authGuardModule, "verifyDashboardSession").mockResolvedValue(
         mockSession,
@@ -132,6 +160,7 @@ describe("src/actions/notes", () => {
       if (result.success) {
         expect(result.note).toEqual(mockNote);
       }
+      expect(revalidatePath).toHaveBeenCalledWith(`/dashboard/${validHash}`);
       expect(mockCreateNote).toHaveBeenCalledWith({
         dashboard_id: validDashboardId,
         title: "Test Note",
@@ -205,6 +234,30 @@ describe("src/actions/notes", () => {
         expect(result.error).toBe(
           "Unauthorized. Please log in to this dashboard.",
         );
+      }
+    });
+
+    it("returns rate-limited response when note update limit is exceeded", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockResolvedValue(
+        mockSession,
+      );
+      vi.spyOn(rateLimitModule, "checkRateLimit").mockResolvedValue({
+        success: false,
+        retryAfterSeconds: 30,
+      });
+
+      const result = await updateNoteAction({
+        dashboardHash: validHash,
+        noteId: validNoteId,
+        content: "Throttled update content",
+        expectedVersion: 1,
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.rateLimited).toBe(true);
+        expect(result.retryAfterSeconds).toBe(30);
+        expect(result.error).toContain("Too many note operations");
       }
     });
 
@@ -297,6 +350,7 @@ describe("src/actions/notes", () => {
       if (result.success) {
         expect(result.note).toEqual(updatedNote);
       }
+      expect(revalidatePath).toHaveBeenCalledWith(`/dashboard/${validHash}`);
       expect(mockUpdateNote).toHaveBeenCalledWith({
         note_id: validNoteId,
         title: "Updated Title",
@@ -707,6 +761,7 @@ describe("src/actions/notes", () => {
       });
 
       expect(result.success).toBe(true);
+      expect(revalidatePath).toHaveBeenCalledWith(`/dashboard/${validHash}`);
       expect(mockDeleteNote).toHaveBeenCalledWith(validNoteId);
     });
 

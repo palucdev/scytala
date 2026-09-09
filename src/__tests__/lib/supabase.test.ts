@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { SupabaseDatabaseClient } from '@/lib/supabase';
+import { SupabaseDatabaseClient, createTimeoutFetch } from '@/lib/supabase';
 import {
   createDatabaseClient,
   type CreateDashboardInput,
@@ -91,6 +91,97 @@ describe('src/lib/supabase domain adapter', () => {
 
       const dbClient = createDatabaseClient();
       expect(dbClient).toBeInstanceOf(SupabaseDatabaseClient);
+    });
+
+    it('respects custom SUPABASE_TIMEOUT_MS environment variable', () => {
+      vi.stubEnv('SUPABASE_URL', 'https://example.supabase.co');
+      vi.stubEnv('SUPABASE_KEY', 'test-key');
+      vi.stubEnv('SUPABASE_TIMEOUT_MS', '3000');
+
+      expect(() => new SupabaseDatabaseClient()).not.toThrow();
+    });
+
+    it('falls back to default 8000ms when SUPABASE_TIMEOUT_MS is invalid', () => {
+      vi.stubEnv('SUPABASE_URL', 'https://example.supabase.co');
+      vi.stubEnv('SUPABASE_KEY', 'test-key');
+      vi.stubEnv('SUPABASE_TIMEOUT_MS', 'invalid-number');
+
+      expect(() => new SupabaseDatabaseClient()).not.toThrow();
+    });
+  });
+
+  describe('createTimeoutFetch', () => {
+    it('successfully proxies fetch responses within timeout', async () => {
+      const mockResponse = new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+      });
+      const mockFetch = vi.fn().mockResolvedValue(mockResponse);
+
+      const timeoutFetch = createTimeoutFetch(5000, mockFetch);
+      const res = await timeoutFetch('https://example.supabase.co/rest/v1/info');
+
+      expect(res).toBe(mockResponse);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://example.supabase.co/rest/v1/info',
+        expect.objectContaining({
+          signal: expect.any(Object),
+        }),
+      );
+    });
+
+    it('throws descriptive database timeout error when fetch times out with TimeoutError', async () => {
+      const timeoutError = new Error('The operation was aborted due to timeout');
+      timeoutError.name = 'TimeoutError';
+      const mockFetch = vi.fn().mockRejectedValue(timeoutError);
+
+      const timeoutFetch = createTimeoutFetch(4000, mockFetch);
+      await expect(
+        timeoutFetch('https://example.supabase.co/rest/v1/notes'),
+      ).rejects.toThrow(
+        '[SupabaseDatabaseClient] Database request timed out after 4000ms',
+      );
+    });
+
+    it('throws descriptive database timeout error when error message contains timeout', async () => {
+      const messageTimeoutError = new Error('Connection timeout while connecting to host');
+      const mockFetch = vi.fn().mockRejectedValue(messageTimeoutError);
+
+      const timeoutFetch = createTimeoutFetch(2000, mockFetch);
+      await expect(
+        timeoutFetch('https://example.supabase.co/rest/v1/notes'),
+      ).rejects.toThrow(
+        '[SupabaseDatabaseClient] Database request timed out after 2000ms',
+      );
+    });
+
+    it('re-throws non-timeout errors untouched', async () => {
+      const genericError = new Error('DNS resolution failed');
+      const mockFetch = vi.fn().mockRejectedValue(genericError);
+
+      const timeoutFetch = createTimeoutFetch(5000, mockFetch);
+      await expect(
+        timeoutFetch('https://example.supabase.co/rest/v1/notes'),
+      ).rejects.toThrow('DNS resolution failed');
+    });
+
+    it('combines caller-provided signal with timeout signal', async () => {
+      const mockResponse = new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+      });
+      const mockFetch = vi.fn().mockResolvedValue(mockResponse);
+      const callerController = new AbortController();
+
+      const timeoutFetch = createTimeoutFetch(5000, mockFetch);
+      await timeoutFetch('https://example.supabase.co/rest/v1/info', {
+        signal: callerController.signal,
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://example.supabase.co/rest/v1/info',
+        expect.objectContaining({
+          signal: expect.any(Object),
+        }),
+      );
     });
   });
 

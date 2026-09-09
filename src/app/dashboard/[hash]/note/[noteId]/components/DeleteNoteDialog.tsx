@@ -61,7 +61,6 @@ export function DeleteNoteDialog({
           setError(null);
           onClose();
           router.replace(`/dashboard/${dashboardHash}`);
-          router.refresh();
         } else {
           setError(result.error);
         }
@@ -108,7 +107,7 @@ export function DeleteNoteDialog({
             history.
           </DialogContentText>
 
-          <Typography color="error">
+          <Typography variant="body2" color="text.secondary">
             Please enter your user password to confirm deletion.
           </Typography>
           {error && (

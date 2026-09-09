@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createDatabaseClient } from "@/client/db-client";
 import { verifyDashboardSession } from "@/lib/auth-guard";
 import { verifyPassword } from "@/lib/crypto";
@@ -60,6 +61,22 @@ export async function createNoteAction(
       };
     }
 
+    const rateLimitKey = `${session.dashboard_id}:${session.user_id}`;
+    const rateCheck = await checkRateLimit("noteMutation", rateLimitKey);
+    if (!rateCheck.success) {
+      log.warn("createNoteAction throttled by rate limit", {
+        dashboardId: session.dashboard_id,
+        userId: session.user_id,
+        retryAfterSeconds: rateCheck.retryAfterSeconds,
+      });
+      return {
+        success: false,
+        error: `Too many note operations. Please try again in ${rateCheck.retryAfterSeconds} seconds.`,
+        rateLimited: true,
+        retryAfterSeconds: rateCheck.retryAfterSeconds,
+      };
+    }
+
     const db = createDatabaseClient();
     const result = await db.createNote({
       dashboard_id: session.dashboard_id,
@@ -68,6 +85,7 @@ export async function createNoteAction(
       author_id: session.user_id,
     });
 
+    revalidatePath(`/dashboard/${dashboardHash}`);
     return {
       success: true,
       note: result.note,
@@ -110,6 +128,23 @@ export async function updateNoteAction(
       };
     }
 
+    const rateLimitKey = `${session.dashboard_id}:${session.user_id}`;
+    const rateCheck = await checkRateLimit("noteMutation", rateLimitKey);
+    if (!rateCheck.success) {
+      log.warn("updateNoteAction throttled by rate limit", {
+        dashboardId: session.dashboard_id,
+        userId: session.user_id,
+        noteId,
+        retryAfterSeconds: rateCheck.retryAfterSeconds,
+      });
+      return {
+        success: false,
+        error: `Too many note operations. Please try again in ${rateCheck.retryAfterSeconds} seconds.`,
+        rateLimited: true,
+        retryAfterSeconds: rateCheck.retryAfterSeconds,
+      };
+    }
+
     const db = createDatabaseClient();
     const note = await db.getNoteById(noteId);
     if (!note || note.dashboard_id !== session.dashboard_id) {
@@ -131,6 +166,7 @@ export async function updateNoteAction(
       author_id: session.user_id,
     });
 
+    revalidatePath(`/dashboard/${dashboardHash}`);
     return {
       success: true,
       note: result.note,
@@ -267,6 +303,7 @@ export async function deleteNoteAction(
       };
     }
 
+    revalidatePath(`/dashboard/${dashboardHash}`);
     return {
       success: true,
     };

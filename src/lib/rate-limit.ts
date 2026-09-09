@@ -53,7 +53,11 @@ export const inMemoryStore = new InMemorySlidingWindowStore();
 export const DUMMY_PBKDF2_HASH =
   "$pbkdf2$100000$00000000000000000000000000000000$0000000000000000000000000000000000000000000000000000000000000000";
 
-export type RateLimiterType = "authIp" | "authAccount" | "dashboardCreate";
+export type RateLimiterType =
+  | "authIp"
+  | "authAccount"
+  | "dashboardCreate"
+  | "noteMutation";
 
 export async function getClientIp(): Promise<string> {
   try {
@@ -89,6 +93,7 @@ export const RATE_LIMIT_CONFIGS: Record<
   authIp: { max: 10, windowMs: 60 * 1000, refillRate: 10 / 60 },
   authAccount: { max: 5, windowMs: 15 * 60 * 1000, refillRate: 5 / 900 },
   dashboardCreate: { max: 5, windowMs: 60 * 60 * 1000, refillRate: 5 / 3600 },
+  noteMutation: { max: 30, windowMs: 60 * 1000, refillRate: 30 / 60 },
 };
 
 /**

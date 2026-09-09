@@ -35,7 +35,7 @@ export function mapNotesToDto(notes: Note[] = []): NoteDto[] {
     .map((note) => ({
       id: note.id,
       title: note.title,
-      content: note.content,
+      content: note.content.slice(0, 300),
       version: note.version,
       updated_at: note.updated_at,
     }));

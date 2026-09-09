@@ -45,7 +45,6 @@ export default async function NoteEditorPage({ params }: NoteEditorPageProps) {
       <NoteEditor
         mode="create"
         dashboardHash={dashboard.hash}
-        authorId={session.user_id}
         userAlias={session.user_alias}
       />
     );
@@ -69,7 +68,6 @@ export default async function NoteEditorPage({ params }: NoteEditorPageProps) {
       initialTitle={note.title}
       initialContent={note.content}
       initialVersion={note.version}
-      authorId={session.user_id}
       userAlias={session.user_alias}
     />
   );

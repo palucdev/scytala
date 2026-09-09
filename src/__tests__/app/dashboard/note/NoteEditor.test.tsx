@@ -50,7 +50,6 @@ describe("NoteEditor Client Component", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    window.confirm = vi.fn();
   });
 
   afterEach(() => {
@@ -68,7 +67,6 @@ describe("NoteEditor Client Component", () => {
         <NoteEditor
           mode="create"
           dashboardHash="dash-123"
-          authorId="user-uuid-1"
           userAlias="Alice"
         />,
       );
@@ -86,7 +84,6 @@ describe("NoteEditor Client Component", () => {
         <NoteEditor
           mode="create"
           dashboardHash="dash-123"
-          authorId="user-uuid-1"
           userAlias="Alice_Commander"
         />,
       );
@@ -114,7 +111,6 @@ describe("NoteEditor Client Component", () => {
         <NoteEditor
           mode="create"
           dashboardHash="dash-123"
-          authorId="user-uuid-1"
           userAlias="Alice"
         />,
       );
@@ -140,7 +136,6 @@ describe("NoteEditor Client Component", () => {
         <NoteEditor
           mode="create"
           dashboardHash="dash-123"
-          authorId="user-uuid-1"
           userAlias="Alice"
         />,
       );
@@ -169,7 +164,6 @@ describe("NoteEditor Client Component", () => {
         <NoteEditor
           mode="create"
           dashboardHash="dash-123"
-          authorId="user-uuid-1"
           userAlias="Alice"
         />,
       );
@@ -191,7 +185,6 @@ describe("NoteEditor Client Component", () => {
 
       await waitFor(() => {
         expect(mockPush).toHaveBeenCalledWith("/dashboard/dash-123");
-        expect(mockRefresh).toHaveBeenCalledTimes(1);
       });
 
       // Still disabled because isSaved is true
@@ -208,7 +201,6 @@ describe("NoteEditor Client Component", () => {
         <NoteEditor
           mode="create"
           dashboardHash="dash-123"
-          authorId="user-uuid-1"
           userAlias="Alice"
         />,
       );
@@ -251,7 +243,6 @@ describe("NoteEditor Client Component", () => {
         <NoteEditor
           mode="create"
           dashboardHash="dash-123"
-          authorId="user-uuid-1"
           userAlias="Alice"
         />,
       );
@@ -276,7 +267,6 @@ describe("NoteEditor Client Component", () => {
         <NoteEditor
           mode="create"
           dashboardHash="dash-123"
-          authorId="user-uuid-1"
           userAlias="Alice"
         />,
       );
@@ -304,7 +294,6 @@ describe("NoteEditor Client Component", () => {
 
       await waitFor(() => {
         expect(mockPush).toHaveBeenCalledWith("/dashboard/dash-123");
-        expect(mockRefresh).toHaveBeenCalledTimes(1);
       });
     });
 
@@ -318,7 +307,6 @@ describe("NoteEditor Client Component", () => {
         <NoteEditor
           mode="create"
           dashboardHash="dash-123"
-          authorId="user-uuid-1"
           userAlias="Alice"
         />,
       );
@@ -352,7 +340,6 @@ describe("NoteEditor Client Component", () => {
         <NoteEditor
           mode="create"
           dashboardHash="dash-123"
-          authorId="user-uuid-1"
           userAlias="Alice"
         />,
       );
@@ -378,7 +365,6 @@ describe("NoteEditor Client Component", () => {
           initialTitle="Architecture Plan"
           initialContent={"Line 1\nLine 2"}
           initialVersion={4}
-          authorId="user-uuid-1"
           userAlias="Alice"
         />,
       );
@@ -410,7 +396,6 @@ describe("NoteEditor Client Component", () => {
           initialTitle="Architecture Plan"
           initialContent="Old content"
           initialVersion={4}
-          authorId="user-uuid-1"
           userAlias="Alice"
         />,
       );
@@ -432,7 +417,6 @@ describe("NoteEditor Client Component", () => {
 
       await waitFor(() => {
         expect(mockPush).toHaveBeenCalledWith("/dashboard/dash-123");
-        expect(mockRefresh).toHaveBeenCalledTimes(1);
       });
     });
 
@@ -451,7 +435,6 @@ describe("NoteEditor Client Component", () => {
           initialTitle="Shared Note"
           initialContent="Original text"
           initialVersion={2}
-          authorId="user-uuid-1"
           userAlias="Alice"
         />,
       );
@@ -482,7 +465,6 @@ describe("NoteEditor Client Component", () => {
           dashboardHash="dash-123"
           initialTitle="Missing ID Note"
           initialContent="Content"
-          authorId="user-uuid-1"
           userAlias="Alice"
         />,
       );
@@ -505,7 +487,6 @@ describe("NoteEditor Client Component", () => {
         <NoteEditor
           mode="create"
           dashboardHash="dash-123"
-          authorId="user-uuid-1"
           userAlias="Alice"
         />,
       );
@@ -531,7 +512,6 @@ describe("NoteEditor Client Component", () => {
           initialTitle="Test Note"
           initialContent="Line 1"
           initialVersion={1}
-          authorId="user-uuid-1"
           userAlias="Alice"
         />,
       );
@@ -560,7 +540,6 @@ describe("NoteEditor Client Component", () => {
         <NoteEditor
           mode="create"
           dashboardHash="dash-123"
-          authorId="user-uuid-1"
           userAlias="Alice"
         />,
       );

@@ -285,6 +285,18 @@ describe("src/lib/rate-limit", () => {
       expect(blocked.retryAfterSeconds).toBeGreaterThan(0);
     });
 
+    it("enforces noteMutation limits in memory", async () => {
+      const max = RATE_LIMIT_CONFIGS.noteMutation.max;
+      for (let i = 0; i < max; i++) {
+        const result = await checkRateLimit("noteMutation", "dash123:user456");
+        expect(result.success).toBe(true);
+      }
+
+      const blocked = await checkRateLimit("noteMutation", "dash123:user456");
+      expect(blocked.success).toBe(false);
+      expect(blocked.retryAfterSeconds).toBeGreaterThan(0);
+    });
+
     it("isolates different identifiers in memory", async () => {
       const max = RATE_LIMIT_CONFIGS.authIp.max;
       for (let i = 0; i < max; i++) {

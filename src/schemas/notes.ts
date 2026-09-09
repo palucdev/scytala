@@ -74,6 +74,8 @@ export type CreateNoteActionResult =
       success: false;
       error: string;
       fieldErrors?: Record<string, string[]>;
+      rateLimited?: boolean;
+      retryAfterSeconds?: number;
     };
 
 export type UpdateNoteActionResult =
@@ -86,6 +88,8 @@ export type UpdateNoteActionResult =
       error: string;
       fieldErrors?: Record<string, string[]>;
       versionConflict?: boolean;
+      rateLimited?: boolean;
+      retryAfterSeconds?: number;
     };
 
 export type DeleteNoteActionResult =

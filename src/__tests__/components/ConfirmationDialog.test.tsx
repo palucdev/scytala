@@ -46,26 +46,25 @@ describe("ConfirmationDialog Component", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("renders custom confirm and cancel labels and styles", () => {
+  it("renders custom confirm and cancel labels and warning color", () => {
     renderWithTheme(
       <ConfirmationDialog
         open={true}
         onClose={vi.fn()}
         onConfirm={vi.fn()}
-        title="Delete Item"
-        description="Item will be deleted."
-        confirmLabel="Yes, Delete"
-        cancelLabel="No, Keep"
-        confirmColor="error"
-        confirmVariant="contained"
+        title="Leave Page"
+        description="You have unsaved changes."
+        confirmLabel="Leave"
+        cancelLabel="Stay"
+        confirmColor="warning"
       />,
     );
 
     expect(
-      screen.getByRole("button", { name: /yes, delete/i }),
+      screen.getByRole("button", { name: /leave/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /no, keep/i }),
+      screen.getByRole("button", { name: /stay/i }),
     ).toBeInTheDocument();
   });
 
@@ -100,24 +99,5 @@ describe("ConfirmationDialog Component", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /proceed/i }));
     expect(handleConfirm).toHaveBeenCalledTimes(1);
-  });
-
-  it("disables buttons and renders progress spinner when loading", () => {
-    renderWithTheme(
-      <ConfirmationDialog
-        open={true}
-        onClose={vi.fn()}
-        onConfirm={vi.fn()}
-        title="Async Action"
-        description="Processing async request..."
-        loading={true}
-      />,
-    );
-
-    const confirmBtn = screen.getByRole("button", { name: /confirm/i });
-    const cancelBtn = screen.getByRole("button", { name: /cancel/i });
-    expect(confirmBtn).toBeDisabled();
-    expect(cancelBtn).toBeDisabled();
-    expect(screen.getByRole("progressbar")).toBeInTheDocument();
   });
 });

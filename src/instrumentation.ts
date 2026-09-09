@@ -1,4 +1,5 @@
 import { recordDeploymentAudit } from "./actions/audit";
+import { getEnv } from "./lib/env";
 
 /**
  * Next.js Instrumentation Hook
@@ -10,6 +11,16 @@ export async function register() {
     process.env.NEXT_RUNTIME === "nodejs" ||
     process.env.NEXT_RUNTIME === "edge"
   ) {
+    try {
+      getEnv();
+    } catch (err) {
+      console.error(
+        "[Instrumentation] Environment configuration validation failed on startup:",
+        err,
+      );
+      throw err;
+    }
+
     try {
       const result = await recordDeploymentAudit();
       if (result.recorded) {

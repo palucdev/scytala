@@ -366,5 +366,25 @@ describe("src/app/dashboard/[hash]/page.tsx (DashboardPage SSR)", () => {
         updated_at: "2026-08-26T12:00:00Z",
       });
     });
+
+    it("truncates note content exceeding 300 characters in preview DTO", async () => {
+      const { mapNotesToDto } = await import("@/app/dashboard/[hash]/page");
+      const longContent = "A".repeat(500);
+      const notes: Note[] = [
+        {
+          id: "note-long",
+          dashboard_id: "dash-1234-uuid",
+          title: "Long Note",
+          content: longContent,
+          version: 1,
+          created_at: "2026-08-26T08:00:00Z",
+          updated_at: "2026-08-26T09:00:00Z",
+        },
+      ];
+
+      const dtos = mapNotesToDto(notes);
+      expect(dtos[0].content).toHaveLength(300);
+      expect(dtos[0].content).toBe("A".repeat(300));
+    });
   });
 });

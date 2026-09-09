@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
@@ -26,8 +26,6 @@ export interface NoteEditorProps {
   initialTitle?: string;
   initialContent?: string;
   initialVersion?: number;
-  /** Authenticated user ID, reserved for future authorship UI */
-  authorId: string;
   /** Authenticated user alias, reserved for future authorship UI */
   userAlias: string;
 }
@@ -55,40 +53,29 @@ export function NoteEditor({
   const gutterRef = useRef<HTMLDivElement>(null);
 
   const isDirty =
-    title !== (initialTitle ?? "") || content !== (initialContent ?? "");
+    !isSaved &&
+    (title !== (initialTitle ?? "") || content !== (initialContent ?? ""));
 
-  const canPromptUnloadRef = useRef(false);
+  useEffect(() => {
+    if (!isDirty) return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [isDirty]);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const nextTitle = e.target.value;
-    setTitle(nextTitle);
-    canPromptUnloadRef.current =
-      nextTitle !== (initialTitle ?? "") || content !== (initialContent ?? "");
+    setTitle(e.target.value);
   };
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const nextContent = e.target.value;
-    setContent(nextContent);
-    canPromptUnloadRef.current =
-      title !== (initialTitle ?? "") || nextContent !== (initialContent ?? "");
+    setContent(e.target.value);
   };
-
-  const handleBeforeUnload = useCallback((e: BeforeUnloadEvent) => {
-    if (canPromptUnloadRef.current) {
-      e.preventDefault();
-    }
-  }, []);
-
-  const containerRef = useCallback(
-    (node: HTMLElement | null) => {
-      if (node) {
-        window.addEventListener("beforeunload", handleBeforeUnload);
-      } else {
-        window.removeEventListener("beforeunload", handleBeforeUnload);
-      }
-    },
-    [handleBeforeUnload],
-  );
 
   const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
     if (gutterRef.current) {
@@ -112,9 +99,7 @@ export function NoteEditor({
 
           if (result.success) {
             setIsSaved(true);
-            canPromptUnloadRef.current = false;
             router.push(`/dashboard/${dashboardHash}`);
-            router.refresh();
           } else {
             setError(result.error);
             if (result.fieldErrors) {
@@ -137,9 +122,7 @@ export function NoteEditor({
 
           if (result.success) {
             setIsSaved(true);
-            canPromptUnloadRef.current = false;
             router.push(`/dashboard/${dashboardHash}`);
-            router.refresh();
           } else {
             setError(result.error);
             if (result.versionConflict) {
@@ -162,7 +145,6 @@ export function NoteEditor({
 
   return (
     <Box
-      ref={containerRef}
       sx={{
         minHeight: "100vh",
         bgcolor: "background.default",

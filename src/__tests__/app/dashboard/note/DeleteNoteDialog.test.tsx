@@ -227,7 +227,6 @@ describe("DeleteNoteDialog Component", () => {
       });
       expect(mockOnClose).toHaveBeenCalledTimes(1);
       expect(mockReplace).toHaveBeenCalledWith("/dashboard/dash-123");
-      expect(mockRefresh).toHaveBeenCalledTimes(1);
     });
   });
 
