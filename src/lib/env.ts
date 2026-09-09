@@ -37,7 +37,7 @@ export function getEnv(customEnv?: Record<string, string | undefined>): Env {
     SUPABASE_SERVICE_ROLE_KEY: source.SUPABASE_SERVICE_ROLE_KEY,
     SESSION_SECRET: source.SESSION_SECRET,
     DEPLOY_ID: source.DEPLOY_ID,
-    APP_VERSION: source.APP_VERSION,
+    APP_VERSION: customEnv ? customEnv.APP_VERSION : process.env.APP_VERSION,
     LOG_LEVEL: source.LOG_LEVEL,
     SUPABASE_TIMEOUT_MS: source.SUPABASE_TIMEOUT_MS,
   });
