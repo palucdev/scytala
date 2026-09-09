@@ -101,9 +101,7 @@ describe("Dashboard Subcomponents", () => {
     });
 
     it("renders with custom variant and size props", () => {
-      renderWithTheme(
-        <LogoutButton variant="contained" size="large" />,
-      );
+      renderWithTheme(<LogoutButton variant="contained" size="large" />);
 
       const button = screen.getByRole("button", { name: /log out/i });
       expect(button).toBeInTheDocument();
@@ -112,9 +110,7 @@ describe("Dashboard Subcomponents", () => {
     });
 
     it("renders with custom sx styling prop", () => {
-      renderWithTheme(
-        <LogoutButton sx={{ height: 40, px: 2 }} />,
-      );
+      renderWithTheme(<LogoutButton sx={{ height: 40, px: 2 }} />);
 
       const button = screen.getByRole("button", { name: /log out/i });
       expect(button).toBeInTheDocument();
@@ -173,7 +169,9 @@ describe("Dashboard Subcomponents", () => {
       ).toBeDisabled();
       expect(screen.getByRole("button", { name: /add file/i })).toBeDisabled();
       expect(screen.getByRole("button", { name: /add image/i })).toBeDisabled();
-      expect(screen.getByRole("button", { name: /add survey/i })).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: /add survey/i }),
+      ).toBeDisabled();
     });
 
     it("renders without description when description is null or omitted", () => {
@@ -220,7 +218,9 @@ describe("Dashboard Subcomponents", () => {
         "/dashboard/secret-hash-16c/note/note-1",
       );
       // dayjs formatting for 2026-08-26 12:34 UTC or local depending on timezone
-      expect(screen.getByText(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/),
+      ).toBeInTheDocument();
     });
 
     it("falls back to 'Untitled Note' when title is empty or whitespace", () => {
@@ -262,7 +262,9 @@ describe("Dashboard Subcomponents", () => {
         <NoteTile note={longNote} dashboardHash="secret-hash-16c" />,
       );
 
-      const paragraph = screen.getByText(/alpha unit has established the perimeter/i);
+      const paragraph = screen.getByText(
+        /alpha unit has established the perimeter/i,
+      );
       expect(paragraph).toBeInTheDocument();
       expect(paragraph.tagName).toBe("P");
 
@@ -291,15 +293,22 @@ describe("Dashboard Subcomponents", () => {
   describe("FormattedDate Client Component", () => {
     it("renders formatted date string on mount", () => {
       renderWithTheme(
-        <FormattedDate date="2026-08-26T14:30:00.000Z" format="YYYY-MM-DD HH:mm" />,
+        <FormattedDate
+          date="2026-08-26T14:30:00.000Z"
+          format="YYYY-MM-DD HH:mm"
+        />,
       );
 
-      expect(screen.getByText(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}/),
+      ).toBeInTheDocument();
     });
 
     it("handles empty date gracefully", () => {
       const { container } = renderWithTheme(<FormattedDate date="" />);
-      expect(container.querySelector("span") || container.firstChild).toHaveTextContent("");
+      expect(
+        container.querySelector("span") || container.firstChild,
+      ).toHaveTextContent("");
     });
   });
 
@@ -404,7 +413,12 @@ describe("Dashboard Subcomponents", () => {
       const links = screen.getAllByRole("link");
       // One for "+ New Note" in header, one for the NoteTile
       expect(links.length).toBeGreaterThanOrEqual(2);
-      expect(links.some((l) => l.getAttribute("href") === "/dashboard/secret-hash-16c/note/note-1")).toBe(true);
+      expect(
+        links.some(
+          (l) =>
+            l.getAttribute("href") === "/dashboard/secret-hash-16c/note/note-1",
+        ),
+      ).toBe(true);
     });
 
     it("renders header and EmptyNotesState when notes array is empty", () => {

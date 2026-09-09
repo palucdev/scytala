@@ -24,6 +24,38 @@ import {
 
 const log = logger.child({ module: "notes" });
 
+async function enforceMutationRateLimit(
+  session: { dashboard_id: string; user_id: string },
+  actionName: string,
+  extraContext?: Record<string, unknown>,
+): Promise<
+  | { success: true }
+  | {
+      success: false;
+      error: string;
+      rateLimited: true;
+      retryAfterSeconds: number;
+    }
+> {
+  const rateLimitKey = `${session.dashboard_id}:${session.user_id}`;
+  const rateCheck = await checkRateLimit("noteMutation", rateLimitKey);
+  if (!rateCheck.success) {
+    log.warn(`${actionName} throttled by rate limit`, {
+      dashboardId: session.dashboard_id,
+      userId: session.user_id,
+      retryAfterSeconds: rateCheck.retryAfterSeconds,
+      ...extraContext,
+    });
+    return {
+      success: false,
+      error: `Too many note operations. Please try again in ${rateCheck.retryAfterSeconds} seconds.`,
+      rateLimited: true,
+      retryAfterSeconds: rateCheck.retryAfterSeconds,
+    };
+  }
+  return { success: true };
+}
+
 export type {
   CreateNoteActionResult,
   CreateNoteInput,
@@ -61,20 +93,12 @@ export async function createNoteAction(
       };
     }
 
-    const rateLimitKey = `${session.dashboard_id}:${session.user_id}`;
-    const rateCheck = await checkRateLimit("noteMutation", rateLimitKey);
+    const rateCheck = await enforceMutationRateLimit(
+      session,
+      "createNoteAction",
+    );
     if (!rateCheck.success) {
-      log.warn("createNoteAction throttled by rate limit", {
-        dashboardId: session.dashboard_id,
-        userId: session.user_id,
-        retryAfterSeconds: rateCheck.retryAfterSeconds,
-      });
-      return {
-        success: false,
-        error: `Too many note operations. Please try again in ${rateCheck.retryAfterSeconds} seconds.`,
-        rateLimited: true,
-        retryAfterSeconds: rateCheck.retryAfterSeconds,
-      };
+      return rateCheck;
     }
 
     const db = createDatabaseClient();
@@ -128,21 +152,13 @@ export async function updateNoteAction(
       };
     }
 
-    const rateLimitKey = `${session.dashboard_id}:${session.user_id}`;
-    const rateCheck = await checkRateLimit("noteMutation", rateLimitKey);
+    const rateCheck = await enforceMutationRateLimit(
+      session,
+      "updateNoteAction",
+      { noteId },
+    );
     if (!rateCheck.success) {
-      log.warn("updateNoteAction throttled by rate limit", {
-        dashboardId: session.dashboard_id,
-        userId: session.user_id,
-        noteId,
-        retryAfterSeconds: rateCheck.retryAfterSeconds,
-      });
-      return {
-        success: false,
-        error: `Too many note operations. Please try again in ${rateCheck.retryAfterSeconds} seconds.`,
-        rateLimited: true,
-        retryAfterSeconds: rateCheck.retryAfterSeconds,
-      };
+      return rateCheck;
     }
 
     const db = createDatabaseClient();
@@ -167,6 +183,7 @@ export async function updateNoteAction(
     });
 
     revalidatePath(`/dashboard/${dashboardHash}`);
+    revalidatePath(`/dashboard/${dashboardHash}/note/${noteId}`);
     return {
       success: true,
       note: result.note,
@@ -238,6 +255,28 @@ export async function deleteNoteAction(
       };
     }
 
+    const rateCheck = await enforceMutationRateLimit(
+      session,
+      "deleteNoteAction",
+      { noteId },
+    );
+    if (!rateCheck.success) {
+      return rateCheck;
+    }
+
+    const db = createDatabaseClient();
+    const note = await db.getNoteById(noteId);
+    if (!note || note.dashboard_id !== session.dashboard_id) {
+      log.warn("Note not found or does not belong to dashboard", {
+        noteId,
+        dashboardId: session.dashboard_id,
+      });
+      return {
+        success: false,
+        error: "Note not found.",
+      };
+    }
+
     const handleFailedPasswordAttempt = async (): Promise<DeleteNoteActionResult> => {
       const accountIdentifier = `${dashboardHash}:${session.user_alias.toLowerCase()}`;
       const accountCheck = await checkRateLimit("authAccount", accountIdentifier);
@@ -259,7 +298,6 @@ export async function deleteNoteAction(
       };
     };
 
-    const db = createDatabaseClient();
     const user = await db.getDashboardUserByAlias(
       session.dashboard_id,
       session.user_alias,
@@ -280,18 +318,6 @@ export async function deleteNoteAction(
         userAlias: session.user_alias,
       });
       return handleFailedPasswordAttempt();
-    }
-
-    const note = await db.getNoteById(noteId);
-    if (!note || note.dashboard_id !== session.dashboard_id) {
-      log.warn("Note not found or does not belong to dashboard", {
-        noteId,
-        dashboardId: session.dashboard_id,
-      });
-      return {
-        success: false,
-        error: "Note not found.",
-      };
     }
 
     const deleted = await db.deleteNote(noteId);

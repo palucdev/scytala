@@ -230,10 +230,12 @@ describe("NoteEditor Client Component", () => {
       });
 
       // Saved state: beforeunload should NOT prompt
-      const eventSaved = new Event("beforeunload", { cancelable: true });
-      const preventDefaultSavedSpy = vi.spyOn(eventSaved, "preventDefault");
-      window.dispatchEvent(eventSaved);
-      expect(preventDefaultSavedSpy).not.toHaveBeenCalled();
+      await waitFor(() => {
+        const eventSaved = new Event("beforeunload", { cancelable: true });
+        const preventDefaultSavedSpy = vi.spyOn(eventSaved, "preventDefault");
+        window.dispatchEvent(eventSaved);
+        expect(preventDefaultSavedSpy).not.toHaveBeenCalled();
+      });
     });
   });
 

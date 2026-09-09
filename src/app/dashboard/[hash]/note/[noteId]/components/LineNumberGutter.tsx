@@ -16,8 +16,15 @@ export const LineNumberGutter = memo(
       ref,
     ) {
       const numbersText = useMemo(() => {
-        const lineCount = Math.max(1, content.split("\n").length);
-        return Array.from({ length: lineCount }, (_, i) => i + 1).join("\n");
+        let lineCount = 1;
+        for (let i = 0; i < content.length; i++) {
+          if (content.charCodeAt(i) === 10) lineCount++;
+        }
+        let out = "1";
+        for (let i = 2; i <= lineCount; i++) {
+          out += "\n" + i;
+        }
+        return out;
       }, [content]);
 
       return (

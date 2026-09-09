@@ -1,6 +1,6 @@
 {
   "name": "scytala",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "type": "module",
   "private": true,
   "scripts": {
@@ -13,7 +13,8 @@
     "build:worker": "opennextjs-cloudflare build",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "db:reset": "npx supabase db reset",
-    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "generate-session-secret": "openssl rand -base64 32"
   },
   "dependencies": {
     "@emotion/cache": "^11.14.0",

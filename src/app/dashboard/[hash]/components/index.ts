@@ -17,3 +17,12 @@ export {
   type NoteDto,
 } from "./DashboardView";
 export { FormattedDate, type FormattedDateProps } from "./FormattedDate";
+export {
+  DashboardTitle,
+  type DashboardTitleProps,
+} from "./DashboardTitle";
+export {
+  DashboardActionToolbar,
+  type DashboardActionToolbarProps,
+} from "./DashboardActionToolbar";
+

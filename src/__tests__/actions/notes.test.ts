@@ -351,6 +351,9 @@ describe("src/actions/notes", () => {
         expect(result.note).toEqual(updatedNote);
       }
       expect(revalidatePath).toHaveBeenCalledWith(`/dashboard/${validHash}`);
+      expect(revalidatePath).toHaveBeenCalledWith(
+        `/dashboard/${validHash}/note/${validNoteId}`,
+      );
       expect(mockUpdateNote).toHaveBeenCalledWith({
         note_id: validNoteId,
         title: "Updated Title",
@@ -541,12 +544,41 @@ describe("src/actions/notes", () => {
       }
     });
 
+    it("throttles request when user noteMutation rate limit is exceeded", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockResolvedValue(
+        mockSession,
+      );
+
+      vi.spyOn(rateLimitModule, "checkRateLimit").mockImplementation(
+        async (limiterType: string) => {
+          if (limiterType === "noteMutation") {
+            return { success: false, retryAfterSeconds: 30 };
+          }
+          return { success: true, retryAfterSeconds: 0 };
+        },
+      );
+
+      const result = await deleteNoteAction({
+        dashboardHash: validHash,
+        noteId: validNoteId,
+        password: "secretPassword",
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.rateLimited).toBe(true);
+        expect(result.retryAfterSeconds).toBe(30);
+        expect(result.error).toContain("Too many note operations");
+      }
+    });
+
     it("throttles request when account rate limit is exceeded on failed password", async () => {
       vi.spyOn(authGuardModule, "verifyDashboardSession").mockResolvedValue(
         mockSession,
       );
 
       vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
+        getNoteById: vi.fn().mockResolvedValue(mockNote),
         getDashboardUserByAlias: vi.fn().mockResolvedValue(mockUser),
       } as unknown as dbClientModule.DatabaseClient);
 
@@ -581,6 +613,7 @@ describe("src/actions/notes", () => {
       );
 
       vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
+        getNoteById: vi.fn().mockResolvedValue(mockNote),
         getDashboardUserByAlias: vi.fn().mockResolvedValue(null),
       } as unknown as dbClientModule.DatabaseClient);
 
@@ -615,6 +648,7 @@ describe("src/actions/notes", () => {
       };
 
       vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
+        getNoteById: vi.fn().mockResolvedValue(mockNote),
         getDashboardUserByAlias: vi.fn().mockResolvedValue(mismatchedUser),
       } as unknown as dbClientModule.DatabaseClient);
 
@@ -644,6 +678,7 @@ describe("src/actions/notes", () => {
       );
 
       vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
+        getNoteById: vi.fn().mockResolvedValue(mockNote),
         getDashboardUserByAlias: vi.fn().mockResolvedValue(mockUser),
       } as unknown as dbClientModule.DatabaseClient);
 
