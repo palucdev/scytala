@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
@@ -34,6 +34,13 @@ export function LoginForm({ dashboardHash }: LoginFormProps) {
   }>({});
   const [isPending, startTransition] = useTransition();
 
+  useEffect(() => {
+    return () => {
+      setPassword("");
+      setShowPassword(false);
+    };
+  }, []);
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
@@ -47,6 +54,8 @@ export function LoginForm({ dashboardHash }: LoginFormProps) {
       });
 
       if (result.success) {
+        setPassword("");
+        setShowPassword(false);
         router.refresh();
       } else {
         setError(result.error);
@@ -152,6 +161,9 @@ export function LoginForm({ dashboardHash }: LoginFormProps) {
               slotProps={{
                 htmlInput: {
                   "aria-label": "User Alias",
+                  autoCapitalize: "none",
+                  autoCorrect: "off",
+                  spellCheck: "false",
                 },
               }}
             />
@@ -171,6 +183,9 @@ export function LoginForm({ dashboardHash }: LoginFormProps) {
               slotProps={{
                 htmlInput: {
                   "aria-label": "Password",
+                  autoCapitalize: "none",
+                  autoCorrect: "off",
+                  spellCheck: "false",
                 },
                 input: {
                   endAdornment: (

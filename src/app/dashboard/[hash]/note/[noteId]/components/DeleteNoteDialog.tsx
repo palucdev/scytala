@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
@@ -37,6 +37,13 @@ export function DeleteNoteDialog({
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  useEffect(() => {
+    return () => {
+      setPassword("");
+      setError(null);
+    };
+  }, []);
+
   const handleClose = () => {
     if (isPending) return;
     setPassword("");
@@ -62,9 +69,11 @@ export function DeleteNoteDialog({
           onClose();
           router.replace(`/dashboard/${dashboardHash}`);
         } else {
+          setPassword("");
           setError(result.error);
         }
       } catch {
+        setPassword("");
         setError("Network error. Please check your connection and try again.");
       }
     });
@@ -87,6 +96,12 @@ export function DeleteNoteDialog({
             p: 1,
           },
         },
+        transition: {
+          onExited: () => {
+            setPassword("");
+            setError(null);
+          },
+        },
       }}
     >
       <DialogTitle id="delete-note-dialog-title" sx={{ fontWeight: 600 }}>
@@ -99,6 +114,7 @@ export function DeleteNoteDialog({
           handleConfirm();
         }}
         noValidate
+        autoComplete="off"
       >
         <DialogContent>
           <DialogContentText id="delete-note-dialog-description" sx={{ mb: 2 }}>
@@ -134,11 +150,14 @@ export function DeleteNoteDialog({
               }
             }}
             disabled={isPending}
-            autoComplete="current-password"
+            autoComplete="off"
             placeholder="Enter your user password to confirm deletion"
             slotProps={{
               htmlInput: {
                 "aria-label": "User Password",
+                autoCapitalize: "none",
+                autoCorrect: "off",
+                spellCheck: "false",
               },
             }}
           />
