@@ -387,6 +387,7 @@ export async function deleteNoteAction(
     }
 
     revalidatePath(`/dashboard/${dashboardHash}`);
+    revalidatePath(`/dashboard/${dashboardHash}/note/${noteId}`);
     return {
       success: true,
     };

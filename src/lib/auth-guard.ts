@@ -7,6 +7,9 @@ import {
   type VerifiedSessionPayload,
 } from "@/lib/session";
 import { checkRateLimit, getClientIp } from "@/lib/rate-limit";
+import { logger } from "@/lib/logger";
+
+const log = logger.child({ module: "auth-guard" });
 
 export class SessionRateLimitError extends Error {
   readonly retryAfterSeconds: number;
@@ -85,6 +88,9 @@ export async function verifyDashboardSession(
     if (error instanceof SessionRateLimitError) {
       throw error;
     }
+    log.error("Unexpected error in verifyDashboardSession", error, {
+      dashboardHash: normalizedHash,
+    });
     return null;
   }
 }

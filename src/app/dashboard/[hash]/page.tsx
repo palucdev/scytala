@@ -51,17 +51,13 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     notFound();
   }
 
-  const db = createDatabaseClient();
-  const dashboard = await db.getDashboardByHash(hash.trim());
-  if (!dashboard) {
-    notFound();
-  }
+  const normalizedHash = hash.trim();
 
   let session = null;
   let rateLimitError: SessionRateLimitError | null = null;
 
   try {
-    session = await verifyDashboardSession(dashboard.hash, {
+    session = await verifyDashboardSession(normalizedHash, {
       throwOnRateLimit: true,
     });
   } catch (error) {
@@ -76,11 +72,14 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     return <RateLimitNotice retryAfterSeconds={rateLimitError.retryAfterSeconds} />;
   }
 
-  const isAuthenticated =
-    session !== null && session.dashboard_id === dashboard.id;
+  const db = createDatabaseClient();
+  const dashboard = await db.getDashboardByHash(normalizedHash);
+  if (!dashboard) {
+    notFound();
+  }
 
-  if (!isAuthenticated) {
-    return <LoginForm dashboardHash={hash.trim()} />;
+  if (!session || session.dashboard_id !== dashboard.id) {
+    return <LoginForm dashboardHash={normalizedHash} />;
   }
 
   const rawNotes = await db.getNotesByDashboard(dashboard.id);

@@ -46,3 +46,5 @@ export function RateLimitNotice({ retryAfterSeconds }: RateLimitNoticeProps) {
     </Container>
   );
 }
+
+export default RateLimitNotice;

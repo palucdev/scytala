@@ -30,17 +30,11 @@ export default async function NoteEditorPage({ params }: NoteEditorPageProps) {
   const normalizedHash = hash.trim();
   const normalizedNoteId = noteId.trim();
 
-  const db = createDatabaseClient();
-  const dashboard = await db.getDashboardByHash(normalizedHash);
-  if (!dashboard) {
-    notFound();
-  }
-
   let session = null;
   let rateLimitError: SessionRateLimitError | null = null;
 
   try {
-    session = await verifyDashboardSession(dashboard.hash, {
+    session = await verifyDashboardSession(normalizedHash, {
       throwOnRateLimit: true,
     });
   } catch (error) {
@@ -55,10 +49,13 @@ export default async function NoteEditorPage({ params }: NoteEditorPageProps) {
     return <RateLimitNotice retryAfterSeconds={rateLimitError.retryAfterSeconds} />;
   }
 
-  const isAuthenticated =
-    session !== null && session.dashboard_id === dashboard.id;
+  const db = createDatabaseClient();
+  const dashboard = await db.getDashboardByHash(normalizedHash);
+  if (!dashboard) {
+    notFound();
+  }
 
-  if (!isAuthenticated) {
+  if (!session || session.dashboard_id !== dashboard.id) {
     return <LoginForm dashboardHash={dashboard.hash} />;
   }
 
