@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 import {
@@ -7,11 +6,10 @@ import {
   type Note,
 } from "@/client/db-client";
 import {
-  getSessionCookieName,
-  getSessionSecret,
-  SESSION_COOKIE_NAME,
-  verifySessionToken,
-} from "@/lib/session";
+  verifyDashboardSession,
+  SessionRateLimitError,
+} from "@/lib/auth-guard";
+import { RateLimitNotice } from "@/components";
 import {
   LoginForm,
   DashboardView,
@@ -41,7 +39,7 @@ export function mapNotesToDto(notes: Note[] = []): NoteDto[] {
     .map((note) => ({
       id: note.id,
       title: note.title,
-      content: note.content,
+      content: note.content.slice(0, 300),
       version: note.version,
       updated_at: note.updated_at,
     }));
@@ -53,27 +51,35 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     notFound();
   }
 
+  const normalizedHash = hash.trim();
+
+  let session = null;
+  let rateLimitError: SessionRateLimitError | null = null;
+
+  try {
+    session = await verifyDashboardSession(normalizedHash, {
+      throwOnRateLimit: true,
+    });
+  } catch (error) {
+    if (error instanceof SessionRateLimitError) {
+      rateLimitError = error;
+    } else {
+      throw error;
+    }
+  }
+
+  if (rateLimitError) {
+    return <RateLimitNotice retryAfterSeconds={rateLimitError.retryAfterSeconds} />;
+  }
+
   const db = createDatabaseClient();
-  const dashboard = await db.getDashboardByHash(hash.trim());
+  const dashboard = await db.getDashboardByHash(normalizedHash);
   if (!dashboard) {
     notFound();
   }
 
-  const cookieStore = await cookies();
-  const scopedCookieName = getSessionCookieName(dashboard.hash);
-  const rawToken =
-    cookieStore.get(scopedCookieName)?.value ||
-    cookieStore.get(SESSION_COOKIE_NAME)?.value;
-  const secret = getSessionSecret();
-
-  const session = rawToken ? await verifySessionToken(rawToken, secret) : null;
-  const isAuthenticated =
-    session !== null &&
-    session.dashboard_id === dashboard.id &&
-    session.dashboard_hash === dashboard.hash;
-
-  if (!isAuthenticated) {
-    return <LoginForm dashboardHash={hash.trim()} />;
+  if (!session || session.dashboard_id !== dashboard.id) {
+    return <LoginForm dashboardHash={normalizedHash} />;
   }
 
   const rawNotes = await db.getNotesByDashboard(dashboard.id);

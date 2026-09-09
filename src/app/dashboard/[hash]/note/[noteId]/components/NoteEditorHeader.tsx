@@ -3,48 +3,33 @@
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Tooltip from "@mui/material/Tooltip";
-import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
-import SyncIcon from "@mui/icons-material/Sync";
+import GroupOutlinedIcon from "@mui/icons-material/GroupOutlined";
+import HistoryIcon from "@mui/icons-material/History";
 
 import { ScytalaUserHeader } from "@/components/ScytalaUserHeader";
-import { DashboardTitle } from "./DashboardTitle";
-import { DashboardActionToolbar } from "./DashboardActionToolbar";
 
-export interface DashboardHeaderProps {
-  title: string;
-  description?: string | null;
+export interface NoteEditorHeaderProps {
   userAlias: string;
-  dashboardHash: string;
+  dashboardHash?: string;
 }
 
-export function DashboardHeader({
-  title,
-  description,
+export function NoteEditorHeader({
   userAlias,
   dashboardHash,
-}: DashboardHeaderProps) {
+}: NoteEditorHeaderProps) {
   return (
-    <Box
-      component="header"
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        gap: { xs: 2.5, sm: 3 },
-        mb: { xs: 3, sm: 4 },
-      }}
-    >
-      {/* Layer 1: Username nameplate, Configuration, Sync, and Log out buttons */}
+    <Box sx={{ mb: { xs: 2.5, sm: 3 } }}>
       <ScytalaUserHeader
         userAlias={userAlias}
         dashboardHash={dashboardHash}
       >
-        <Tooltip title="Dashboard settings coming in future updates">
+        <Tooltip title="Note history coming soon">
           <span>
             <Button
               variant="outlined"
               disabled
-              startIcon={<SettingsOutlinedIcon />}
-              id="header-configure-btn"
+              startIcon={<HistoryIcon />}
+              id="note-history-btn"
               sx={{
                 textTransform: "none",
                 height: 40,
@@ -56,17 +41,18 @@ export function DashboardHeader({
                 fontSize: "0.95rem",
               }}
             >
-              Dashboard settings
+              Note history
             </Button>
           </span>
         </Tooltip>
 
-        <Tooltip title="Remote synchronization coming in S-05">
+        <Tooltip title="Contributors coming soon">
           <span>
             <Button
               variant="outlined"
               disabled
-              startIcon={<SyncIcon />}
+              startIcon={<GroupOutlinedIcon />}
+              id="note-contributors-btn"
               sx={{
                 textTransform: "none",
                 height: 40,
@@ -78,19 +64,13 @@ export function DashboardHeader({
                 fontSize: "0.95rem",
               }}
             >
-              Sync (Up to date)
+              Contributors
             </Button>
           </span>
         </Tooltip>
       </ScytalaUserHeader>
-
-      {/* Layer 2: Dashboard name and description */}
-      <DashboardTitle title={title} description={description} />
-
-      {/* Layer 3: Action buttons toolbar panel */}
-      <DashboardActionToolbar dashboardHash={dashboardHash} />
     </Box>
   );
 }
 
-export default DashboardHeader;
+export default NoteEditorHeader;

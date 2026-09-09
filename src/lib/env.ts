@@ -15,6 +15,7 @@ export const envSchema = z.object({
     .enum(["debug", "info", "warn", "error", "fatal"])
     .optional()
     .default("info"),
+  SUPABASE_TIMEOUT_MS: z.coerce.number().positive().optional().default(8000),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -38,6 +39,7 @@ export function getEnv(customEnv?: Record<string, string | undefined>): Env {
     DEPLOY_ID: source.DEPLOY_ID,
     APP_VERSION: source.APP_VERSION,
     LOG_LEVEL: source.LOG_LEVEL,
+    SUPABASE_TIMEOUT_MS: source.SUPABASE_TIMEOUT_MS,
   });
 
   if (!result.success) {

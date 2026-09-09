@@ -37,6 +37,7 @@ describe("src/lib/env", () => {
       expect(parsed.DEPLOY_ID).toBe("development");
       expect(parsed.APP_VERSION).toBe("undefined");
       expect(parsed.LOG_LEVEL).toBe("info");
+      expect(parsed.SUPABASE_TIMEOUT_MS).toBe(8000);
     });
 
     it("parses optional custom values when provided", () => {
@@ -45,6 +46,7 @@ describe("src/lib/env", () => {
         DEPLOY_ID: "prod-deploy-42",
         APP_VERSION: "1.0.0",
         LOG_LEVEL: "debug",
+        SUPABASE_TIMEOUT_MS: "5000",
       };
 
       const parsed = getEnv(customVars);
@@ -52,6 +54,7 @@ describe("src/lib/env", () => {
       expect(parsed.DEPLOY_ID).toBe("prod-deploy-42");
       expect(parsed.APP_VERSION).toBe("1.0.0");
       expect(parsed.LOG_LEVEL).toBe("debug");
+      expect(parsed.SUPABASE_TIMEOUT_MS).toBe(5000);
     });
 
     it("throws a descriptive error when SUPABASE_URL is missing or invalid", () => {

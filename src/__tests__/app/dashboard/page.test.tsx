@@ -6,6 +6,7 @@ import DashboardPage from "@/app/dashboard/[hash]/page";
 import { PapyrusThemeLight } from "@/theme/papyrus-theme-light";
 import * as dbClientModule from "@/client/db-client";
 import * as sessionModule from "@/lib/session";
+import * as authGuardModule from "@/lib/auth-guard";
 import type { Dashboard, Note } from "@/client/db-client";
 
 const mockNotFound = vi.fn();
@@ -264,9 +265,16 @@ describe("src/app/dashboard/[hash]/page.tsx (DashboardPage SSR)", () => {
       ).toHaveTextContent("Secret Operations Room");
       expect(screen.getByText("Commander_Shepard")).toBeInTheDocument();
       expect(screen.getByText("No notes yet")).toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /new note/i }),
-      ).toBeDisabled();
+      const createNoteLink = screen.getByRole("link", { name: /create note/i });
+      expect(createNoteLink).toHaveAttribute(
+        "href",
+        `/dashboard/${mockDashboard.hash}/note/new`,
+      );
+      const newNoteLink = screen.getByRole("link", { name: /new note/i });
+      expect(newNoteLink).toHaveAttribute(
+        "href",
+        `/dashboard/${mockDashboard.hash}/note/new`,
+      );
     });
 
     it("resolves session token from scoped cookie name", async () => {
@@ -358,6 +366,61 @@ describe("src/app/dashboard/[hash]/page.tsx (DashboardPage SSR)", () => {
         version: 2,
         updated_at: "2026-08-26T12:00:00Z",
       });
+    });
+
+    it("truncates note content exceeding 300 characters in preview DTO", async () => {
+      const { mapNotesToDto } = await import("@/app/dashboard/[hash]/page");
+      const longContent = "A".repeat(500);
+      const notes: Note[] = [
+        {
+          id: "note-long",
+          dashboard_id: "dash-1234-uuid",
+          title: "Long Note",
+          content: longContent,
+          version: 1,
+          created_at: "2026-08-26T08:00:00Z",
+          updated_at: "2026-08-26T09:00:00Z",
+        },
+      ];
+
+      const dtos = mapNotesToDto(notes);
+      expect(dtos[0].content).toHaveLength(300);
+      expect(dtos[0].content).toBe("A".repeat(300));
+    });
+  });
+
+  describe("Rate limiting (RateLimitNotice SSR)", () => {
+    beforeEach(() => {
+      mockGetDashboardByHash.mockResolvedValue(mockDashboard);
+    });
+
+    it("renders RateLimitNotice when verifyDashboardSession throws SessionRateLimitError", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockRejectedValue(
+        new authGuardModule.SessionRateLimitError(42),
+      );
+
+      const page = await DashboardPage({
+        params: Promise.resolve({ hash: mockDashboard.hash }),
+      });
+      renderWithTheme(page);
+
+      expect(screen.getByText(/429 — Too Many Requests/i)).toBeInTheDocument();
+      expect(screen.getByText(/42 seconds/i)).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /retry now/i }),
+      ).toBeInTheDocument();
+    });
+
+    it("re-throws unexpected errors that are not SessionRateLimitError", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockRejectedValue(
+        new Error("Unexpected system failure"),
+      );
+
+      await expect(
+        DashboardPage({
+          params: Promise.resolve({ hash: mockDashboard.hash }),
+        }),
+      ).rejects.toThrow("Unexpected system failure");
     });
   });
 });

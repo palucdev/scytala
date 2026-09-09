@@ -190,6 +190,73 @@ describe("src/lib/rate-limit", () => {
     });
   });
 
+  describe("checkRateLimit - Cloudflare native rate limiter (sessionVerifyIp)", () => {
+    it("allows request when Cloudflare SESSION_VERIFY_LIMITER binding succeeds", async () => {
+      const mockLimit = vi.fn().mockResolvedValue({ success: true });
+      vi.spyOn(opennextModule, "getCloudflareContext").mockResolvedValue({
+        env: {
+          SESSION_VERIFY_LIMITER: { limit: mockLimit },
+        },
+      } as unknown as Awaited<ReturnType<typeof opennextModule.getCloudflareContext>>);
+
+      const result = await checkRateLimit("sessionVerifyIp", "1.2.3.4");
+      expect(result.success).toBe(true);
+      expect(result.retryAfterSeconds).toBe(0);
+      expect(mockLimit).toHaveBeenCalledWith({ key: "1.2.3.4" });
+    });
+
+    it("blocks request and returns 60s retry time when Cloudflare SESSION_VERIFY_LIMITER limits", async () => {
+      const mockLimit = vi.fn().mockResolvedValue({ success: false });
+      vi.spyOn(opennextModule, "getCloudflareContext").mockResolvedValue({
+        env: {
+          SESSION_VERIFY_LIMITER: { limit: mockLimit },
+        },
+      } as unknown as Awaited<ReturnType<typeof opennextModule.getCloudflareContext>>);
+
+      const result = await checkRateLimit("sessionVerifyIp", "1.2.3.4");
+      expect(result.success).toBe(false);
+      expect(result.retryAfterSeconds).toBe(60);
+      expect(mockLimit).toHaveBeenCalledWith({ key: "1.2.3.4" });
+    });
+
+    it("falls back to in-memory store when Cloudflare binding throws an error", async () => {
+      vi.spyOn(opennextModule, "getCloudflareContext").mockRejectedValue(
+        new Error("No Cloudflare context"),
+      );
+
+      const max = RATE_LIMIT_CONFIGS.sessionVerifyIp.max;
+      for (let i = 0; i < max; i++) {
+        const result = await checkRateLimit("sessionVerifyIp", "fallback-ip-session");
+        expect(result.success).toBe(true);
+      }
+
+      const blocked = await checkRateLimit("sessionVerifyIp", "fallback-ip-session");
+      expect(blocked.success).toBe(false);
+      expect(blocked.retryAfterSeconds).toBeGreaterThan(0);
+    });
+
+    it("falls back to in-memory store when SESSION_VERIFY_LIMITER binding is not defined in env", async () => {
+      vi.spyOn(opennextModule, "getCloudflareContext").mockResolvedValue({
+        env: {},
+      } as unknown as Awaited<ReturnType<typeof opennextModule.getCloudflareContext>>);
+
+      const result = await checkRateLimit("sessionVerifyIp", "no-binding-session-ip");
+      expect(result.success).toBe(true);
+      expect(result.retryAfterSeconds).toBe(0);
+    });
+
+    it("guarantees sessionVerifyIp never invokes createDatabaseClient or db.checkRateLimit (Resource Inversion defense)", async () => {
+      const dbClientSpy = vi.spyOn(dbClientModule, "createDatabaseClient");
+      vi.spyOn(opennextModule, "getCloudflareContext").mockRejectedValue(
+        new Error("Cloudflare unavailable"),
+      );
+
+      const result = await checkRateLimit("sessionVerifyIp", "attacker-ip-flood");
+      expect(result.success).toBe(true);
+      expect(dbClientSpy).not.toHaveBeenCalled();
+    });
+  });
+
   describe("checkRateLimit - Supabase RPC (authAccount & dashboardCreate)", () => {
     it("allows request when Supabase checkRateLimit RPC succeeds", async () => {
       const mockCheckRateLimit = vi.fn().mockResolvedValue({
@@ -281,6 +348,30 @@ describe("src/lib/rate-limit", () => {
       }
 
       const blocked = await checkRateLimit("dashboardCreate", "5.6.7.8");
+      expect(blocked.success).toBe(false);
+      expect(blocked.retryAfterSeconds).toBeGreaterThan(0);
+    });
+
+    it("enforces noteMutation limits in memory", async () => {
+      const max = RATE_LIMIT_CONFIGS.noteMutation.max;
+      for (let i = 0; i < max; i++) {
+        const result = await checkRateLimit("noteMutation", "dash123:user456");
+        expect(result.success).toBe(true);
+      }
+
+      const blocked = await checkRateLimit("noteMutation", "dash123:user456");
+      expect(blocked.success).toBe(false);
+      expect(blocked.retryAfterSeconds).toBeGreaterThan(0);
+    });
+
+    it("enforces sessionVerifyIp limits in memory", async () => {
+      const max = RATE_LIMIT_CONFIGS.sessionVerifyIp.max;
+      for (let i = 0; i < max; i++) {
+        const result = await checkRateLimit("sessionVerifyIp", "ip-sess-check");
+        expect(result.success).toBe(true);
+      }
+
+      const blocked = await checkRateLimit("sessionVerifyIp", "ip-sess-check");
       expect(blocked.success).toBe(false);
       expect(blocked.retryAfterSeconds).toBeGreaterThan(0);
     });

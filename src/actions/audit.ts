@@ -2,6 +2,7 @@
 
 import { createDatabaseClient } from "../client/db-client";
 import type { AuditResult, AuditRecord } from "../client/db-client";
+import { getEnv } from "../lib/env";
 
 /**
  * Record a deployment audit entry once per deployment.
@@ -20,15 +21,22 @@ export async function recordDeploymentAudit(options?: {
   initData?: string | Record<string, unknown>;
 }): Promise<AuditResult> {
   const db = createDatabaseClient();
+  let envConfig;
+  try {
+    envConfig = getEnv();
+  } catch {
+    // Fall back to process.env if getEnv has not been configured
+  }
 
   const appVersion =
     options?.appVersion ??
     process.env.npm_package_version ??
+    envConfig?.APP_VERSION ??
     process.env.APP_VERSION ??
     "unknown";
 
   const rawInitData = options?.initData ?? {
-    deploy_id: process.env.DEPLOY_ID ?? null,
+    deploy_id: envConfig?.DEPLOY_ID ?? process.env.DEPLOY_ID ?? null,
     node_env: process.env.NODE_ENV ?? null,
     recorded_at: new Date().toISOString(),
   };

@@ -47,7 +47,18 @@ export class InMemorySlidingWindowStore {
 
 export const inMemoryStore = new InMemorySlidingWindowStore();
 
-export type RateLimiterType = "authIp" | "authAccount" | "dashboardCreate";
+/**
+ * Precomputed valid PBKDF2 hash for constant-time timing equalization on non-existent users.
+ */
+export const DUMMY_PBKDF2_HASH =
+  "$pbkdf2$100000$00000000000000000000000000000000$0000000000000000000000000000000000000000000000000000000000000000";
+
+export type RateLimiterType =
+  | "authIp"
+  | "authAccount"
+  | "dashboardCreate"
+  | "noteMutation"
+  | "sessionVerifyIp";
 
 export async function getClientIp(): Promise<string> {
   try {
@@ -83,6 +94,8 @@ export const RATE_LIMIT_CONFIGS: Record<
   authIp: { max: 10, windowMs: 60 * 1000, refillRate: 10 / 60 },
   authAccount: { max: 5, windowMs: 15 * 60 * 1000, refillRate: 5 / 900 },
   dashboardCreate: { max: 5, windowMs: 60 * 60 * 1000, refillRate: 5 / 3600 },
+  noteMutation: { max: 30, windowMs: 60 * 1000, refillRate: 30 / 60 },
+  sessionVerifyIp: { max: 60, windowMs: 60 * 1000, refillRate: 60 / 60 },
 };
 
 /**
@@ -96,7 +109,7 @@ export async function checkRateLimit(
 ): Promise<RateLimitCheckResult> {
   const config = RATE_LIMIT_CONFIGS[limiterType];
 
-  if (limiterType === "authIp") {
+  if (limiterType === "authIp" || limiterType === "sessionVerifyIp") {
     // 1. Attempt Cloudflare native rate limiting binding
     try {
       const { getCloudflareContext } = await import("@opennextjs/cloudflare");
@@ -106,25 +119,37 @@ export async function checkRateLimit(
             AUTH_IP_LIMITER?: {
               limit: (options: { key: string }) => Promise<{ success: boolean }>;
             };
+            SESSION_VERIFY_LIMITER?: {
+              limit: (options: { key: string }) => Promise<{ success: boolean }>;
+            };
           }
         | undefined;
 
-      if (cfEnv?.AUTH_IP_LIMITER && typeof cfEnv.AUTH_IP_LIMITER.limit === "function") {
-        const cfResult = await cfEnv.AUTH_IP_LIMITER.limit({ key: identifier });
+      const binding =
+        limiterType === "authIp"
+          ? cfEnv?.AUTH_IP_LIMITER
+          : cfEnv?.SESSION_VERIFY_LIMITER;
+
+      if (binding && typeof binding.limit === "function") {
+        const cfResult = await binding.limit({ key: identifier });
         if (!cfResult.success) {
           return { success: false, retryAfterSeconds: 60 };
         }
         return { success: true, retryAfterSeconds: 0 };
       }
     } catch (error) {
-      log.debug("Cloudflare rate limiter binding unavailable or failed, falling back to in-memory store", {
-        error,
-      });
+      log.debug(
+        "Cloudflare rate limiter binding unavailable or failed, falling back to in-memory store",
+        {
+          limiterType,
+          error,
+        },
+      );
     }
 
-    // Fallback to in-memory store for authIp
+    // Fallback to in-memory store for edge IP limiters (never calls database)
     const result = await inMemoryStore.limit(
-      `authIp:${identifier}`,
+      `${limiterType}:${identifier}`,
       config.max,
       config.windowMs,
     );

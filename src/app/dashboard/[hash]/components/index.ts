@@ -6,7 +6,10 @@ export {
 } from "./DashboardHeader";
 export { NoteTile, type NoteTileProps } from "./NoteTile";
 export { NoteGrid, type NoteGridProps } from "./NoteGrid";
-export { EmptyNotesState } from "./EmptyNotesState";
+export {
+  EmptyNotesState,
+  type EmptyNotesStateProps,
+} from "./EmptyNotesState";
 export {
   DashboardView,
   type DashboardViewProps,
@@ -14,3 +17,12 @@ export {
   type NoteDto,
 } from "./DashboardView";
 export { FormattedDate, type FormattedDateProps } from "./FormattedDate";
+export {
+  DashboardTitle,
+  type DashboardTitleProps,
+} from "./DashboardTitle";
+export {
+  DashboardActionToolbar,
+  type DashboardActionToolbarProps,
+} from "./DashboardActionToolbar";
+

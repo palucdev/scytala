@@ -20,6 +20,44 @@ import type {
 } from "../client/db-client";
 import { generateDashboardSlug } from "./crypto";
 
+/**
+ * Creates a fetch wrapper that aborts requests exceeding the specified timeout duration.
+ * Combines any caller-provided `AbortSignal` with an internal timeout signal.
+ */
+export function createTimeoutFetch(
+  timeoutMs: number = 8000,
+  baseFetch: typeof fetch = fetch,
+): typeof fetch {
+  return async (input, init) => {
+    const timeoutSignal = AbortSignal.timeout(timeoutMs);
+    const signal = init?.signal
+      ? (typeof AbortSignal.any === "function"
+          ? AbortSignal.any([init.signal, timeoutSignal])
+          : init.signal)
+      : timeoutSignal;
+
+    try {
+      return await baseFetch(input, {
+        ...init,
+        signal,
+      });
+    } catch (error) {
+      if (
+        (error instanceof Error && error.name === "TimeoutError") ||
+        (error instanceof DOMException && error.name === "TimeoutError") ||
+        (error instanceof Error &&
+          error.message.toLowerCase().includes("timeout"))
+      ) {
+        throw new Error(
+          `[SupabaseDatabaseClient] Database request timed out after ${timeoutMs}ms`,
+          { cause: error },
+        );
+      }
+      throw error;
+    }
+  };
+}
+
 export class SupabaseDatabaseClient implements DatabaseClient {
   private readonly client: SupabaseClient;
 
@@ -39,11 +77,21 @@ export class SupabaseDatabaseClient implements DatabaseClient {
           "Ensure they are declared in .env",
       );
     }
+
+    const parsedTimeout = process.env.SUPABASE_TIMEOUT_MS
+      ? parseInt(process.env.SUPABASE_TIMEOUT_MS, 10)
+      : 8000;
+    const timeoutMs =
+      isNaN(parsedTimeout) || parsedTimeout <= 0 ? 8000 : parsedTimeout;
+
     this.client = createClient(SUPABASE_URL, SUPABASE_KEY, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
         detectSessionInUrl: false,
+      },
+      global: {
+        fetch: createTimeoutFetch(timeoutMs),
       },
     });
   }

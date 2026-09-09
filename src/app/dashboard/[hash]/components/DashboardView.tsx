@@ -22,7 +22,7 @@ export interface NoteDto {
 
 export interface DashboardViewProps {
   dashboard: DashboardDto;
-  dashboardHash?: string;
+  dashboardHash: string;
   userAlias: string;
   notes: NoteDto[];
 }
@@ -38,7 +38,7 @@ export function DashboardView({
       sx={{
         minHeight: "100vh",
         bgcolor: "background.default",
-        py: { xs: 3, sm: 5 },
+        py: { xs: 2.5, sm: 3.5 },
         px: { xs: 2, sm: 3 },
       }}
     >
@@ -51,9 +51,9 @@ export function DashboardView({
         />
 
         {notes.length > 0 ? (
-          <NoteGrid notes={notes} />
+          <NoteGrid notes={notes} dashboardHash={dashboardHash} />
         ) : (
-          <EmptyNotesState />
+          <EmptyNotesState dashboardHash={dashboardHash} />
         )}
       </Container>
     </Box>

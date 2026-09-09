@@ -36,9 +36,11 @@ describe("DashboardCreationWizard (/new)", () => {
   );
 
   let clipboardWriteTextMock: ReturnType<typeof vi.fn>;
+  let timeoutIds: ReturnType<typeof setTimeout>[] = [];
 
   beforeEach(() => {
     vi.clearAllMocks();
+    timeoutIds = [];
 
     clipboardWriteTextMock = vi.fn().mockResolvedValue(undefined);
     Object.defineProperty(navigator, "clipboard", {
@@ -48,9 +50,28 @@ describe("DashboardCreationWizard (/new)", () => {
       writable: true,
       configurable: true,
     });
+
+    const originalSetTimeout = global.setTimeout;
+    vi.spyOn(global, "setTimeout").mockImplementation(((
+      fn: TimerHandler,
+      delay?: number,
+      ...args: unknown[]
+    ) => {
+      const id = originalSetTimeout(
+        fn as (...args: unknown[]) => void,
+        delay,
+        ...args,
+      );
+      timeoutIds.push(id);
+      return id;
+    }) as unknown as typeof setTimeout);
   });
 
   afterEach(() => {
+    for (const id of timeoutIds) {
+      clearTimeout(id);
+    }
+    timeoutIds = [];
     vi.restoreAllMocks();
   });
 
