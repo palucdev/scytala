@@ -25,32 +25,32 @@ Scytala addresses the problem where teams, families, and friend groups need to s
 
 ## At a glance
 
-| ID | Change ID | Outcome (user can …) | Prerequisites | PRD refs | Status |
-|---|---|---|---|---|---|
-| F-01 | `dashboard-data-schema-and-auth-scaffold` | (foundation) Database migration creates tables for dashboards, dashboard_users, notes, and note_versions, alongside Edge-compatible session cookie / JWT utilities | — | FR-001, FR-002, FR-004, FR-011 | done |
-| F-02 | `structured-api-error-logging` | (foundation) Structured API error handling, zero-dependency JSON logger, and App Router error boundaries for Cloudflare Workers | — | NFRs | done |
-| S-01 | `dashboard-creation-wizard` | User can create a new dashboard at `/new` with title, description, and participant credentials, receiving the shareable link and secrets | F-01 | US-01, FR-001, FR-002, FR-003 | done |
-| S-02 | `dashboard-auth-login-and-tiles-view` | User can navigate to `/dashboard/<hash>`, log in with per-dashboard credentials, receive a signed HttpOnly session cookie, and view note tiles | S-01 | US-02, FR-004, FR-005 | done |
-| S-03 | `note-crud-and-version-persistence` | User can create, edit in line-numbered editor, and delete plain text notes on the dashboard with every edit automatically preserved as an immutable version with timestamps | S-02 | US-03, FR-006, FR-007, FR-008, FR-011 | done |
-| S-04 | `note-version-history-browser` | User can open any note's version history panel and browse past versions with timestamps and author details | S-03 | US-05, FR-011 | done |
-| S-05 | `manual-sync-and-conflict-diff-resolution` | User can manually trigger sync to pull remote note changes and resolve concurrent edit conflicts via a side-by-side diff merge modal | S-03 | US-04, FR-007, FR-012 | ready |
-| S-06 | `dashboard-management-and-lifecycle` | User can update dashboard metadata (title, description) or permanently delete the dashboard and all its associated notes and credentials | S-02 | FR-009, FR-010 | ready |
-| T-01 | `testing-tenant-isolation-and-auth-session-guards` | (testing) Verify cross-dashboard data isolation and authenticated session guard boundaries with unit and integration tests | F-01, S-01, S-02 | Test Plan §3 Phase 1, FR-004, FR-005 | ready |
-| T-02 | `testing-note-versioning-and-concurrency-integrity` | (testing) Ensure atomic note updates, immutable version history snapshots, and conflict detection under concurrent mutations | S-03 | Test Plan §3 Phase 2, FR-007, FR-011, FR-012 | ready |
-| T-03 | `testing-server-input-validation-and-security-defense` | (testing) Enforce server-side Zod validation parity, injection defense, and credential formatting contracts | S-01 | Test Plan §3 Phase 3, FR-001, FR-002, FR-003, FR-006 | ready |
-| T-04 | `testing-ci-quality-gates-and-coverage-hardening` | (testing) Lock the 80% coverage floor and automated quality checks across the CI/CD pipeline | T-01, T-03 | Test Plan §3 Phase 4, NFRs | proposed |
-| O-01 | `edge-centralized-error-tracking-and-apm` | (observability) Centralized external error tracking (Sentry Store REST API / APM) via Next.js `instrumentation.ts` (`onRequestError`) with edge compatibility and secret redaction | F-02 | NFRs, Production Readiness Blocker 1 | proposed |
+| ID   | Change ID                                              | Outcome (user can …)                                                                                                                                                               | Prerequisites    | PRD refs                                             | Status   |
+| ---- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------- | ---------------------------------------------------- | -------- |
+| F-01 | `dashboard-data-schema-and-auth-scaffold`              | (foundation) Database migration creates tables for dashboards, dashboard_users, notes, and note_versions, alongside Edge-compatible session cookie / JWT utilities                 | —                | FR-001, FR-002, FR-004, FR-011                       | done     |
+| F-02 | `structured-api-error-logging`                         | (foundation) Structured API error handling, zero-dependency JSON logger, and App Router error boundaries for Cloudflare Workers                                                    | —                | NFRs                                                 | done     |
+| S-01 | `dashboard-creation-wizard`                            | User can create a new dashboard at `/new` with title, description, and participant credentials, receiving the shareable link and secrets                                           | F-01             | US-01, FR-001, FR-002, FR-003                        | done     |
+| S-02 | `dashboard-auth-login-and-tiles-view`                  | User can navigate to `/dashboard/<hash>`, log in with per-dashboard credentials, receive a signed HttpOnly session cookie, and view note tiles                                     | S-01             | US-02, FR-004, FR-005                                | done     |
+| S-03 | `note-crud-and-version-persistence`                    | User can create, edit in line-numbered editor, and delete plain text notes on the dashboard with every edit automatically preserved as an immutable version with timestamps        | S-02             | US-03, FR-006, FR-007, FR-008, FR-011                | done     |
+| S-04 | `note-version-history-browser`                         | User can open any note's version history panel and browse past versions with timestamps and author details                                                                         | S-03             | US-05, FR-011                                        | done     |
+| S-05 | `manual-sync-and-conflict-diff-resolution`             | User can manually trigger sync to pull remote note changes and resolve concurrent edit conflicts via a side-by-side diff merge modal                                               | S-03             | US-04, FR-007, FR-012                                | ready    |
+| S-06 | `dashboard-management-and-lifecycle`                   | User can update dashboard metadata (title, description) or permanently delete the dashboard and all its associated notes and credentials                                           | S-02             | FR-009, FR-010                                       | ready    |
+| T-01 | `testing-tenant-isolation-and-auth-session-guards`     | (testing) Verify cross-dashboard data isolation and authenticated session guard boundaries with unit and integration tests                                                         | F-01, S-01, S-02 | Test Plan §3 Phase 1, FR-004, FR-005                 | ready    |
+| T-02 | `testing-note-versioning-and-concurrency-integrity`    | (testing) Ensure atomic note updates, immutable version history snapshots, and conflict detection under concurrent mutations                                                       | S-03             | Test Plan §3 Phase 2, FR-007, FR-011, FR-012         | ready    |
+| T-03 | `testing-server-input-validation-and-security-defense` | (testing) Enforce server-side Zod validation parity, injection defense, and credential formatting contracts                                                                        | S-01             | Test Plan §3 Phase 3, FR-001, FR-002, FR-003, FR-006 | ready    |
+| T-04 | `testing-ci-quality-gates-and-coverage-hardening`      | (testing) Lock the 80% coverage floor and automated quality checks across the CI/CD pipeline                                                                                       | T-01, T-03       | Test Plan §3 Phase 4, NFRs                           | proposed |
+| O-01 | `edge-centralized-error-tracking-and-apm`              | (observability) Centralized external error tracking (Sentry Store REST API / APM) via Next.js `instrumentation.ts` (`onRequestError`) with edge compatibility and secret redaction | F-02             | NFRs, Production Readiness Blocker 1                 | proposed |
 
 ## Streams
 
 Navigation aid — groups items that share a Prerequisites chain. Canonical ordering still lives in the dependency graph below; this table is the proposed reading order across parallel tracks.
 
-| Stream | Theme | Chain | Note |
-|---|---|---|---|
-| A | Core Access & Note Lifecycle | `F-01` (done) → `S-01` (done) → `S-02` (done) → `S-03` (done) | North Star slice (`S-03`) completed on 2026-09-09. Core note CRUD and immutable versioning paths operational. |
-| B | Multi-user Collaboration & History | `S-04` / `S-05` | Joins Stream A at `S-03`; now unblocked and ready for implementation. Builds on version persistence to provide history browsing and conflict diff resolution. |
-| C | Governance & Observability | `F-02` (done) / `S-06` / `O-01` | Joins Stream A at `S-02`; provides operational error tracking, APM integration, and dashboard lifecycle management. |
-| D | Quality & Security Verification | `T-01` / `T-03` → `T-02` → `T-04` | Phased test rollout from `test-plan.md`. Note mutation unit/action tests delivered in S-03 (>98% coverage); dedicated concurrency (`T-02`), tenant isolation (`T-01`), and security defense (`T-03`) are all ready. |
+| Stream | Theme                              | Chain                                                         | Note                                                                                                                                                                                                                |
+| ------ | ---------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A      | Core Access & Note Lifecycle       | `F-01` (done) → `S-01` (done) → `S-02` (done) → `S-03` (done) | North Star slice (`S-03`) completed on 2026-09-09. Core note CRUD and immutable versioning paths operational.                                                                                                       |
+| B      | Multi-user Collaboration & History | `S-04` / `S-05`                                               | Joins Stream A at `S-03`; now unblocked and ready for implementation. Builds on version persistence to provide history browsing and conflict diff resolution.                                                       |
+| C      | Governance & Observability         | `F-02` (done) / `S-06` / `O-01`                               | Joins Stream A at `S-02`; provides operational error tracking, APM integration, and dashboard lifecycle management.                                                                                                 |
+| D      | Quality & Security Verification    | `T-01` / `T-03` → `T-02` → `T-04`                             | Phased test rollout from `test-plan.md`. Note mutation unit/action tests delivered in S-03 (>98% coverage); dedicated concurrency (`T-02`), tenant isolation (`T-01`), and security defense (`T-03`) are all ready. |
 
 ## Baseline
 
@@ -237,21 +237,21 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 ## Backlog Handoff
 
-| Roadmap ID | Change ID | GitHub Issue / Source | Status | Prerequisites |
-|---|---|---|---|---|
-| F-01 | `dashboard-data-schema-and-auth-scaffold` | [#14: [F-01] Wire per-dashboard Data Schema and Auth Scaffold](https://github.com/palucdev/scytala/issues/14) | done | — |
-| F-02 | `structured-api-error-logging` | [#15: [F-02] Structured API Error Logging and Exception Handling](https://github.com/palucdev/scytala/issues/15) | done | — |
-| S-01 | `dashboard-creation-wizard` | [#16: [S-01] Dashboard Creation Wizard (/new)](https://github.com/palucdev/scytala/issues/16) | done | F-01 |
-| S-02 | `dashboard-auth-login-and-tiles-view` | [#17: [S-02] Dashboard Auth Login and Tiles View](https://github.com/palucdev/scytala/issues/17) | done | S-01 |
-| S-03 | `note-crud-and-version-persistence` | [#18: [S-03] Note CRUD and Version Persistence (North Star)](https://github.com/palucdev/scytala/issues/18) | done (PR #31) | S-02 (North Star) |
-| S-04 | `note-version-history-browser` | [#19: [S-04] Note Version History Browser](https://github.com/palucdev/scytala/issues/19) | done | S-03 |
-| S-05 | `manual-sync-and-conflict-diff-resolution` | [#20: [S-05] Manual Sync and Conflict Diff Resolution](https://github.com/palucdev/scytala/issues/20) | ready | S-03 |
-| S-06 | `dashboard-management-and-lifecycle` | [#21: [S-06] Dashboard Management and Lifecycle](https://github.com/palucdev/scytala/issues/21) | ready | S-02 |
-| T-01 | `testing-tenant-isolation-and-auth-session-guards` | [#24: [T-01] Tenant Isolation & Auth Session Guards](https://github.com/palucdev/scytala/issues/24) | ready | F-01, S-01, S-02 |
-| T-02 | `testing-note-versioning-and-concurrency-integrity` | [#26: [T-02] Note Versioning & Concurrency Integrity](https://github.com/palucdev/scytala/issues/26) | ready | S-03 |
-| T-03 | `testing-server-input-validation-and-security-defense` | [#27: [T-03] Server Input Validation & Security Defense](https://github.com/palucdev/scytala/issues/27) | ready | S-01 |
-| T-04 | `testing-ci-quality-gates-and-coverage-hardening` | [#28: [T-04] CI Quality Gates & Coverage Hardening](https://github.com/palucdev/scytala/issues/28) | proposed | T-01, T-03 |
-| O-01 | `edge-centralized-error-tracking-and-apm` | [#33: [O-01] Edge Centralized Error Tracking and APM Integration](https://github.com/palucdev/scytala/issues/33) | proposed | F-02 |
+| Roadmap ID | Change ID                                              | GitHub Issue / Source                                                                                            | Status        | Prerequisites     |
+| ---------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | ------------- | ----------------- |
+| F-01       | `dashboard-data-schema-and-auth-scaffold`              | [#14: [F-01] Wire per-dashboard Data Schema and Auth Scaffold](https://github.com/palucdev/scytala/issues/14)    | done          | —                 |
+| F-02       | `structured-api-error-logging`                         | [#15: [F-02] Structured API Error Logging and Exception Handling](https://github.com/palucdev/scytala/issues/15) | done          | —                 |
+| S-01       | `dashboard-creation-wizard`                            | [#16: [S-01] Dashboard Creation Wizard (/new)](https://github.com/palucdev/scytala/issues/16)                    | done          | F-01              |
+| S-02       | `dashboard-auth-login-and-tiles-view`                  | [#17: [S-02] Dashboard Auth Login and Tiles View](https://github.com/palucdev/scytala/issues/17)                 | done          | S-01              |
+| S-03       | `note-crud-and-version-persistence`                    | [#18: [S-03] Note CRUD and Version Persistence (North Star)](https://github.com/palucdev/scytala/issues/18)      | done (PR #31) | S-02 (North Star) |
+| S-04       | `note-version-history-browser`                         | [#19: [S-04] Note Version History Browser](https://github.com/palucdev/scytala/issues/19)                        | done          | S-03              |
+| S-05       | `manual-sync-and-conflict-diff-resolution`             | [#20: [S-05] Manual Sync and Conflict Diff Resolution](https://github.com/palucdev/scytala/issues/20)            | ready         | S-03              |
+| S-06       | `dashboard-management-and-lifecycle`                   | [#21: [S-06] Dashboard Management and Lifecycle](https://github.com/palucdev/scytala/issues/21)                  | ready         | S-02              |
+| T-01       | `testing-tenant-isolation-and-auth-session-guards`     | [#24: [T-01] Tenant Isolation & Auth Session Guards](https://github.com/palucdev/scytala/issues/24)              | ready         | F-01, S-01, S-02  |
+| T-02       | `testing-note-versioning-and-concurrency-integrity`    | [#26: [T-02] Note Versioning & Concurrency Integrity](https://github.com/palucdev/scytala/issues/26)             | ready         | S-03              |
+| T-03       | `testing-server-input-validation-and-security-defense` | [#27: [T-03] Server Input Validation & Security Defense](https://github.com/palucdev/scytala/issues/27)          | ready         | S-01              |
+| T-04       | `testing-ci-quality-gates-and-coverage-hardening`      | [#28: [T-04] CI Quality Gates & Coverage Hardening](https://github.com/palucdev/scytala/issues/28)               | proposed      | T-01, T-03        |
+| O-01       | `edge-centralized-error-tracking-and-apm`              | [#33: [O-01] Edge Centralized Error Tracking and APM Integration](https://github.com/palucdev/scytala/issues/33) | proposed      | F-02              |
 
 ## Open Roadmap Questions
 
