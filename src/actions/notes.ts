@@ -16,11 +16,15 @@ import {
 import {
   createNoteSchema,
   deleteNoteSchema,
+  getNoteVersionHistorySchema,
   updateNoteSchema,
   type CreateNoteActionResult,
   type CreateNoteInput,
   type DeleteNoteActionResult,
   type DeleteNoteInput,
+  type GetNoteVersionHistoryActionResult,
+  type GetNoteVersionHistoryInput,
+  type HydratedNoteVersion,
   type UpdateNoteActionResult,
   type UpdateNoteInput,
 } from "@/schemas/notes";
@@ -64,6 +68,9 @@ export type {
   CreateNoteInput,
   DeleteNoteActionResult,
   DeleteNoteInput,
+  GetNoteVersionHistoryActionResult,
+  GetNoteVersionHistoryInput,
+  HydratedNoteVersion,
   UpdateNoteActionResult,
   UpdateNoteInput,
 };
@@ -418,3 +425,108 @@ export async function deleteNoteAction(
     };
   }
 }
+
+/**
+ * Retrieves immutable version history snapshots for a note with resolved author aliases.
+ * Enforces session authentication and cross-tenant dashboard boundary verification.
+ */
+export async function getNoteVersionHistoryAction(
+  input: GetNoteVersionHistoryInput,
+): Promise<GetNoteVersionHistoryActionResult> {
+  const parsed = getNoteVersionHistorySchema.safeParse(input);
+  if (!parsed.success) {
+    return {
+      success: false,
+      error: parsed.error.issues[0]?.message || "Invalid input.",
+      fieldErrors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const { dashboardHash, noteId } = parsed.data;
+
+  try {
+    const session = await verifyDashboardSession(dashboardHash, {
+      throwOnRateLimit: true,
+    });
+    if (!session) {
+      log.warn("Unauthorized attempt to retrieve note version history", {
+        dashboardHash,
+        noteId,
+      });
+      return {
+        success: false,
+        error: "Unauthorized. Please log in to this dashboard.",
+      };
+    }
+
+    const db = createDatabaseClient();
+    const note = await db.getNoteById(noteId);
+    if (!note || note.dashboard_id !== session.dashboard_id) {
+      log.warn("Note not found or does not belong to dashboard", {
+        noteId,
+        dashboardId: session.dashboard_id,
+      });
+      return {
+        success: false,
+        error: "Note not found.",
+      };
+    }
+
+    const [rawVersions, users] = await Promise.all([
+      db.getNoteVersions(noteId),
+      db.listDashboardUsers(session.dashboard_id),
+    ]);
+
+    const userMap = new Map<string, string>();
+    for (const u of users) {
+      userMap.set(u.id, u.user_alias);
+    }
+
+    const versions: HydratedNoteVersion[] = rawVersions.map((v) => ({
+      id: v.id,
+      note_id: v.note_id,
+      version: v.version,
+      title: v.title,
+      content: v.content,
+      author_id: v.author_id,
+      author_alias:
+        (v.author_id ? userMap.get(v.author_id) : undefined) ||
+        "Unnamed collaborator",
+      created_at: v.created_at,
+    }));
+
+    return {
+      success: true,
+      versions,
+    };
+  } catch (error) {
+    if (error instanceof SessionRateLimitError) {
+      const clientIp = await getClientIp();
+      log.warn(
+        "getNoteVersionHistoryAction throttled by session verification rate limit",
+        {
+          clientIp,
+          retryAfterSeconds: error.retryAfterSeconds,
+          dashboardHash,
+          noteId,
+        },
+      );
+      return {
+        success: false,
+        error: `Too many session attempts. Please try again in ${error.retryAfterSeconds} seconds.`,
+        rateLimited: true,
+        retryAfterSeconds: error.retryAfterSeconds,
+      };
+    }
+
+    log.error("getNoteVersionHistoryAction failed", error, {
+      noteId,
+      dashboardHash,
+    });
+    return {
+      success: false,
+      error: "Failed to retrieve note version history. Please try again.",
+    };
+  }
+}
+

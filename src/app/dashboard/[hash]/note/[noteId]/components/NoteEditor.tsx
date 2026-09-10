@@ -10,11 +10,18 @@ import Container from "@mui/material/Container";
 import FormHelperText from "@mui/material/FormHelperText";
 import TextField from "@mui/material/TextField";
 
-import { createNoteAction, updateNoteAction } from "@/actions/notes";
+import {
+  createNoteAction,
+  updateNoteAction,
+  getNoteVersionHistoryAction,
+} from "@/actions/notes";
+import type { HydratedNoteVersion } from "@/schemas/notes";
 import { DeleteNoteDialog } from "./DeleteNoteDialog";
 import { EditorToolbar } from "./EditorToolbar";
 import { LineNumberGutter } from "./LineNumberGutter";
 import { NoteEditorHeader } from "./NoteEditorHeader";
+import { NoteVersionHistoryDrawer } from "./NoteVersionHistoryDrawer";
+import { NoteVersionPreview } from "./NoteVersionPreview";
 
 export const MAX_NOTE_CONTENT_LENGTH = 10000;
 export const MAX_NOTE_TITLE_LENGTH = 200;
@@ -49,6 +56,12 @@ export function NoteEditor({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [versions, setVersions] = useState<HydratedNoteVersion[]>([]);
+  const [isLoadingVersions, setIsLoadingVersions] = useState(false);
+  const [versionHistoryError, setVersionHistoryError] = useState<string | null>(null);
+  const [selectedVersion, setSelectedVersion] = useState<HydratedNoteVersion | null>(null);
 
   const gutterRef = useRef<HTMLDivElement>(null);
 
@@ -143,6 +156,76 @@ export function NoteEditor({
     setDeleteDialogOpen(true);
   };
 
+  const fetchVersionHistory = async () => {
+    if (!noteId) return;
+    setIsLoadingVersions(true);
+    setVersionHistoryError(null);
+    try {
+      const result = await getNoteVersionHistoryAction({
+        dashboardHash,
+        noteId,
+      });
+      if (result.success) {
+        setVersions(result.versions);
+      } else {
+        setVersionHistoryError(result.error);
+      }
+    } catch {
+      setVersionHistoryError("Failed to load version history.");
+    } finally {
+      setIsLoadingVersions(false);
+    }
+  };
+
+  const handleOpenHistory = () => {
+    setIsHistoryOpen(true);
+    if (noteId && versions.length === 0 && !isLoadingVersions) {
+      void fetchVersionHistory();
+    }
+  };
+
+  const handleRestoreVersion = (versionToRestore: HydratedNoteVersion) => {
+    if (!noteId || version === undefined) {
+      setError("Note metadata missing.");
+      return;
+    }
+    setError(null);
+    setFieldErrors({});
+    setVersionConflict(false);
+
+    startTransition(async () => {
+      try {
+        const result = await updateNoteAction({
+          dashboardHash,
+          noteId,
+          title: versionToRestore.title,
+          content: versionToRestore.content,
+          expectedVersion: version,
+        });
+
+        if (result.success) {
+          setIsSaved(true);
+          setTitle(versionToRestore.title);
+          setContent(versionToRestore.content);
+          setSelectedVersion(null);
+          router.refresh();
+        } else {
+          setError(result.error);
+          setSelectedVersion(null);
+          if (result.versionConflict) {
+            setVersionConflict(true);
+          }
+          if (result.fieldErrors) {
+            setFieldErrors(result.fieldErrors);
+          }
+        }
+      } catch {
+        setError("Network error. Please check your connection and try again.");
+        setSelectedVersion(null);
+      }
+    });
+  };
+
   return (
     <Box
       sx={{
@@ -183,6 +266,8 @@ export function NoteEditor({
         <NoteEditorHeader
           userAlias={userAlias}
           dashboardHash={dashboardHash}
+          mode={mode}
+          onOpenHistory={handleOpenHistory}
         />
 
         <Card
@@ -206,6 +291,7 @@ export function NoteEditor({
             isDirty={isDirty}
             onSave={handleSave}
             onDelete={handleDelete}
+            isPreview={Boolean(selectedVersion)}
           />
 
           <Box sx={{ px: { xs: 2, sm: 3 }, py: 1 }}>
@@ -294,6 +380,35 @@ export function NoteEditor({
             dashboardHash={dashboardHash}
             noteId={noteId}
             noteTitle={title}
+          />
+        )}
+
+        {mode === "edit" && noteId && (
+          <NoteVersionHistoryDrawer
+            open={isHistoryOpen}
+            onClose={() => setIsHistoryOpen(false)}
+            versions={versions}
+            isLoading={isLoadingVersions}
+            error={versionHistoryError}
+            selectedVersionId={selectedVersion?.id ?? null}
+            onSelectVersion={setSelectedVersion}
+            currentVersionNumber={version}
+            currentContent={content}
+            onRefresh={fetchVersionHistory}
+          />
+        )}
+
+        {selectedVersion && (
+          <NoteVersionPreview
+            key={selectedVersion.id}
+            selectedVersion={selectedVersion}
+            currentTitle={title}
+            currentContent={content}
+            onClosePreview={() => setSelectedVersion(null)}
+            onRestore={handleRestoreVersion}
+            onOpenDrawer={() => setIsHistoryOpen(true)}
+            isRestoring={isPending}
+            isDirty={isDirty}
           />
         )}
       </Container>

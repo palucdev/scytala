@@ -38,6 +38,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/actions/notes", () => ({
   createNoteAction: vi.fn(),
   updateNoteAction: vi.fn(),
+  getNoteVersionHistoryAction: vi.fn(),
 }));
 
 function renderWithTheme(ui: React.ReactElement) {
@@ -47,6 +48,9 @@ function renderWithTheme(ui: React.ReactElement) {
 describe("NoteEditor Client Component", () => {
   const mockCreateNoteAction = vi.mocked(noteActionsModule.createNoteAction);
   const mockUpdateNoteAction = vi.mocked(noteActionsModule.updateNoteAction);
+  const mockGetNoteVersionHistoryAction = vi.mocked(
+    noteActionsModule.getNoteVersionHistoryAction,
+  );
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -550,6 +554,468 @@ describe("NoteEditor Client Component", () => {
         screen.queryByRole("button", { name: "Delete note" }),
       ).not.toBeInTheDocument();
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Version history drawer integration", () => {
+    it("opens history drawer and fetches version history in edit mode", async () => {
+      mockGetNoteVersionHistoryAction.mockResolvedValueOnce({
+        success: true,
+        versions: [
+          {
+            id: "v-2",
+            note_id: "note-uuid-1",
+            version: 2,
+            title: "Test Note",
+            content: "Line 1 updated",
+            author_id: "u-1",
+            author_alias: "Alice",
+            created_at: "2026-09-10T12:00:00Z",
+          },
+          {
+            id: "v-1",
+            note_id: "note-uuid-1",
+            version: 1,
+            title: "Test Note",
+            content: "Line 1",
+            author_id: "u-2",
+            author_alias: "Bob",
+            created_at: "2026-09-10T11:00:00Z",
+          },
+        ],
+      });
+
+      renderWithTheme(
+        <NoteEditor
+          mode="edit"
+          dashboardHash="dash-123"
+          noteId="note-uuid-1"
+          initialTitle="Test Note"
+          initialContent="Line 1 updated"
+          initialVersion={2}
+          userAlias="Alice"
+        />,
+      );
+
+      const historyBtn = screen.getByRole("button", { name: /note history/i });
+      expect(historyBtn).toBeEnabled();
+
+      fireEvent.click(historyBtn);
+
+      await waitFor(() => {
+        expect(mockGetNoteVersionHistoryAction).toHaveBeenCalledWith({
+          dashboardHash: "dash-123",
+          noteId: "note-uuid-1",
+        });
+      });
+
+      expect(
+        screen.getByRole("heading", { name: "Version History" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Current version")).toBeInTheDocument();
+      expect(screen.getByText("by Bob")).toBeInTheDocument();
+
+      // Close drawer
+      const closeBtn = screen.getByRole("button", {
+        name: /close version history/i,
+      });
+      fireEvent.click(closeBtn);
+    });
+
+    it("displays error when getNoteVersionHistoryAction fails", async () => {
+      mockGetNoteVersionHistoryAction.mockResolvedValueOnce({
+        success: false,
+        error: "Failed to retrieve note version history.",
+      });
+
+      renderWithTheme(
+        <NoteEditor
+          mode="edit"
+          dashboardHash="dash-123"
+          noteId="note-uuid-1"
+          initialTitle="Test Note"
+          initialContent="Line 1"
+          initialVersion={1}
+          userAlias="Alice"
+        />,
+      );
+
+      const historyBtn = screen.getByRole("button", { name: /note history/i });
+      fireEvent.click(historyBtn);
+
+      expect(
+        await screen.findByText("Failed to retrieve note version history."),
+      ).toBeInTheDocument();
+    });
+
+    it("switches to snapshot preview when a past version is clicked, and restores active draft on exit", async () => {
+      mockGetNoteVersionHistoryAction.mockResolvedValueOnce({
+        success: true,
+        versions: [
+          {
+            id: "v-2",
+            note_id: "note-uuid-1",
+            version: 2,
+            title: "Current Title",
+            content: "Current Content",
+            author_id: "u-1",
+            author_alias: "Alice",
+            created_at: "2026-09-10T12:00:00Z",
+          },
+          {
+            id: "v-1",
+            note_id: "note-uuid-1",
+            version: 1,
+            title: "Original Title",
+            content: "Original Content",
+            author_id: "u-2",
+            author_alias: "Bob",
+            created_at: "2026-09-10T11:00:00Z",
+          },
+        ],
+      });
+
+      renderWithTheme(
+        <NoteEditor
+          mode="edit"
+          dashboardHash="dash-123"
+          noteId="note-uuid-1"
+          initialTitle="Current Title"
+          initialContent="Current Content"
+          initialVersion={2}
+          userAlias="Alice"
+        />,
+      );
+
+      // Open drawer
+      fireEvent.click(screen.getByRole("button", { name: /note history/i }));
+
+      // Wait for versions to render
+      expect(await screen.findByText("by Bob")).toBeInTheDocument();
+
+      // Click historical version v1
+      const v1Item = screen.getByText("by Bob").closest("div[role='button']")!;
+      fireEvent.click(v1Item);
+
+      // Verify NoteVersionPreview popup Dialog is displayed
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(screen.getByText("Viewing v1 (Read-only)")).toBeInTheDocument();
+      expect(screen.getByLabelText("Note diff content")).toBeInTheDocument();
+
+      // Toggle diff off to view raw snapshot
+      fireEvent.click(screen.getByRole("switch", { name: /show changes/i }));
+      expect(
+        screen.getByLabelText("Note content snapshot").textContent,
+      ).toBe("Original Content");
+
+      // Verify Save and Delete in EditorToolbar are disabled during preview (hidden behind modal dialog)
+      expect(
+        screen.getByRole("button", { name: /save/i, hidden: true }),
+      ).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: /delete/i, hidden: true }),
+      ).toBeDisabled();
+
+      // Click Exit preview
+      fireEvent.click(screen.getByRole("button", { name: /exit preview/i }));
+
+      // Back in normal editing mode
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Viewing v1 (Read-only)"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Note content")).toHaveValue(
+        "Current Content",
+      );
+    });
+
+    it("preserves unsaved dirty draft while browsing historical snapshots", async () => {
+      mockGetNoteVersionHistoryAction.mockResolvedValueOnce({
+        success: true,
+        versions: [
+          {
+            id: "v-2",
+            note_id: "note-uuid-1",
+            version: 2,
+            title: "Initial Title",
+            content: "Initial Content",
+            author_id: "u-1",
+            author_alias: "Alice",
+            created_at: "2026-09-10T12:00:00Z",
+          },
+          {
+            id: "v-1",
+            note_id: "note-uuid-1",
+            version: 1,
+            title: "Old Title",
+            content: "Old Content",
+            author_id: "u-2",
+            author_alias: "Bob",
+            created_at: "2026-09-10T11:00:00Z",
+          },
+        ],
+      });
+
+      renderWithTheme(
+        <NoteEditor
+          mode="edit"
+          dashboardHash="dash-123"
+          noteId="note-uuid-1"
+          initialTitle="Initial Title"
+          initialContent="Initial Content"
+          initialVersion={2}
+          userAlias="Alice"
+        />,
+      );
+
+      // Make dirty changes in active draft
+      const textarea = screen.getByLabelText("Note content");
+      fireEvent.change(textarea, { target: { value: "My uncommitted edits" } });
+
+      // Open history drawer
+      fireEvent.click(screen.getByRole("button", { name: /note history/i }));
+
+      // Click v1
+      expect(await screen.findByText("by Bob")).toBeInTheDocument();
+      const v1Item = screen.getByText("by Bob").closest("div[role='button']")!;
+      fireEvent.click(v1Item);
+
+      // Verify preview dialog displays v1 snapshot
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(screen.getByText("Viewing v1 (Read-only)")).toBeInTheDocument();
+
+      // Exit preview
+      fireEvent.click(screen.getByRole("button", { name: /exit preview/i }));
+
+      // Content in textarea is still the uncommitted edit!
+      expect(screen.getByLabelText("Note content")).toHaveValue(
+        "My uncommitted edits",
+      );
+      // Save button is enabled because note is still dirty!
+      expect(screen.getByRole("button", { name: /save/i })).toBeEnabled();
+    });
+
+    it("successfully restores historical version and reloads editor via router.refresh", async () => {
+      mockGetNoteVersionHistoryAction.mockResolvedValueOnce({
+        success: true,
+        versions: [
+          {
+            id: "v-2",
+            note_id: "note-uuid-1",
+            version: 2,
+            title: "Version 2 Title",
+            content: "Version 2 Content",
+            author_id: "u-1",
+            author_alias: "Alice",
+            created_at: "2026-09-10T12:00:00Z",
+          },
+          {
+            id: "v-1",
+            note_id: "note-uuid-1",
+            version: 1,
+            title: "Version 1 Title",
+            content: "Version 1 Content",
+            author_id: "u-2",
+            author_alias: "Bob",
+            created_at: "2026-09-10T11:00:00Z",
+          },
+        ],
+      });
+
+      mockUpdateNoteAction.mockResolvedValueOnce({
+        success: true,
+        note: createMockNote({
+          id: "note-uuid-1",
+          title: "Version 1 Title",
+          content: "Version 1 Content",
+          version: 3,
+        }),
+      });
+
+      renderWithTheme(
+        <NoteEditor
+          mode="edit"
+          dashboardHash="dash-123"
+          noteId="note-uuid-1"
+          initialTitle="Version 2 Title"
+          initialContent="Version 2 Content"
+          initialVersion={2}
+          userAlias="Alice"
+        />,
+      );
+
+      // Open history
+      fireEvent.click(screen.getByRole("button", { name: /note history/i }));
+      expect(await screen.findByText("by Bob")).toBeInTheDocument();
+
+      // Select v1
+      const v1Item = screen.getByText("by Bob").closest("div[role='button']")!;
+      fireEvent.click(v1Item);
+
+      // Verify popup preview dialog is open
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+      // Click restore
+      fireEvent.click(
+        screen.getByRole("button", { name: /restore this version/i }),
+      );
+
+      // Confirm dialog
+      expect(
+        screen.getByRole("heading", { name: "Restore Version 1?" }),
+      ).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Restore Version" }));
+
+      await waitFor(() => {
+        expect(mockUpdateNoteAction).toHaveBeenCalledWith({
+          dashboardHash: "dash-123",
+          noteId: "note-uuid-1",
+          title: "Version 1 Title",
+          content: "Version 1 Content",
+          expectedVersion: 2,
+        });
+      });
+
+      expect(mockRefresh).toHaveBeenCalledTimes(1);
+    });
+
+    it("handles version conflict error during restoration", async () => {
+      mockGetNoteVersionHistoryAction.mockResolvedValueOnce({
+        success: true,
+        versions: [
+          {
+            id: "v-2",
+            note_id: "note-uuid-1",
+            version: 2,
+            title: "Version 2 Title",
+            content: "Version 2 Content",
+            author_id: "u-1",
+            author_alias: "Alice",
+            created_at: "2026-09-10T12:00:00Z",
+          },
+          {
+            id: "v-1",
+            note_id: "note-uuid-1",
+            version: 1,
+            title: "Version 1 Title",
+            content: "Version 1 Content",
+            author_id: "u-2",
+            author_alias: "Bob",
+            created_at: "2026-09-10T11:00:00Z",
+          },
+        ],
+      });
+
+      mockUpdateNoteAction.mockResolvedValueOnce({
+        success: false,
+        versionConflict: true,
+        error: "This note has been modified by someone else.",
+      });
+
+      renderWithTheme(
+        <NoteEditor
+          mode="edit"
+          dashboardHash="dash-123"
+          noteId="note-uuid-1"
+          initialTitle="Version 2 Title"
+          initialContent="Version 2 Content"
+          initialVersion={2}
+          userAlias="Alice"
+        />,
+      );
+
+      // Open history & select v1
+      fireEvent.click(screen.getByRole("button", { name: /note history/i }));
+      expect(await screen.findByText("by Bob")).toBeInTheDocument();
+      fireEvent.click(screen.getByText("by Bob").closest("div[role='button']")!);
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+      // Restore
+      fireEvent.click(
+        screen.getByRole("button", { name: /restore this version/i }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Restore Version" }));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByRole("heading", { name: "Restore Version 1?" }),
+        ).not.toBeInTheDocument();
+      });
+
+      expect(
+        await screen.findByText(
+          "This note has been modified by someone else.",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Reload" }),
+      ).toBeInTheDocument();
+    });
+
+    it("handles network exception during restoration", async () => {
+      mockGetNoteVersionHistoryAction.mockResolvedValueOnce({
+        success: true,
+        versions: [
+          {
+            id: "v-2",
+            note_id: "note-uuid-1",
+            version: 2,
+            title: "Version 2 Title",
+            content: "Version 2 Content",
+            author_id: "u-1",
+            author_alias: "Alice",
+            created_at: "2026-09-10T12:00:00Z",
+          },
+          {
+            id: "v-1",
+            note_id: "note-uuid-1",
+            version: 1,
+            title: "Version 1 Title",
+            content: "Version 1 Content",
+            author_id: "u-2",
+            author_alias: "Bob",
+            created_at: "2026-09-10T11:00:00Z",
+          },
+        ],
+      });
+
+      mockUpdateNoteAction.mockRejectedValueOnce(new Error("Network disconnect"));
+
+      renderWithTheme(
+        <NoteEditor
+          mode="edit"
+          dashboardHash="dash-123"
+          noteId="note-uuid-1"
+          initialTitle="Version 2 Title"
+          initialContent="Version 2 Content"
+          initialVersion={2}
+          userAlias="Alice"
+        />,
+      );
+
+      // Open history & select v1
+      fireEvent.click(screen.getByRole("button", { name: /note history/i }));
+      expect(await screen.findByText("by Bob")).toBeInTheDocument();
+      fireEvent.click(screen.getByText("by Bob").closest("div[role='button']")!);
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+      // Restore
+      fireEvent.click(
+        screen.getByRole("button", { name: /restore this version/i }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Restore Version" }));
+
+      await waitFor(() => {
+        expect(
+          screen.queryByRole("heading", { name: "Restore Version 1?" }),
+        ).not.toBeInTheDocument();
+      });
+
+      expect(
+        await screen.findByText(
+          "Network error. Please check your connection and try again.",
+        ),
+      ).toBeInTheDocument();
     });
   });
 });

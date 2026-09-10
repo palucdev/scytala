@@ -24,6 +24,7 @@ export interface EditorToolbarProps {
   isDirty: boolean;
   onSave: () => void;
   onDelete: () => void;
+  isPreview?: boolean;
 }
 
 export function EditorToolbar({
@@ -34,6 +35,7 @@ export function EditorToolbar({
   isDirty,
   onSave,
   onDelete,
+  isPreview = false,
 }: EditorToolbarProps) {
   const router = useRouter();
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
@@ -116,7 +118,7 @@ export function EditorToolbar({
             variant="outlined"
             color="error"
             onClick={onDelete}
-            disabled={isSaving}
+            disabled={isSaving || isPreview}
             startIcon={<DeleteIcon />}
             aria-label="Delete note"
           >
@@ -128,7 +130,7 @@ export function EditorToolbar({
           variant="contained"
           color="primary"
           onClick={onSave}
-          disabled={!isDirty || isSaving}
+          disabled={!isDirty || isSaving || isPreview}
           startIcon={
             isSaving ? (
               <CircularProgress size={16} color="inherit" />

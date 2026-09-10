@@ -4,7 +4,8 @@ import { forwardRef, memo, useMemo } from "react";
 import Box from "@mui/material/Box";
 
 export interface LineNumberGutterProps {
-  content: string;
+  content?: string;
+  lineNumbers?: (number | string | undefined)[];
   lineHeight?: number | string;
   fontSize?: string | number;
 }
@@ -12,20 +13,24 @@ export interface LineNumberGutterProps {
 export const LineNumberGutter = memo(
   forwardRef<HTMLDivElement, LineNumberGutterProps>(
     function LineNumberGutter(
-      { content, lineHeight = 1.5, fontSize = "0.875rem" },
+      { content, lineNumbers, lineHeight = 1.5, fontSize = "0.875rem" },
       ref,
     ) {
       const numbersText = useMemo(() => {
+        if (lineNumbers !== undefined) {
+          return lineNumbers.map((n) => (n !== undefined ? String(n) : "")).join("\n");
+        }
+        const text = content ?? "";
         let lineCount = 1;
-        for (let i = 0; i < content.length; i++) {
-          if (content.charCodeAt(i) === 10) lineCount++;
+        for (let i = 0; i < text.length; i++) {
+          if (text.charCodeAt(i) === 10) lineCount++;
         }
         let out = "1";
         for (let i = 2; i <= lineCount; i++) {
           out += "\n" + i;
         }
         return out;
-      }, [content]);
+      }, [content, lineNumbers]);
 
       return (
         <Box
@@ -42,6 +47,7 @@ export const LineNumberGutter = memo(
             fontFamily: "monospace",
             fontSize,
             lineHeight,
+            width: 44,
             minWidth: 44,
             maxHeight: "100%",
             overflowY: "hidden",

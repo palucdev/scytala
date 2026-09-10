@@ -230,5 +230,24 @@ describe("EditorToolbar Component", () => {
 
       expect(mockPush).toHaveBeenCalledWith("/dashboard/dash-123");
     });
+
+    it("disables save and delete buttons when isPreview is true", () => {
+      renderWithTheme(
+        <EditorToolbar
+          mode="edit"
+          noteTitle="Draft"
+          version={2}
+          dashboardHash="dash-123"
+          isSaving={false}
+          isDirty={true}
+          onSave={vi.fn()}
+          onDelete={vi.fn()}
+          isPreview={true}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /delete/i })).toBeDisabled();
+    });
   });
 });

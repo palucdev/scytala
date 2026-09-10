@@ -32,7 +32,7 @@ Scytala addresses the problem where teams, families, and friend groups need to s
 | S-01 | `dashboard-creation-wizard` | User can create a new dashboard at `/new` with title, description, and participant credentials, receiving the shareable link and secrets | F-01 | US-01, FR-001, FR-002, FR-003 | done |
 | S-02 | `dashboard-auth-login-and-tiles-view` | User can navigate to `/dashboard/<hash>`, log in with per-dashboard credentials, receive a signed HttpOnly session cookie, and view note tiles | S-01 | US-02, FR-004, FR-005 | done |
 | S-03 | `note-crud-and-version-persistence` | User can create, edit in line-numbered editor, and delete plain text notes on the dashboard with every edit automatically preserved as an immutable version with timestamps | S-02 | US-03, FR-006, FR-007, FR-008, FR-011 | done |
-| S-04 | `note-version-history-browser` | User can open any note's version history panel and browse past versions with timestamps and author details | S-03 | US-05, FR-011 | ready |
+| S-04 | `note-version-history-browser` | User can open any note's version history panel and browse past versions with timestamps and author details | S-03 | US-05, FR-011 | done |
 | S-05 | `manual-sync-and-conflict-diff-resolution` | User can manually trigger sync to pull remote note changes and resolve concurrent edit conflicts via a side-by-side diff merge modal | S-03 | US-04, FR-007, FR-012 | ready |
 | S-06 | `dashboard-management-and-lifecycle` | User can update dashboard metadata (title, description) or permanently delete the dashboard and all its associated notes and credentials | S-02 | FR-009, FR-010 | ready |
 | T-01 | `testing-tenant-isolation-and-auth-session-guards` | (testing) Verify cross-dashboard data isolation and authenticated session guard boundaries with unit and integration tests | F-01, S-01, S-02 | Test Plan §3 Phase 1, FR-004, FR-005 | ready |
@@ -141,7 +141,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Version retrieval queries must be ordered by timestamp descending and optimized to avoid payload bloat on notes with many edits.
-- **Status:** ready
+- **Status:** done
 
 ### S-05: Manual Sync and Conflict Diff Resolution
 
@@ -244,7 +244,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 | S-01 | `dashboard-creation-wizard` | [#16: [S-01] Dashboard Creation Wizard (/new)](https://github.com/palucdev/scytala/issues/16) | done | F-01 |
 | S-02 | `dashboard-auth-login-and-tiles-view` | [#17: [S-02] Dashboard Auth Login and Tiles View](https://github.com/palucdev/scytala/issues/17) | done | S-01 |
 | S-03 | `note-crud-and-version-persistence` | [#18: [S-03] Note CRUD and Version Persistence (North Star)](https://github.com/palucdev/scytala/issues/18) | done (PR #31) | S-02 (North Star) |
-| S-04 | `note-version-history-browser` | [#19: [S-04] Note Version History Browser](https://github.com/palucdev/scytala/issues/19) | ready | S-03 |
+| S-04 | `note-version-history-browser` | [#19: [S-04] Note Version History Browser](https://github.com/palucdev/scytala/issues/19) | done | S-03 |
 | S-05 | `manual-sync-and-conflict-diff-resolution` | [#20: [S-05] Manual Sync and Conflict Diff Resolution](https://github.com/palucdev/scytala/issues/20) | ready | S-03 |
 | S-06 | `dashboard-management-and-lifecycle` | [#21: [S-06] Dashboard Management and Lifecycle](https://github.com/palucdev/scytala/issues/21) | ready | S-02 |
 | T-01 | `testing-tenant-isolation-and-auth-session-guards` | [#24: [T-01] Tenant Isolation & Auth Session Guards](https://github.com/palucdev/scytala/issues/24) | ready | F-01, S-01, S-02 |
@@ -276,6 +276,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **S-01: Dashboard Creation Wizard** — Implemented 2026-08-26 (`context/changes/dashboard-creation-wizard/`). User can create a new dashboard at `/new` with title, description, and participant credentials, receiving the shareable link and secrets.
 - **S-02: Dashboard Auth Login and Tiles View** — Implemented 2026-08-27 (`context/changes/dashboard-auth-login-and-tiles-view/`). User can open `/dashboard/<hash>`, authenticate using per-dashboard credentials, receive a signed HttpOnly session cookie, and view note tiles with logout and empty-state handling.
 - **S-03: Note CRUD and Version Persistence (North Star)** — Implemented 2026-09-09 (`context/changes/note-crud-and-version-persistence/`, PR #31, commit `1249e5e`). Authenticated users can create plain text notes, edit notes in a full-page editor with line numbering (`/dashboard/<hash>/note/<noteId>`), and delete notes with password re-authentication (`DeleteNoteDialog`). Edits atomically commit immutable versions via PostgreSQL RPCs (`create_note_with_version`, `update_note_with_version`), guarded by optimistic concurrency conflict detection and `noteMutation` rate limiting (30 ops/min). Tested with 98.07% line coverage.
+- **S-04: Note Version History Browser** — Implemented 2026-09-10 (`context/changes/note-version-history-browser/`, Issue #19). Authenticated users can open a slide-over non-dimming version history drawer while editing a note, browse chronological version snapshots with timestamps, author attribution, and character deltas, inspect full read-only snapshots in a popup modal dialog with optional word-level inline diff against current state, and restore past versions via non-destructive append-only commits with optimistic concurrency protection. Tested with 97.72% line coverage.
 - **Supporting Infrastructure & Hardening (Post-S-02)**:
   - **Native Stack Rate Limiting Migration** — Implemented 2026-08-27 (`context/changes/replace-upstash-rate-limiting/`, commit `7f6a0f3`). Replaced external Upstash dependency with Cloudflare Worker edge rate limiter bindings and native Supabase PostgreSQL token bucket RPC (`rate_limits` table + `check_rate_limit`).
   - **Cloudflare Build Isolation** — Implemented 2026-08-28 (`context/changes/exclude-tests-from-cloudflare-build/`, commit `0708ef7`). Isolated automated test files (`src/__tests__/**`, `vitest.config.ts`) from production Cloudflare builds via tsconfig separation and `.assetsignore`.

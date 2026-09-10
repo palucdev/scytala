@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { ThemeProvider } from "@mui/material/styles";
 
 import { NoteEditorHeader } from "@/app/dashboard/[hash]/note/[noteId]/components/NoteEditorHeader";
@@ -16,16 +16,44 @@ describe("NoteEditorHeader Component", () => {
     expect(screen.getByText("Alice_Commander")).toBeInTheDocument();
   });
 
-  it("renders disabled Note history and Contributors dummy buttons with icons", () => {
-    renderWithTheme(<NoteEditorHeader userAlias="Bob_Operator" />);
+  it("renders enabled Note history button in edit mode and fires onOpenHistory", () => {
+    const onOpenHistoryMock = vi.fn();
+    renderWithTheme(
+      <NoteEditorHeader
+        userAlias="Bob_Operator"
+        mode="edit"
+        onOpenHistory={onOpenHistoryMock}
+      />,
+    );
+
+    const historyBtn = screen.getByRole("button", { name: /note history/i });
+    expect(historyBtn).toBeInTheDocument();
+    expect(historyBtn).not.toBeDisabled();
+
+    fireEvent.click(historyBtn);
+    expect(onOpenHistoryMock).toHaveBeenCalledTimes(1);
+
+    const contributorsBtn = screen.getByRole("button", { name: /contributors/i });
+    expect(contributorsBtn).toBeInTheDocument();
+    expect(contributorsBtn).toBeDisabled();
+  });
+
+  it("renders disabled Note history button in create mode", () => {
+    const onOpenHistoryMock = vi.fn();
+    renderWithTheme(
+      <NoteEditorHeader
+        userAlias="Bob_Operator"
+        mode="create"
+        onOpenHistory={onOpenHistoryMock}
+      />,
+    );
 
     const historyBtn = screen.getByRole("button", { name: /note history/i });
     expect(historyBtn).toBeInTheDocument();
     expect(historyBtn).toBeDisabled();
 
-    const contributorsBtn = screen.getByRole("button", { name: /contributors/i });
-    expect(contributorsBtn).toBeInTheDocument();
-    expect(contributorsBtn).toBeDisabled();
+    fireEvent.click(historyBtn);
+    expect(onOpenHistoryMock).not.toHaveBeenCalled();
   });
 
   it("renders LogoutButton and passes dashboardHash", () => {

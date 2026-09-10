@@ -4,6 +4,7 @@ import {
   createNoteAction,
   updateNoteAction,
   deleteNoteAction,
+  getNoteVersionHistoryAction,
 } from "@/actions/notes";
 
 vi.mock("next/cache", () => ({
@@ -880,6 +881,315 @@ describe("src/actions/notes", () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error).toBe("Failed to delete note. Please try again.");
+      }
+    });
+  });
+
+  describe("getNoteVersionHistoryAction", () => {
+    it("returns validation error for missing dashboardHash", async () => {
+      const result = await getNoteVersionHistoryAction({
+        dashboardHash: "",
+        noteId: validNoteId,
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe("Dashboard identifier is required");
+        expect(result.fieldErrors?.dashboardHash).toBeDefined();
+      }
+    });
+
+    it("returns validation error for invalid noteId UUID", async () => {
+      const result = await getNoteVersionHistoryAction({
+        dashboardHash: validHash,
+        noteId: "not-a-uuid",
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe("Invalid note ID format");
+        expect(result.fieldErrors?.noteId).toBeDefined();
+      }
+    });
+
+    it("returns unauthorized when session verification fails", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockResolvedValue(
+        null,
+      );
+
+      const result = await getNoteVersionHistoryAction({
+        dashboardHash: validHash,
+        noteId: validNoteId,
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe(
+          "Unauthorized. Please log in to this dashboard.",
+        );
+      }
+    });
+
+    it("returns rate-limited response when session verification rate limit is exceeded", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockRejectedValue(
+        new authGuardModule.SessionRateLimitError(30),
+      );
+
+      const result = await getNoteVersionHistoryAction({
+        dashboardHash: validHash,
+        noteId: validNoteId,
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.rateLimited).toBe(true);
+        expect(result.retryAfterSeconds).toBe(30);
+        expect(result.error).toContain("Too many session attempts");
+      }
+    });
+
+    it("returns error when note is not found", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockResolvedValue(
+        mockSession,
+      );
+
+      vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
+        getNoteById: vi.fn().mockResolvedValue(null),
+      } as unknown as dbClientModule.DatabaseClient);
+
+      const result = await getNoteVersionHistoryAction({
+        dashboardHash: validHash,
+        noteId: validNoteId,
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe("Note not found.");
+      }
+    });
+
+    it("rejects cross-dashboard note version history access", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockResolvedValue(
+        mockSession,
+      );
+
+      const noteFromOtherDashboard: Note = {
+        ...mockNote,
+        dashboard_id: "different-dashboard-uuid",
+      };
+
+      vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
+        getNoteById: vi.fn().mockResolvedValue(noteFromOtherDashboard),
+      } as unknown as dbClientModule.DatabaseClient);
+
+      const result = await getNoteVersionHistoryAction({
+        dashboardHash: validHash,
+        noteId: validNoteId,
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe("Note not found.");
+      }
+    });
+
+    it("successfully retrieves version history and maps author aliases", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockResolvedValue(
+        mockSession,
+      );
+
+      const mockVersions: NoteVersion[] = [
+        {
+          id: "ver-2",
+          note_id: validNoteId,
+          version: 2,
+          title: "Note v2",
+          content: "Updated content",
+          author_id: validUserId,
+          created_at: "2026-08-28T13:00:00Z",
+        },
+        {
+          id: "ver-1",
+          note_id: validNoteId,
+          version: 1,
+          title: "Note v1",
+          content: "Initial content",
+          author_id: "bob-user-uuid",
+          created_at: "2026-08-28T12:00:00Z",
+        },
+      ];
+
+      const mockUsers: Omit<DashboardUser, "password_hash">[] = [
+        {
+          id: validUserId,
+          dashboard_id: validDashboardId,
+          user_alias: "alice_agent",
+          created_at: "2026-08-28T10:00:00Z",
+        },
+        {
+          id: "bob-user-uuid",
+          dashboard_id: validDashboardId,
+          user_alias: "bob_contributor",
+          created_at: "2026-08-28T10:00:00Z",
+        },
+      ];
+
+      const getNoteVersionsMock = vi.fn().mockResolvedValue(mockVersions);
+      const listDashboardUsersMock = vi.fn().mockResolvedValue(mockUsers);
+
+      vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
+        getNoteById: vi.fn().mockResolvedValue(mockNote),
+        getNoteVersions: getNoteVersionsMock,
+        listDashboardUsers: listDashboardUsersMock,
+      } as unknown as dbClientModule.DatabaseClient);
+
+      const result = await getNoteVersionHistoryAction({
+        dashboardHash: validHash,
+        noteId: validNoteId,
+      });
+
+      expect(result.success).toBe(true);
+      expect(getNoteVersionsMock).toHaveBeenCalledWith(validNoteId);
+      expect(listDashboardUsersMock).toHaveBeenCalledWith(validDashboardId);
+      if (result.success) {
+        expect(result.versions).toHaveLength(2);
+        expect(result.versions[0]).toEqual({
+          id: "ver-2",
+          note_id: validNoteId,
+          version: 2,
+          title: "Note v2",
+          content: "Updated content",
+          author_id: validUserId,
+          author_alias: "alice_agent",
+          created_at: "2026-08-28T13:00:00Z",
+        });
+        expect(result.versions[1]).toEqual({
+          id: "ver-1",
+          note_id: validNoteId,
+          version: 1,
+          title: "Note v1",
+          content: "Initial content",
+          author_id: "bob-user-uuid",
+          author_alias: "bob_contributor",
+          created_at: "2026-08-28T12:00:00Z",
+        });
+      }
+    });
+
+    it("falls back to 'Unnamed collaborator' when author_id is null", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockResolvedValue(
+        mockSession,
+      );
+
+      const mockVersions: NoteVersion[] = [
+        {
+          id: "ver-1",
+          note_id: validNoteId,
+          version: 1,
+          title: "Note v1",
+          content: "Initial content",
+          author_id: null,
+          created_at: "2026-08-28T12:00:00Z",
+        },
+      ];
+
+      vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
+        getNoteById: vi.fn().mockResolvedValue(mockNote),
+        getNoteVersions: vi.fn().mockResolvedValue(mockVersions),
+        listDashboardUsers: vi.fn().mockResolvedValue([]),
+      } as unknown as dbClientModule.DatabaseClient);
+
+      const result = await getNoteVersionHistoryAction({
+        dashboardHash: validHash,
+        noteId: validNoteId,
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.versions[0].author_alias).toBe("Unnamed collaborator");
+        expect(result.versions[0].author_id).toBeNull();
+      }
+    });
+
+    it("falls back to 'Unnamed collaborator' when author_id does not match any dashboard user", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockResolvedValue(
+        mockSession,
+      );
+
+      const mockVersions: NoteVersion[] = [
+        {
+          id: "ver-1",
+          note_id: validNoteId,
+          version: 1,
+          title: "Note v1",
+          content: "Initial content",
+          author_id: "deleted-user-uuid",
+          created_at: "2026-08-28T12:00:00Z",
+        },
+      ];
+
+      vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
+        getNoteById: vi.fn().mockResolvedValue(mockNote),
+        getNoteVersions: vi.fn().mockResolvedValue(mockVersions),
+        listDashboardUsers: vi.fn().mockResolvedValue([mockUser]),
+      } as unknown as dbClientModule.DatabaseClient);
+
+      const result = await getNoteVersionHistoryAction({
+        dashboardHash: validHash,
+        noteId: validNoteId,
+      });
+
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.versions[0].author_alias).toBe("Unnamed collaborator");
+      }
+    });
+
+    it("handles database error during getNoteById", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockResolvedValue(
+        mockSession,
+      );
+
+      vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
+        getNoteById: vi
+          .fn()
+          .mockRejectedValue(new Error("Database connection lost")),
+      } as unknown as dbClientModule.DatabaseClient);
+
+      const result = await getNoteVersionHistoryAction({
+        dashboardHash: validHash,
+        noteId: validNoteId,
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe(
+          "Failed to retrieve note version history. Please try again.",
+        );
+      }
+    });
+
+    it("handles database error during getNoteVersions", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockResolvedValue(
+        mockSession,
+      );
+
+      vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
+        getNoteById: vi.fn().mockResolvedValue(mockNote),
+        getNoteVersions: vi.fn().mockRejectedValue(new Error("RPC failed")),
+        listDashboardUsers: vi.fn().mockResolvedValue([]),
+      } as unknown as dbClientModule.DatabaseClient);
+
+      const result = await getNoteVersionHistoryAction({
+        dashboardHash: validHash,
+        noteId: validNoteId,
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe(
+          "Failed to retrieve note version history. Please try again.",
+        );
       }
     });
   });

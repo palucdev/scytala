@@ -69,4 +69,13 @@ describe("LineNumberGutter Component", () => {
     const pre = container.querySelector("pre");
     expect(pre).toBeInTheDocument();
   });
+
+  it("renders custom lineNumbers array with empty strings for undefined entries", () => {
+    const { container } = renderWithTheme(
+      <LineNumberGutter lineNumbers={[1, undefined, 2, 3]} />,
+    );
+    const pre = container.querySelector("pre");
+    expect(pre).toBeInTheDocument();
+    expect(pre?.textContent).toBe("1\n\n2\n3");
+  });
 });
