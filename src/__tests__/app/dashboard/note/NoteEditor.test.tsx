@@ -68,11 +68,7 @@ describe("NoteEditor Client Component", () => {
 
     it("enforces maxLength and wrap='off' attributes on inputs (F1, F3)", () => {
       renderWithTheme(
-        <NoteEditor
-          mode="create"
-          dashboardHash="dash-123"
-          userAlias="Alice"
-        />,
+        <NoteEditor mode="create" dashboardHash="dash-123" userAlias="Alice" />,
       );
 
       const titleInput = screen.getByLabelText("Note title");
@@ -112,11 +108,7 @@ describe("NoteEditor Client Component", () => {
       });
 
       renderWithTheme(
-        <NoteEditor
-          mode="create"
-          dashboardHash="dash-123"
-          userAlias="Alice"
-        />,
+        <NoteEditor mode="create" dashboardHash="dash-123" userAlias="Alice" />,
       );
 
       const titleInput = screen.getByLabelText("Note title");
@@ -137,11 +129,7 @@ describe("NoteEditor Client Component", () => {
       );
 
       renderWithTheme(
-        <NoteEditor
-          mode="create"
-          dashboardHash="dash-123"
-          userAlias="Alice"
-        />,
+        <NoteEditor mode="create" dashboardHash="dash-123" userAlias="Alice" />,
       );
 
       const contentTextarea = screen.getByLabelText("Note content");
@@ -165,11 +153,7 @@ describe("NoteEditor Client Component", () => {
       mockCreateNoteAction.mockReturnValueOnce(actionPromise);
 
       renderWithTheme(
-        <NoteEditor
-          mode="create"
-          dashboardHash="dash-123"
-          userAlias="Alice"
-        />,
+        <NoteEditor mode="create" dashboardHash="dash-123" userAlias="Alice" />,
       );
 
       const contentTextarea = screen.getByLabelText("Note content");
@@ -187,10 +171,6 @@ describe("NoteEditor Client Component", () => {
         note: createMockNote({ id: "note-1", version: 1 }),
       });
 
-      await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith("/dashboard/dash-123");
-      });
-
       // Still disabled because isSaved is true
       expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
     });
@@ -202,11 +182,7 @@ describe("NoteEditor Client Component", () => {
       });
 
       renderWithTheme(
-        <NoteEditor
-          mode="create"
-          dashboardHash="dash-123"
-          userAlias="Alice"
-        />,
+        <NoteEditor mode="create" dashboardHash="dash-123" userAlias="Alice" />,
       );
 
       // Clean state: beforeunload should NOT call preventDefault
@@ -229,10 +205,6 @@ describe("NoteEditor Client Component", () => {
       const saveBtn = screen.getByRole("button", { name: /save/i });
       fireEvent.click(saveBtn);
 
-      await waitFor(() => {
-        expect(mockPush).toHaveBeenCalled();
-      });
-
       // Saved state: beforeunload should NOT prompt
       await waitFor(() => {
         const eventSaved = new Event("beforeunload", { cancelable: true });
@@ -246,11 +218,7 @@ describe("NoteEditor Client Component", () => {
   describe("Create mode workflow", () => {
     it("renders empty editor with 'New Note' title and disabled save button", () => {
       renderWithTheme(
-        <NoteEditor
-          mode="create"
-          dashboardHash="dash-123"
-          userAlias="Alice"
-        />,
+        <NoteEditor mode="create" dashboardHash="dash-123" userAlias="Alice" />,
       );
 
       expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
@@ -270,11 +238,7 @@ describe("NoteEditor Client Component", () => {
       });
 
       renderWithTheme(
-        <NoteEditor
-          mode="create"
-          dashboardHash="dash-123"
-          userAlias="Alice"
-        />,
+        <NoteEditor mode="create" dashboardHash="dash-123" userAlias="Alice" />,
       );
 
       const titleInput = screen.getByLabelText("Note title");
@@ -297,10 +261,6 @@ describe("NoteEditor Client Component", () => {
           content: "Discussion points\n1. Scope\n2. Milestones",
         });
       });
-
-      await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith("/dashboard/dash-123");
-      });
     });
 
     it("trims whitespace from title and passes undefined if title is blank", async () => {
@@ -310,11 +270,7 @@ describe("NoteEditor Client Component", () => {
       });
 
       renderWithTheme(
-        <NoteEditor
-          mode="create"
-          dashboardHash="dash-123"
-          userAlias="Alice"
-        />,
+        <NoteEditor mode="create" dashboardHash="dash-123" userAlias="Alice" />,
       );
 
       const titleInput = screen.getByLabelText("Note title");
@@ -343,11 +299,7 @@ describe("NoteEditor Client Component", () => {
       });
 
       renderWithTheme(
-        <NoteEditor
-          mode="create"
-          dashboardHash="dash-123"
-          userAlias="Alice"
-        />,
+        <NoteEditor mode="create" dashboardHash="dash-123" userAlias="Alice" />,
       );
 
       const contentTextarea = screen.getByLabelText("Note content");
@@ -407,7 +359,9 @@ describe("NoteEditor Client Component", () => {
       );
 
       const contentTextarea = screen.getByLabelText("Note content");
-      fireEvent.change(contentTextarea, { target: { value: "Updated content" } });
+      fireEvent.change(contentTextarea, {
+        target: { value: "Updated content" },
+      });
 
       fireEvent.click(screen.getByRole("button", { name: /save/i }));
 
@@ -419,10 +373,6 @@ describe("NoteEditor Client Component", () => {
           content: "Updated content",
           expectedVersion: 4,
         });
-      });
-
-      await waitFor(() => {
-        expect(mockPush).toHaveBeenCalledWith("/dashboard/dash-123");
       });
     });
 
@@ -490,11 +440,7 @@ describe("NoteEditor Client Component", () => {
   describe("Scroll synchronization", () => {
     it("synchronizes scroll between textarea and line number gutter", () => {
       renderWithTheme(
-        <NoteEditor
-          mode="create"
-          dashboardHash="dash-123"
-          userAlias="Alice"
-        />,
+        <NoteEditor mode="create" dashboardHash="dash-123" userAlias="Alice" />,
       );
 
       const contentTextarea = screen.getByLabelText("Note content");
@@ -543,11 +489,7 @@ describe("NoteEditor Client Component", () => {
 
     it("does not render Delete button in create mode", () => {
       renderWithTheme(
-        <NoteEditor
-          mode="create"
-          dashboardHash="dash-123"
-          userAlias="Alice"
-        />,
+        <NoteEditor mode="create" dashboardHash="dash-123" userAlias="Alice" />,
       );
 
       expect(
@@ -704,9 +646,9 @@ describe("NoteEditor Client Component", () => {
 
       // Toggle diff off to view raw snapshot
       fireEvent.click(screen.getByRole("switch", { name: /show changes/i }));
-      expect(
-        screen.getByLabelText("Note content snapshot").textContent,
-      ).toBe("Original Content");
+      expect(screen.getByLabelText("Note content snapshot").textContent).toBe(
+        "Original Content",
+      );
 
       // Verify Save and Delete in EditorToolbar are disabled during preview (hidden behind modal dialog)
       expect(
@@ -927,7 +869,9 @@ describe("NoteEditor Client Component", () => {
       // Open history & select v1
       fireEvent.click(screen.getByRole("button", { name: /note history/i }));
       expect(await screen.findByText("by Bob")).toBeInTheDocument();
-      fireEvent.click(screen.getByText("by Bob").closest("div[role='button']")!);
+      fireEvent.click(
+        screen.getByText("by Bob").closest("div[role='button']")!,
+      );
       expect(screen.getByRole("dialog")).toBeInTheDocument();
 
       // Restore
@@ -943,9 +887,7 @@ describe("NoteEditor Client Component", () => {
       });
 
       expect(
-        await screen.findByText(
-          "This note has been modified by someone else.",
-        ),
+        await screen.findByText("This note has been modified by someone else."),
       ).toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: "Reload" }),
@@ -979,7 +921,9 @@ describe("NoteEditor Client Component", () => {
         ],
       });
 
-      mockUpdateNoteAction.mockRejectedValueOnce(new Error("Network disconnect"));
+      mockUpdateNoteAction.mockRejectedValueOnce(
+        new Error("Network disconnect"),
+      );
 
       renderWithTheme(
         <NoteEditor
@@ -996,7 +940,9 @@ describe("NoteEditor Client Component", () => {
       // Open history & select v1
       fireEvent.click(screen.getByRole("button", { name: /note history/i }));
       expect(await screen.findByText("by Bob")).toBeInTheDocument();
-      fireEvent.click(screen.getByText("by Bob").closest("div[role='button']")!);
+      fireEvent.click(
+        screen.getByText("by Bob").closest("div[role='button']")!,
+      );
       expect(screen.getByRole("dialog")).toBeInTheDocument();
 
       // Restore
@@ -1019,4 +965,3 @@ describe("NoteEditor Client Component", () => {
     });
   });
 });
-

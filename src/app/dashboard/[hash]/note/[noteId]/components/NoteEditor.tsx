@@ -7,10 +7,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Container from "@mui/material/Container";
-import {
-  createNoteAction,
-  updateNoteAction,
-} from "@/actions/notes";
+import { createNoteAction, updateNoteAction } from "@/actions/notes";
 import type { HydratedNoteVersion } from "@/schemas/notes";
 import { EditorToolbar } from "./EditorToolbar";
 import { NoteContentArea } from "./NoteContentArea";
@@ -53,7 +50,8 @@ export function NoteEditor({
   const [isPending, startTransition] = useTransition();
 
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [selectedVersion, setSelectedVersion] = useState<HydratedNoteVersion | null>(null);
+  const [selectedVersion, setSelectedVersion] =
+    useState<HydratedNoteVersion | null>(null);
 
   const isDirty =
     !isSaved &&
@@ -98,7 +96,6 @@ export function NoteEditor({
 
           if (result.success) {
             setIsSaved(true);
-            router.push(`/dashboard/${dashboardHash}`);
           } else {
             setError(result.error);
             if (result.fieldErrors) {
@@ -121,7 +118,6 @@ export function NoteEditor({
 
           if (result.success) {
             setIsSaved(true);
-            router.push(`/dashboard/${dashboardHash}`);
           } else {
             setError(result.error);
             if (result.versionConflict) {
