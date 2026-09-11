@@ -59,6 +59,25 @@ export const deleteNoteSchema = z.object({
     .max(128, "Password is too long"),
 });
 
+export const getNoteVersionHistorySchema = z.object({
+  dashboardHash: z
+    .string()
+    .trim()
+    .min(1, "Dashboard identifier is required"),
+  noteId: z.string().uuid("Invalid note ID format"),
+});
+
+export interface HydratedNoteVersion {
+  id: string;
+  note_id: string;
+  version: number;
+  title: string;
+  content: string;
+  author_id: string | null;
+  author_alias: string;
+  created_at: string;
+}
+
 export type CreateNoteInput = z.input<typeof createNoteSchema>;
 export type CreateNoteInputValues = z.infer<typeof createNoteSchema>;
 
@@ -67,6 +86,9 @@ export type UpdateNoteInputValues = z.infer<typeof updateNoteSchema>;
 
 export type DeleteNoteInput = z.input<typeof deleteNoteSchema>;
 export type DeleteNoteInputValues = z.infer<typeof deleteNoteSchema>;
+
+export type GetNoteVersionHistoryInput = z.input<typeof getNoteVersionHistorySchema>;
+export type GetNoteVersionHistoryInputValues = z.infer<typeof getNoteVersionHistorySchema>;
 
 export type CreateNoteActionResult =
   | {
@@ -98,6 +120,19 @@ export type UpdateNoteActionResult =
 export type DeleteNoteActionResult =
   | {
       success: true;
+    }
+  | {
+      success: false;
+      error: string;
+      fieldErrors?: Record<string, string[]>;
+      rateLimited?: boolean;
+      retryAfterSeconds?: number;
+    };
+
+export type GetNoteVersionHistoryActionResult =
+  | {
+      success: true;
+      versions: HydratedNoteVersion[];
     }
   | {
       success: false;

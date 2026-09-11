@@ -1,20 +1,20 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Container from "@mui/material/Container";
-import FormHelperText from "@mui/material/FormHelperText";
-import TextField from "@mui/material/TextField";
-
 import { createNoteAction, updateNoteAction } from "@/actions/notes";
-import { DeleteNoteDialog } from "./DeleteNoteDialog";
+import type { HydratedNoteVersion } from "@/schemas/notes";
 import { EditorToolbar } from "./EditorToolbar";
-import { LineNumberGutter } from "./LineNumberGutter";
+import { NoteContentArea } from "./NoteContentArea";
 import { NoteEditorHeader } from "./NoteEditorHeader";
+import { NoteTitleInput } from "./NoteTitleInput";
+import { NoteVersionHistoryDrawer } from "./NoteVersionHistoryDrawer";
+import { NoteVersionPreview } from "./NoteVersionPreview";
 
 export const MAX_NOTE_CONTENT_LENGTH = 10000;
 export const MAX_NOTE_TITLE_LENGTH = 200;
@@ -46,11 +46,12 @@ export function NoteEditor({
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [versionConflict, setVersionConflict] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  const gutterRef = useRef<HTMLDivElement>(null);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [selectedVersion, setSelectedVersion] =
+    useState<HydratedNoteVersion | null>(null);
 
   const isDirty =
     !isSaved &&
@@ -70,17 +71,13 @@ export function NoteEditor({
   }, [isDirty]);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isSaved) setIsSaved(false);
     setTitle(e.target.value);
   };
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (isSaved) setIsSaved(false);
     setContent(e.target.value);
-  };
-
-  const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
-    if (gutterRef.current) {
-      gutterRef.current.scrollTop = e.currentTarget.scrollTop;
-    }
   };
 
   const handleSave = () => {
@@ -99,7 +96,6 @@ export function NoteEditor({
 
           if (result.success) {
             setIsSaved(true);
-            router.push(`/dashboard/${dashboardHash}`);
           } else {
             setError(result.error);
             if (result.fieldErrors) {
@@ -122,7 +118,6 @@ export function NoteEditor({
 
           if (result.success) {
             setIsSaved(true);
-            router.push(`/dashboard/${dashboardHash}`);
           } else {
             setError(result.error);
             if (result.versionConflict) {
@@ -139,8 +134,49 @@ export function NoteEditor({
     });
   };
 
-  const handleDelete = () => {
-    setDeleteDialogOpen(true);
+  const handleOpenHistory = () => {
+    setIsHistoryOpen(true);
+  };
+
+  const handleRestoreVersion = (versionToRestore: HydratedNoteVersion) => {
+    if (!noteId || version === undefined) {
+      setError("Note metadata missing.");
+      return;
+    }
+    setError(null);
+    setFieldErrors({});
+    setVersionConflict(false);
+
+    startTransition(async () => {
+      try {
+        const result = await updateNoteAction({
+          dashboardHash,
+          noteId,
+          title: versionToRestore.title,
+          content: versionToRestore.content,
+          expectedVersion: version,
+        });
+
+        if (result.success) {
+          setTitle(versionToRestore.title);
+          setContent(versionToRestore.content);
+          setSelectedVersion(null);
+          router.refresh();
+        } else {
+          setError(result.error);
+          setSelectedVersion(null);
+          if (result.versionConflict) {
+            setVersionConflict(true);
+          }
+          if (result.fieldErrors) {
+            setFieldErrors(result.fieldErrors);
+          }
+        }
+      } catch {
+        setError("Network error. Please check your connection and try again.");
+        setSelectedVersion(null);
+      }
+    });
   };
 
   return (
@@ -183,6 +219,8 @@ export function NoteEditor({
         <NoteEditorHeader
           userAlias={userAlias}
           dashboardHash={dashboardHash}
+          mode={mode}
+          onOpenHistory={handleOpenHistory}
         />
 
         <Card
@@ -199,101 +237,55 @@ export function NoteEditor({
         >
           <EditorToolbar
             mode={mode}
+            noteId={noteId}
             noteTitle={title}
             version={version}
             dashboardHash={dashboardHash}
             isSaving={isPending || isSaved}
             isDirty={isDirty}
             onSave={handleSave}
-            onDelete={handleDelete}
+            isPreview={Boolean(selectedVersion)}
           />
 
-          <Box sx={{ px: { xs: 2, sm: 3 }, py: 1 }}>
-            <TextField
-              id="note-title-input"
-              placeholder="Title (optional)"
-              value={title}
-              onChange={handleTitleChange}
-              fullWidth
-              variant="standard"
-              error={Boolean(fieldErrors.title)}
-              helperText={fieldErrors.title?.[0]}
-              slotProps={{
-                htmlInput: {
-                  "aria-label": "Note title",
-                  maxLength: MAX_NOTE_TITLE_LENGTH,
-                },
-              }}
-              sx={{
-                "& .MuiInputBase-input": {
-                  fontSize: "1.15rem",
-                  fontWeight: 600,
-                },
-                "& .MuiInput-underline:before": {
-                  borderBottomColor: "transparent",
-                },
-                "& .MuiInput-underline:hover:not(.Mui-disabled):before": {
-                  borderBottomColor: "divider",
-                },
-              }}
-            />
-          </Box>
+          <NoteTitleInput
+            value={title}
+            onChange={handleTitleChange}
+            error={Boolean(fieldErrors.title)}
+            helperText={fieldErrors.title?.[0]}
+          />
 
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "row",
-              minHeight: 450,
-              position: "relative",
-              borderTop: "1px solid",
-              borderColor: "divider",
-            }}
-          >
-            <LineNumberGutter content={content} ref={gutterRef} />
-            <Box
-              component="textarea"
-              wrap="off"
-              id="note-content-input"
-              aria-label="Note content"
-              maxLength={MAX_NOTE_CONTENT_LENGTH}
-              value={content}
-              onChange={handleContentChange}
-              onScroll={handleScroll}
-              placeholder="Type plain text note content here..."
-              spellCheck={false}
-              sx={{
-                flex: 1,
-                p: 1.5,
-                border: "none",
-                outline: "none",
-                resize: "vertical",
-                fontFamily: "monospace",
-                whiteSpace: "pre",
-                overflowX: "auto",
-                fontSize: "0.875rem",
-                lineHeight: 1.5,
-                bgcolor: "transparent",
-                color: "text.primary",
-                width: "100%",
-                minHeight: 450,
-                boxSizing: "border-box",
-              }}
-            />
-          </Box>
-          {fieldErrors.content && (
-            <FormHelperText error sx={{ px: { xs: 2, sm: 3 }, pb: 1 }}>
-              {fieldErrors.content[0]}
-            </FormHelperText>
-          )}
+          <NoteContentArea
+            mode="edit"
+            value={content}
+            onChange={handleContentChange}
+            error={Boolean(fieldErrors.content)}
+            helperText={fieldErrors.content?.[0]}
+          />
         </Card>
 
-        {mode === "edit" && noteId && deleteDialogOpen && (
-          <DeleteNoteDialog
-            open={deleteDialogOpen}
-            onClose={() => setDeleteDialogOpen(false)}
+        {mode === "edit" && noteId && (
+          <NoteVersionHistoryDrawer
+            open={isHistoryOpen}
+            onClose={() => setIsHistoryOpen(false)}
             dashboardHash={dashboardHash}
             noteId={noteId}
-            noteTitle={title}
+            selectedVersionId={selectedVersion?.id ?? null}
+            onSelectVersion={setSelectedVersion}
+            currentVersionNumber={version}
+          />
+        )}
+
+        {selectedVersion && (
+          <NoteVersionPreview
+            key={selectedVersion.id}
+            selectedVersion={selectedVersion}
+            currentTitle={title}
+            currentContent={content}
+            onClosePreview={() => setSelectedVersion(null)}
+            onRestore={handleRestoreVersion}
+            onOpenDrawer={() => setIsHistoryOpen(true)}
+            isRestoring={isPending}
+            isDirty={isDirty}
           />
         )}
       </Container>

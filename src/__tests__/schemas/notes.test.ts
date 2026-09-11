@@ -3,6 +3,7 @@ import {
   createNoteSchema,
   updateNoteSchema,
   deleteNoteSchema,
+  getNoteVersionHistorySchema,
 } from "@/schemas/notes";
 
 describe("src/schemas/notes.ts", () => {
@@ -311,6 +312,75 @@ describe("src/schemas/notes.ts", () => {
         password: "secretPassword123",
       });
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe("getNoteVersionHistorySchema", () => {
+    const validUuid = "123e4567-e89b-12d3-a456-426614174000";
+
+    it("parses valid input with dashboardHash and noteId", () => {
+      const input = {
+        dashboardHash: "AbCdEfGh12345678",
+        noteId: validUuid,
+      };
+      const result = getNoteVersionHistorySchema.safeParse(input);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data).toEqual({
+          dashboardHash: "AbCdEfGh12345678",
+          noteId: validUuid,
+        });
+      }
+    });
+
+    it("trims whitespace from dashboardHash", () => {
+      const input = {
+        dashboardHash: "   AbCdEfGh12345678   ",
+        noteId: validUuid,
+      };
+      const result = getNoteVersionHistorySchema.safeParse(input);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.dashboardHash).toBe("AbCdEfGh12345678");
+        expect(result.data.noteId).toBe(validUuid);
+      }
+    });
+
+    it("rejects empty dashboardHash", () => {
+      const result = getNoteVersionHistorySchema.safeParse({
+        dashboardHash: "",
+        noteId: validUuid,
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toBe(
+          "Dashboard identifier is required",
+        );
+      }
+    });
+
+    it("rejects whitespace-only dashboardHash", () => {
+      const result = getNoteVersionHistorySchema.safeParse({
+        dashboardHash: "   ",
+        noteId: validUuid,
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toBe(
+          "Dashboard identifier is required",
+        );
+      }
+    });
+
+    it("rejects invalid noteId UUID", () => {
+      const result = getNoteVersionHistorySchema.safeParse({
+        dashboardHash: "AbCdEfGh12345678",
+        noteId: "not-a-valid-uuid",
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toBe("Invalid note ID format");
+      }
     });
   });
 });

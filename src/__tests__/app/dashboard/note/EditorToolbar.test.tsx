@@ -230,5 +230,54 @@ describe("EditorToolbar Component", () => {
 
       expect(mockPush).toHaveBeenCalledWith("/dashboard/dash-123");
     });
+
+    it("disables save and delete buttons when isPreview is true", () => {
+      renderWithTheme(
+        <EditorToolbar
+          mode="edit"
+          noteTitle="Draft"
+          version={2}
+          dashboardHash="dash-123"
+          isSaving={false}
+          isDirty={true}
+          onSave={vi.fn()}
+          onDelete={vi.fn()}
+          isPreview={true}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /delete/i })).toBeDisabled();
+    });
+
+    it("opens delete confirmation dialog when Delete button is clicked and noteId is provided", async () => {
+      renderWithTheme(
+        <EditorToolbar
+          mode="edit"
+          noteId="note-uuid-1"
+          noteTitle="Document To Delete"
+          version={1}
+          dashboardHash="dash-123"
+          isSaving={false}
+          isDirty={false}
+          onSave={vi.fn()}
+        />,
+      );
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /delete note/i }));
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(screen.getByText("Delete Note")).toBeInTheDocument();
+      expect(
+        screen.getByText(/Are you sure you want to delete “Document To Delete”?/),
+      ).toBeInTheDocument();
+
+      const cancelBtn = screen.getByRole("button", { name: "Cancel" });
+      fireEvent.click(cancelBtn);
+
+      await waitFor(() => {
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      });
+    });
   });
 });
