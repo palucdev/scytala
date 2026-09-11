@@ -39,8 +39,6 @@ export interface NoteVersionHistoryDrawerProps {
   isMobile?: boolean;
 }
 
-export { computeVersionDelta } from "@/lib/diff";
-
 export function NoteVersionHistoryDrawer({
   open,
   onClose,
@@ -59,7 +57,8 @@ export function NoteVersionHistoryDrawer({
   const isMobile = isMobileProp ?? mediaQueryMobile;
 
   const latestVersion = versions[0];
-  const activeVersionNumber = currentVersionNumber ?? latestVersion?.version ?? 1;
+  const activeVersionNumber =
+    currentVersionNumber ?? latestVersion?.version ?? 1;
   const historicalVersions = useMemo(() => versions.slice(1), [versions]);
 
   // Pre-calculate deltas for historical versions relative to currentContent (or predecessor if currentContent not provided)
@@ -124,7 +123,11 @@ export function NoteVersionHistoryDrawer({
           borderColor: "divider",
         }}
       >
-        <Typography variant="h6" component="h2" sx={{ fontWeight: 600, fontSize: "1.1rem" }}>
+        <Typography
+          variant="h6"
+          component="h2"
+          sx={{ fontWeight: 600, fontSize: "1.1rem" }}
+        >
           Version History
         </Typography>
         <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
@@ -176,8 +179,12 @@ export function NoteVersionHistoryDrawer({
                 mb: 1.5,
                 p: 1.5,
                 border: "1px solid",
-                borderColor: selectedVersionId === null ? "primary.main" : "divider",
-                bgcolor: selectedVersionId === null ? "action.selected" : "background.paper",
+                borderColor:
+                  selectedVersionId === null ? "primary.main" : "divider",
+                bgcolor:
+                  selectedVersionId === null
+                    ? "action.selected"
+                    : "background.paper",
                 flexDirection: "column",
                 alignItems: "flex-start",
                 gap: 0.75,
@@ -185,9 +192,17 @@ export function NoteVersionHistoryDrawer({
             >
               <Stack
                 direction="row"
-                sx={{ width: "100%", alignItems: "center", justifyContent: "space-between" }}
+                sx={{
+                  width: "100%",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
               >
-                <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  sx={{ alignItems: "center" }}
+                >
                   <Chip
                     label={`v${activeVersionNumber}`}
                     size="small"
@@ -216,7 +231,10 @@ export function NoteVersionHistoryDrawer({
             {historicalVersions.length > 0 && (
               <>
                 <Divider sx={{ my: 1.5 }}>
-                  <Typography variant="caption" sx={{ color: "text.disabled", textTransform: "uppercase" }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.disabled", textTransform: "uppercase" }}
+                  >
                     Past versions
                   </Typography>
                 </Divider>
@@ -240,7 +258,9 @@ export function NoteVersionHistoryDrawer({
                         p: 1.5,
                         border: "1px solid",
                         borderColor: isSelected ? "primary.main" : "divider",
-                        bgcolor: isSelected ? "action.selected" : "background.paper",
+                        bgcolor: isSelected
+                          ? "action.selected"
+                          : "background.paper",
                         flexDirection: "column",
                         alignItems: "flex-start",
                         gap: 0.75,
@@ -248,16 +268,31 @@ export function NoteVersionHistoryDrawer({
                     >
                       <Stack
                         direction="row"
-                        sx={{ width: "100%", alignItems: "center", justifyContent: "space-between" }}
+                        sx={{
+                          width: "100%",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                        }}
                       >
-                        <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          sx={{ alignItems: "center" }}
+                        >
                           <Chip
                             label={`v${v.version}`}
                             size="small"
                             variant="outlined"
-                            sx={{ fontWeight: 600, fontSize: "0.75rem", height: 22 }}
+                            sx={{
+                              fontWeight: 600,
+                              fontSize: "0.75rem",
+                              height: 22,
+                            }}
                           />
-                          <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 500 }}>
+                          <Typography
+                            variant="caption"
+                            sx={{ color: "text.secondary", fontWeight: 500 }}
+                          >
                             by {v.author_alias}
                           </Typography>
                         </Stack>
@@ -277,8 +312,15 @@ export function NoteVersionHistoryDrawer({
                         </Typography>
                       </Stack>
 
-                      <Tooltip title={dayjs(v.created_at).format("YYYY-MM-DD HH:mm:ss")}>
-                        <Typography variant="caption" sx={{ color: "text.disabled", fontSize: "0.75rem" }}>
+                      <Tooltip
+                        title={dayjs(v.created_at).format(
+                          "YYYY-MM-DD HH:mm:ss",
+                        )}
+                      >
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.disabled", fontSize: "0.75rem" }}
+                        >
                           {dayjs(v.created_at).fromNow()}
                         </Typography>
                       </Tooltip>
@@ -293,7 +335,10 @@ export function NoteVersionHistoryDrawer({
                 <Typography variant="body2" sx={{ color: "text.secondary" }}>
                   No previous versions yet.
                 </Typography>
-                <Typography variant="caption" sx={{ color: "text.disabled", display: "block", mt: 0.5 }}>
+                <Typography
+                  variant="caption"
+                  sx={{ color: "text.disabled", display: "block", mt: 0.5 }}
+                >
                   Past versions appear here when edits are saved.
                 </Typography>
               </Box>
