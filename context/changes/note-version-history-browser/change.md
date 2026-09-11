@@ -1,9 +1,9 @@
 ---
 change_id: note-version-history-browser
 title: Note version history browser
-status: implementing
+status: impl_reviewed
 created: 2026-09-10
-updated: 2026-09-10
+updated: 2026-09-11
 archived_at: null
 ---
 

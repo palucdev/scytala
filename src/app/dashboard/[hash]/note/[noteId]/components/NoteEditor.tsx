@@ -79,10 +79,12 @@ export function NoteEditor({
   }, [isDirty]);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isSaved) setIsSaved(false);
     setTitle(e.target.value);
   };
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (isSaved) setIsSaved(false);
     setContent(e.target.value);
   };
 
@@ -194,10 +196,10 @@ export function NoteEditor({
         });
 
         if (result.success) {
-          setIsSaved(true);
           setTitle(versionToRestore.title);
           setContent(versionToRestore.content);
           setSelectedVersion(null);
+          await fetchVersionHistory();
           router.refresh();
         } else {
           setError(result.error);
@@ -320,7 +322,6 @@ export function NoteEditor({
             selectedVersionId={selectedVersion?.id ?? null}
             onSelectVersion={setSelectedVersion}
             currentVersionNumber={version}
-            currentContent={content}
             onRefresh={fetchVersionHistory}
           />
         )}

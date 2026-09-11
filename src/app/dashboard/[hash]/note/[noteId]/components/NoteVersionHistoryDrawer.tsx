@@ -20,7 +20,7 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import CloseIcon from "@mui/icons-material/Close";
 import RefreshIcon from "@mui/icons-material/Refresh";
 
-import { computeNoteWordDiff, summarizeDiff } from "@/lib/diff";
+import { computeVersionDelta } from "@/lib/diff";
 import type { HydratedNoteVersion } from "@/schemas/notes";
 
 dayjs.extend(relativeTime);
@@ -39,24 +39,7 @@ export interface NoteVersionHistoryDrawerProps {
   isMobile?: boolean;
 }
 
-export function computeVersionDelta(
-  version: HydratedNoteVersion,
-  currentContentOrPredecessor?: string | HydratedNoteVersion,
-): string {
-  if (typeof currentContentOrPredecessor === "string") {
-    const tokens = computeNoteWordDiff(version.content, currentContentOrPredecessor);
-    const { addedChars, removedChars } = summarizeDiff(tokens);
-    return `+${addedChars} / -${removedChars}`;
-  }
-
-  const predecessor = currentContentOrPredecessor;
-  if (version.version === 1 || !predecessor) {
-    return `+${version.content.length}`;
-  }
-  const tokens = computeNoteWordDiff(predecessor.content, version.content);
-  const { addedChars, removedChars } = summarizeDiff(tokens);
-  return `+${addedChars} / -${removedChars}`;
-}
+export { computeVersionDelta } from "@/lib/diff";
 
 export function NoteVersionHistoryDrawer({
   open,
