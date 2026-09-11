@@ -107,9 +107,14 @@ export function NoteVersionHistoryDrawer({
             if (!isMounted) return;
             if (result.success) {
               setInternalVersions(result.versions);
+            } else {
+              setInternalError(result.error);
             }
           })
-          .catch(() => {});
+          .catch(() => {
+            if (!isMounted) return;
+            setInternalError("Failed to update version history.");
+          });
         return () => {
           isMounted = false;
         };

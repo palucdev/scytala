@@ -368,5 +368,154 @@ describe("NoteVersionHistoryDrawer Component", () => {
         expect(mockGetNoteVersionHistoryAction).toHaveBeenCalledTimes(2);
       });
     });
+
+    it("re-fetches when currentVersionNumber changes", async () => {
+      mockGetNoteVersionHistoryAction
+        .mockResolvedValueOnce({
+          success: true,
+          versions: mockVersions,
+        })
+        .mockResolvedValueOnce({
+          success: true,
+          versions: [
+            {
+              id: "v-4",
+              note_id: "note-1",
+              version: 4,
+              title: "Version Four",
+              content: "Line 1\nLine 2 updated\nLine 3 added\nLine 4",
+              author_id: "user-1",
+              author_alias: "Alice_Commander",
+              created_at: "2026-09-10T16:00:00Z",
+            },
+            ...mockVersions,
+          ],
+        });
+
+      const { rerender } = renderWithTheme(
+        <NoteVersionHistoryDrawer
+          open={true}
+          onClose={vi.fn()}
+          dashboardHash="dash-123"
+          noteId="note-1"
+          selectedVersionId={null}
+          onSelectVersion={vi.fn()}
+          currentVersionNumber={3}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(mockGetNoteVersionHistoryAction).toHaveBeenCalledTimes(1);
+      });
+
+      rerender(
+        <ThemeProvider theme={PapyrusThemeLight}>
+          <NoteVersionHistoryDrawer
+            open={true}
+            onClose={vi.fn()}
+            dashboardHash="dash-123"
+            noteId="note-1"
+            selectedVersionId={null}
+            onSelectVersion={vi.fn()}
+            currentVersionNumber={4}
+          />
+        </ThemeProvider>,
+      );
+
+      await waitFor(() => {
+        expect(mockGetNoteVersionHistoryAction).toHaveBeenCalledTimes(2);
+      });
+      expect(await screen.findByText("v4")).toBeInTheDocument();
+    });
+
+    it("displays error when re-fetch on currentVersionNumber change returns failure", async () => {
+      mockGetNoteVersionHistoryAction
+        .mockResolvedValueOnce({
+          success: true,
+          versions: mockVersions,
+        })
+        .mockResolvedValueOnce({
+          success: false,
+          error: "Failed to fetch updated history",
+        });
+
+      const { rerender } = renderWithTheme(
+        <NoteVersionHistoryDrawer
+          open={true}
+          onClose={vi.fn()}
+          dashboardHash="dash-123"
+          noteId="note-1"
+          selectedVersionId={null}
+          onSelectVersion={vi.fn()}
+          currentVersionNumber={3}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(mockGetNoteVersionHistoryAction).toHaveBeenCalledTimes(1);
+      });
+
+      rerender(
+        <ThemeProvider theme={PapyrusThemeLight}>
+          <NoteVersionHistoryDrawer
+            open={true}
+            onClose={vi.fn()}
+            dashboardHash="dash-123"
+            noteId="note-1"
+            selectedVersionId={null}
+            onSelectVersion={vi.fn()}
+            currentVersionNumber={4}
+          />
+        </ThemeProvider>,
+      );
+
+      expect(
+        await screen.findByText("Failed to fetch updated history"),
+      ).toBeInTheDocument();
+    });
+
+    it("displays error when re-fetch on currentVersionNumber change rejects", async () => {
+      mockGetNoteVersionHistoryAction
+        .mockResolvedValueOnce({
+          success: true,
+          versions: mockVersions,
+        })
+        .mockRejectedValueOnce(new Error("Network drop"));
+
+      const { rerender } = renderWithTheme(
+        <NoteVersionHistoryDrawer
+          open={true}
+          onClose={vi.fn()}
+          dashboardHash="dash-123"
+          noteId="note-1"
+          selectedVersionId={null}
+          onSelectVersion={vi.fn()}
+          currentVersionNumber={3}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(mockGetNoteVersionHistoryAction).toHaveBeenCalledTimes(1);
+      });
+
+      rerender(
+        <ThemeProvider theme={PapyrusThemeLight}>
+          <NoteVersionHistoryDrawer
+            open={true}
+            onClose={vi.fn()}
+            dashboardHash="dash-123"
+            noteId="note-1"
+            selectedVersionId={null}
+            onSelectVersion={vi.fn()}
+            currentVersionNumber={4}
+          />
+        </ThemeProvider>,
+      );
+
+      expect(
+        await screen.findByText("Failed to update version history."),
+      ).toBeInTheDocument();
+    });
   });
 });
+
