@@ -1,14 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ThemeProvider } from "@mui/material/styles";
 
 import {
   NoteVersionHistoryDrawer,
-  computeVersionDelta,
   type NoteVersionHistoryDrawerProps,
 } from "@/app/dashboard/[hash]/note/[noteId]/components/NoteVersionHistoryDrawer";
+import * as noteActionsModule from "@/actions/notes";
+import { computeVersionDelta } from "@/lib/diff";
 import { PapyrusThemeLight } from "@/theme/papyrus-theme-light";
 import type { HydratedNoteVersion } from "@/schemas/notes";
+
+vi.mock("@/actions/notes", () => ({
+  getNoteVersionHistoryAction: vi.fn(),
+}));
 
 function renderWithTheme(ui: React.ReactElement) {
   return render(<ThemeProvider theme={PapyrusThemeLight}>{ui}</ThemeProvider>);
@@ -249,6 +254,119 @@ describe("NoteVersionHistoryDrawer Component", () => {
       expect(screen.getByRole("heading", { name: "Version History" })).toBeInTheDocument();
       // On desktop persistent drawer, MUI does not render a backdrop modal
       expect(document.querySelector(".MuiBackdrop-root")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Internal fetching integration", () => {
+    const mockGetNoteVersionHistoryAction = vi.mocked(
+      noteActionsModule.getNoteVersionHistoryAction,
+    );
+
+    it("fetches version history when open and versions prop is not provided", async () => {
+      mockGetNoteVersionHistoryAction.mockResolvedValueOnce({
+        success: true,
+        versions: mockVersions,
+      });
+
+      renderWithTheme(
+        <NoteVersionHistoryDrawer
+          open={true}
+          onClose={vi.fn()}
+          dashboardHash="dash-123"
+          noteId="note-1"
+          selectedVersionId={null}
+          onSelectVersion={vi.fn()}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(mockGetNoteVersionHistoryAction).toHaveBeenCalledWith({
+          dashboardHash: "dash-123",
+          noteId: "note-1",
+        });
+      });
+
+      expect(screen.getByText("Current version")).toBeInTheDocument();
+      expect(screen.getByText("by Alice_Commander")).toBeInTheDocument();
+    });
+
+    it("handles error during internal fetching", async () => {
+      mockGetNoteVersionHistoryAction.mockResolvedValueOnce({
+        success: false,
+        error: "Failed to load versions from server.",
+      });
+
+      renderWithTheme(
+        <NoteVersionHistoryDrawer
+          open={true}
+          onClose={vi.fn()}
+          dashboardHash="dash-123"
+          noteId="note-1"
+          selectedVersionId={null}
+          onSelectVersion={vi.fn()}
+        />,
+      );
+
+      expect(
+        await screen.findByText("Failed to load versions from server."),
+      ).toBeInTheDocument();
+    });
+
+    it("handles network exception during internal fetching", async () => {
+      mockGetNoteVersionHistoryAction.mockRejectedValueOnce(
+        new Error("Network failed"),
+      );
+
+      renderWithTheme(
+        <NoteVersionHistoryDrawer
+          open={true}
+          onClose={vi.fn()}
+          dashboardHash="dash-123"
+          noteId="note-1"
+          selectedVersionId={null}
+          onSelectVersion={vi.fn()}
+        />,
+      );
+
+      expect(
+        await screen.findByText("Failed to load version history."),
+      ).toBeInTheDocument();
+    });
+
+    it("re-fetches when handleRefresh is triggered with internal state", async () => {
+      mockGetNoteVersionHistoryAction
+        .mockResolvedValueOnce({
+          success: true,
+          versions: mockVersions,
+        })
+        .mockResolvedValueOnce({
+          success: true,
+          versions: mockVersions,
+        });
+
+      renderWithTheme(
+        <NoteVersionHistoryDrawer
+          open={true}
+          onClose={vi.fn()}
+          dashboardHash="dash-123"
+          noteId="note-1"
+          selectedVersionId={null}
+          onSelectVersion={vi.fn()}
+        />,
+      );
+
+      await waitFor(() => {
+        expect(mockGetNoteVersionHistoryAction).toHaveBeenCalledTimes(1);
+      });
+
+      const refreshBtn = screen.getByRole("button", {
+        name: /refresh version history/i,
+      });
+      fireEvent.click(refreshBtn);
+
+      await waitFor(() => {
+        expect(mockGetNoteVersionHistoryAction).toHaveBeenCalledTimes(2);
+      });
     });
   });
 });

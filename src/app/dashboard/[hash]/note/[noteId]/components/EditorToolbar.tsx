@@ -14,6 +14,7 @@ import DeleteIcon from "@mui/icons-material/Delete";
 import SaveIcon from "@mui/icons-material/Save";
 
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
+import { DeleteNoteDialog } from "./DeleteNoteDialog";
 
 export interface EditorToolbarProps {
   mode: "create" | "edit";
@@ -23,8 +24,9 @@ export interface EditorToolbarProps {
   isSaving: boolean;
   isDirty: boolean;
   onSave: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
   isPreview?: boolean;
+  noteId?: string;
 }
 
 export function EditorToolbar({
@@ -36,9 +38,17 @@ export function EditorToolbar({
   onSave,
   onDelete,
   isPreview = false,
+  noteTitle = "",
+  noteId,
 }: EditorToolbarProps) {
   const router = useRouter();
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+
+  const handleDelete = () => {
+    setDeleteDialogOpen(true);
+    onDelete?.();
+  };
 
   const handleBack = (e: React.MouseEvent<HTMLAnchorElement>) => {
     if (isDirty) {
@@ -117,7 +127,7 @@ export function EditorToolbar({
           <Button
             variant="outlined"
             color="error"
-            onClick={onDelete}
+            onClick={handleDelete}
             disabled={isSaving || isPreview}
             startIcon={<DeleteIcon />}
             aria-label="Delete note"
@@ -154,6 +164,16 @@ export function EditorToolbar({
         cancelLabel="Cancel"
         confirmColor="warning"
       />
+
+      {mode === "edit" && noteId && (
+        <DeleteNoteDialog
+          open={deleteDialogOpen}
+          onClose={() => setDeleteDialogOpen(false)}
+          dashboardHash={dashboardHash}
+          noteId={noteId}
+          noteTitle={noteTitle}
+        />
+      )}
     </Box>
   );
 }

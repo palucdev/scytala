@@ -25,4 +25,8 @@ export {
   NoteVersionPreview,
   type NoteVersionPreviewProps,
 } from "./NoteVersionPreview";
+export {
+  NoteVersionPreviewActions,
+  type NoteVersionPreviewActionsProps,
+} from "./NoteVersionPreviewActions";
 

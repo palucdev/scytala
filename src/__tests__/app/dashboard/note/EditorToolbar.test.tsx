@@ -249,5 +249,35 @@ describe("EditorToolbar Component", () => {
       expect(screen.getByRole("button", { name: /save/i })).toBeDisabled();
       expect(screen.getByRole("button", { name: /delete/i })).toBeDisabled();
     });
+
+    it("opens delete confirmation dialog when Delete button is clicked and noteId is provided", async () => {
+      renderWithTheme(
+        <EditorToolbar
+          mode="edit"
+          noteId="note-uuid-1"
+          noteTitle="Document To Delete"
+          version={1}
+          dashboardHash="dash-123"
+          isSaving={false}
+          isDirty={false}
+          onSave={vi.fn()}
+        />,
+      );
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: /delete note/i }));
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(screen.getByText("Delete Note")).toBeInTheDocument();
+      expect(
+        screen.getByText(/Are you sure you want to delete “Document To Delete”?/),
+      ).toBeInTheDocument();
+
+      const cancelBtn = screen.getByRole("button", { name: "Cancel" });
+      fireEvent.click(cancelBtn);
+
+      await waitFor(() => {
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      });
+    });
   });
 });

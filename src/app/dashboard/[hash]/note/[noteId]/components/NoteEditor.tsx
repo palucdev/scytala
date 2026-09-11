@@ -10,10 +10,8 @@ import Container from "@mui/material/Container";
 import {
   createNoteAction,
   updateNoteAction,
-  getNoteVersionHistoryAction,
 } from "@/actions/notes";
 import type { HydratedNoteVersion } from "@/schemas/notes";
-import { DeleteNoteDialog } from "./DeleteNoteDialog";
 import { EditorToolbar } from "./EditorToolbar";
 import { NoteContentArea } from "./NoteContentArea";
 import { NoteEditorHeader } from "./NoteEditorHeader";
@@ -51,14 +49,10 @@ export function NoteEditor({
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [versionConflict, setVersionConflict] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [versions, setVersions] = useState<HydratedNoteVersion[]>([]);
-  const [isLoadingVersions, setIsLoadingVersions] = useState(false);
-  const [versionHistoryError, setVersionHistoryError] = useState<string | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<HydratedNoteVersion | null>(null);
 
   const isDirty =
@@ -144,36 +138,8 @@ export function NoteEditor({
     });
   };
 
-  const handleDelete = () => {
-    setDeleteDialogOpen(true);
-  };
-
-  const fetchVersionHistory = async () => {
-    if (!noteId) return;
-    setIsLoadingVersions(true);
-    setVersionHistoryError(null);
-    try {
-      const result = await getNoteVersionHistoryAction({
-        dashboardHash,
-        noteId,
-      });
-      if (result.success) {
-        setVersions(result.versions);
-      } else {
-        setVersionHistoryError(result.error);
-      }
-    } catch {
-      setVersionHistoryError("Failed to load version history.");
-    } finally {
-      setIsLoadingVersions(false);
-    }
-  };
-
   const handleOpenHistory = () => {
     setIsHistoryOpen(true);
-    if (noteId && versions.length === 0 && !isLoadingVersions) {
-      void fetchVersionHistory();
-    }
   };
 
   const handleRestoreVersion = (versionToRestore: HydratedNoteVersion) => {
@@ -199,7 +165,6 @@ export function NoteEditor({
           setTitle(versionToRestore.title);
           setContent(versionToRestore.content);
           setSelectedVersion(null);
-          await fetchVersionHistory();
           router.refresh();
         } else {
           setError(result.error);
@@ -276,13 +241,13 @@ export function NoteEditor({
         >
           <EditorToolbar
             mode={mode}
+            noteId={noteId}
             noteTitle={title}
             version={version}
             dashboardHash={dashboardHash}
             isSaving={isPending || isSaved}
             isDirty={isDirty}
             onSave={handleSave}
-            onDelete={handleDelete}
             isPreview={Boolean(selectedVersion)}
           />
 
@@ -302,27 +267,15 @@ export function NoteEditor({
           />
         </Card>
 
-        {mode === "edit" && noteId && deleteDialogOpen && (
-          <DeleteNoteDialog
-            open={deleteDialogOpen}
-            onClose={() => setDeleteDialogOpen(false)}
-            dashboardHash={dashboardHash}
-            noteId={noteId}
-            noteTitle={title}
-          />
-        )}
-
         {mode === "edit" && noteId && (
           <NoteVersionHistoryDrawer
             open={isHistoryOpen}
             onClose={() => setIsHistoryOpen(false)}
-            versions={versions}
-            isLoading={isLoadingVersions}
-            error={versionHistoryError}
+            dashboardHash={dashboardHash}
+            noteId={noteId}
             selectedVersionId={selectedVersion?.id ?? null}
             onSelectVersion={setSelectedVersion}
             currentVersionNumber={version}
-            onRefresh={fetchVersionHistory}
           />
         )}
 

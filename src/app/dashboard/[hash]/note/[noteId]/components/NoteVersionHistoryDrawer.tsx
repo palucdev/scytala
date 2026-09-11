@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import Alert from "@mui/material/Alert";
@@ -20,6 +20,7 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import CloseIcon from "@mui/icons-material/Close";
 import RefreshIcon from "@mui/icons-material/Refresh";
 
+import { getNoteVersionHistoryAction } from "@/actions/notes";
 import { computeVersionDelta } from "@/lib/diff";
 import type { HydratedNoteVersion } from "@/schemas/notes";
 
@@ -28,9 +29,11 @@ dayjs.extend(relativeTime);
 export interface NoteVersionHistoryDrawerProps {
   open: boolean;
   onClose: () => void;
-  versions: HydratedNoteVersion[];
-  isLoading: boolean;
-  error: string | null;
+  dashboardHash?: string;
+  noteId?: string;
+  versions?: HydratedNoteVersion[];
+  isLoading?: boolean;
+  error?: string | null;
   selectedVersionId: string | null;
   onSelectVersion: (version: HydratedNoteVersion | null) => void;
   currentVersionNumber?: number;
@@ -42,16 +45,107 @@ export interface NoteVersionHistoryDrawerProps {
 export function NoteVersionHistoryDrawer({
   open,
   onClose,
-  versions,
-  isLoading,
-  error,
+  dashboardHash,
+  noteId,
+  versions: versionsProp,
+  isLoading: isLoadingProp,
+  error: errorProp,
   selectedVersionId,
   onSelectVersion,
   currentVersionNumber,
   currentContent,
-  onRefresh,
+  onRefresh: onRefreshProp,
   isMobile: isMobileProp,
 }: NoteVersionHistoryDrawerProps) {
+  const [internalVersions, setInternalVersions] = useState<HydratedNoteVersion[]>([]);
+  const [internalLoading, setInternalLoading] = useState(false);
+  const [internalError, setInternalError] = useState<string | null>(null);
+
+  const isInitialLoading =
+    open &&
+    versionsProp === undefined &&
+    Boolean(dashboardHash && noteId) &&
+    internalVersions.length === 0 &&
+    internalError === null;
+
+  const versions = versionsProp ?? internalVersions;
+  const isLoading = isLoadingProp ?? (internalLoading || isInitialLoading);
+  const error = errorProp ?? internalError;
+
+  useEffect(() => {
+    let isMounted = true;
+    if (open && versionsProp === undefined && dashboardHash && noteId) {
+      if (internalVersions.length === 0 && internalError === null) {
+        getNoteVersionHistoryAction({ dashboardHash, noteId })
+          .then((result) => {
+            if (!isMounted) return;
+            if (result.success) {
+              setInternalVersions(result.versions);
+            } else {
+              setInternalError(result.error);
+            }
+          })
+          .catch(() => {
+            if (!isMounted) return;
+            setInternalError("Failed to load version history.");
+          });
+      }
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [open, versionsProp, dashboardHash, noteId, internalVersions.length, internalError]);
+
+  const prevVersionRef = useRef(currentVersionNumber);
+  useEffect(() => {
+    if (prevVersionRef.current !== currentVersionNumber) {
+      prevVersionRef.current = currentVersionNumber;
+      if (dashboardHash && noteId && versionsProp === undefined) {
+        let isMounted = true;
+        getNoteVersionHistoryAction({ dashboardHash, noteId })
+          .then((result) => {
+            if (!isMounted) return;
+            if (result.success) {
+              setInternalVersions(result.versions);
+            }
+          })
+          .catch(() => {});
+        return () => {
+          isMounted = false;
+        };
+      }
+    }
+  }, [currentVersionNumber, dashboardHash, noteId, versionsProp]);
+
+  const handleRefreshClick = useCallback(() => {
+    if (onRefreshProp) {
+      onRefreshProp();
+      return;
+    }
+    if (!dashboardHash || !noteId) return;
+    setInternalLoading(true);
+    setInternalError(null);
+    getNoteVersionHistoryAction({ dashboardHash, noteId })
+      .then((result) => {
+        if (result.success) {
+          setInternalVersions(result.versions);
+        } else {
+          setInternalError(result.error);
+        }
+      })
+      .catch(() => {
+        setInternalError("Failed to load version history.");
+      })
+      .finally(() => {
+        setInternalLoading(false);
+      });
+  }, [onRefreshProp, dashboardHash, noteId]);
+
+  const handleRefresh =
+    onRefreshProp !== undefined || (dashboardHash && noteId)
+      ? handleRefreshClick
+      : undefined;
+
   const theme = useTheme();
   const mediaQueryMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const isMobile = isMobileProp ?? mediaQueryMobile;
@@ -131,12 +225,12 @@ export function NoteVersionHistoryDrawer({
           Version History
         </Typography>
         <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
-          {onRefresh && (
+          {handleRefresh && (
             <Tooltip title="Refresh versions">
               <span>
                 <IconButton
                   size="small"
-                  onClick={onRefresh}
+                  onClick={handleRefresh}
                   disabled={isLoading}
                   aria-label="Refresh version history"
                 >
