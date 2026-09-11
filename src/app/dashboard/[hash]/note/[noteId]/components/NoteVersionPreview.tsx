@@ -1,11 +1,8 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import dayjs from "dayjs";
-import relativeTime from "dayjs/plugin/relativeTime";
+import { useMemo, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
 import CircularProgress from "@mui/material/CircularProgress";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
@@ -20,7 +17,6 @@ import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { visuallyHidden } from "@mui/utils";
 import CloseIcon from "@mui/icons-material/Close";
-import HistoryIcon from "@mui/icons-material/History";
 import RestoreIcon from "@mui/icons-material/Restore";
 
 import { ConfirmationDialog } from "@/components/ConfirmationDialog";
@@ -30,9 +26,9 @@ import {
   summarizeDiff,
 } from "@/lib/diff";
 import type { HydratedNoteVersion } from "@/schemas/notes";
-import { LineNumberGutter } from "./LineNumberGutter";
-
-dayjs.extend(relativeTime);
+import { DiffSummaryBadge } from "./DiffSummaryBadge";
+import { NoteContentArea } from "./NoteContentArea";
+import { NoteVersionBanner } from "./NoteVersionBanner";
 
 export interface NoteVersionPreviewProps {
   open?: boolean;
@@ -48,8 +44,6 @@ export interface NoteVersionPreviewProps {
   isMobile?: boolean;
   initialShowDiff?: boolean;
 }
-
-export type NoteVersionPreviewDialogProps = NoteVersionPreviewProps;
 
 export function NoteVersionPreview({
   open,
@@ -82,8 +76,6 @@ export function NoteVersionPreview({
   );
   const [confirmRestoreOpen, setConfirmRestoreOpen] = useState(false);
 
-  const gutterRef = useRef<HTMLDivElement>(null);
-
   const diffTokens = useMemo(() => {
     if (!selectedVersion) return [];
     return computeNoteWordDiff(selectedVersion.content, currentContent);
@@ -104,12 +96,6 @@ export function NoteVersionPreview({
       return r.lineNumber;
     });
   }, [diffRows]);
-
-  const handleScroll = (e: React.UIEvent<HTMLElement>) => {
-    if (gutterRef.current) {
-      gutterRef.current.scrollTop = e.currentTarget.scrollTop;
-    }
-  };
 
   if (!selectedVersion) {
     return null;
@@ -163,46 +149,13 @@ export function NoteVersionPreview({
             }}
           >
             {/* Version details */}
-            <Stack
-              direction="row"
-              spacing={1.5}
-              sx={{ alignItems: "center", flexWrap: "wrap" }}
-            >
-              <Chip
-                label={`Viewing v${selectedVersion.version} (Read-only)`}
-                color="warning"
-                sx={{
-                  fontWeight: 700,
-                  fontSize: "0.875rem",
-                  height: 32,
-                  px: 0.5,
-                }}
-              />
-              <Typography
-                variant="body2"
-                sx={{ color: "text.secondary", fontSize: "0.95rem" }}
-              >
-                by {selectedVersion.author_alias} •{" "}
-                {dayjs(selectedVersion.created_at).fromNow()}
-              </Typography>
-
-              {isMobile && onOpenDrawer && (
-                <Button
-                  variant="outlined"
-                  onClick={onOpenDrawer}
-                  startIcon={<HistoryIcon />}
-                  aria-label="Switch version"
-                  sx={{
-                    height: 36,
-                    fontSize: "0.9rem",
-                    ml: 0.5,
-                    textTransform: "none",
-                  }}
-                >
-                  Switch version
-                </Button>
-              )}
-            </Stack>
+            <NoteVersionBanner
+              version={selectedVersion.version}
+              authorAlias={selectedVersion.author_alias}
+              createdAt={selectedVersion.created_at}
+              isMobile={isMobile}
+              onOpenDrawer={onOpenDrawer}
+            />
 
             {/* Action buttons and Diff toggle */}
             <Stack
@@ -412,131 +365,13 @@ export function NoteVersionPreview({
           </Box>
 
           {/* Content Area */}
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "row",
-              flex: 1,
-              minHeight: 0,
-              position: "relative",
-            }}
-          >
-            <LineNumberGutter
-              content={!showDiff ? selectedVersion.content : undefined}
-              lineNumbers={showDiff ? diffLineNumbers : undefined}
-              ref={gutterRef}
-            />
-
-            {!showDiff ? (
-              <Box
-                component="pre"
-                id="note-preview-content"
-                aria-label="Note content snapshot"
-                onScroll={handleScroll}
-                sx={{
-                  flex: 1,
-                  m: 0,
-                  p: 1.5,
-                  fontFamily: "monospace",
-                  whiteSpace: "pre",
-                  overflowX: "auto",
-                  fontSize: "0.875rem",
-                  lineHeight: 1.5,
-                  bgcolor: "transparent",
-                  color: "text.primary",
-                  width: "100%",
-                  minHeight: 0,
-                  boxSizing: "border-box",
-                }}
-              >
-                {selectedVersion.content}
-              </Box>
-            ) : (
-              <Box
-                id="note-diff-content"
-                aria-label="Note diff content"
-                onScroll={handleScroll}
-                sx={{
-                  flex: 1,
-                  m: 0,
-                  py: 1.5,
-                  fontFamily: "monospace",
-                  whiteSpace: "pre",
-                  overflowX: "auto",
-                  fontSize: "0.875rem",
-                  lineHeight: 1.5,
-                  bgcolor: "transparent",
-                  color: "text.primary",
-                  width: "100%",
-                  minHeight: 0,
-                  boxSizing: "border-box",
-                }}
-              >
-                {diffRows.map((row, rIdx) => (
-                  <Box
-                    key={rIdx}
-                    data-testid={`diff-row-${rIdx}`}
-                    sx={{
-                      px: 1.5,
-                      lineHeight: 1.5,
-                      fontSize: "0.875rem",
-                      minWidth: "100%",
-                      width: "max-content",
-                      boxSizing: "border-box",
-                      bgcolor:
-                        row.type === "add"
-                          ? "rgba(46, 125, 50, 0.08)"
-                          : row.type === "delete"
-                            ? "rgba(211, 47, 47, 0.08)"
-                            : row.type === "modify"
-                              ? "rgba(255, 152, 0, 0.06)"
-                              : "transparent",
-                    }}
-                  >
-                    {row.tokens.length === 0
-                      ? "\u00A0"
-                      : row.tokens.map((token, tIdx) => {
-                          if (token.added) {
-                            return (
-                              <Box
-                                component="ins"
-                                key={tIdx}
-                                aria-label={`Added: ${token.value}`}
-                                sx={{
-                                  color: "#1b5e20",
-                                  bgcolor: "rgba(46, 125, 50, 0.15)",
-                                  textDecoration: "none",
-                                  borderRadius: "2px",
-                                }}
-                              >
-                                {token.value}
-                              </Box>
-                            );
-                          }
-                          if (token.removed) {
-                            return (
-                              <Box
-                                component="del"
-                                key={tIdx}
-                                aria-label={`Deleted: ${token.value}`}
-                                sx={{
-                                  color: "#b71c1c",
-                                  bgcolor: "rgba(211, 47, 47, 0.15)",
-                                  textDecoration: "line-through",
-                                  borderRadius: "2px",
-                                }}
-                              >
-                                {token.value}
-                              </Box>
-                            );
-                          }
-                          return <span key={tIdx}>{token.value}</span>;
-                        })}
-                  </Box>
-                ))}
-              </Box>
-            )}
-          </Box>
+          <NoteContentArea
+            mode="preview"
+            content={selectedVersion.content}
+            showDiff={showDiff}
+            diffRows={diffRows}
+            diffLineNumbers={diffLineNumbers}
+          />
         </DialogContent>
 
         {/* Dialog Actions */}
@@ -553,24 +388,12 @@ export function NoteVersionPreview({
           }}
         >
           <Box sx={{ minHeight: 32, display: "flex", alignItems: "center" }}>
-            {showDiff &&
-              (diffSummary.addedChars > 0 || diffSummary.removedChars > 0) && (
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontFamily: "monospace",
-                    fontSize: "0.875rem",
-                    color: "text.secondary",
-                    bgcolor: "action.hover",
-                    px: 1.5,
-                    py: 0.75,
-                    borderRadius: 1,
-                  }}
-                >
-                  Diff: +{diffSummary.addedChars} / -{diffSummary.removedChars}{" "}
-                  chars
-                </Typography>
-              )}
+            {showDiff && (
+              <DiffSummaryBadge
+                addedChars={diffSummary.addedChars}
+                removedChars={diffSummary.removedChars}
+              />
+            )}
           </Box>
           <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
             <Button
@@ -635,5 +458,4 @@ export function NoteVersionPreview({
   );
 }
 
-export const NoteVersionPreviewDialog = NoteVersionPreview;
 export default NoteVersionPreview;

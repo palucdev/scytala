@@ -202,7 +202,7 @@ describe("NoteVersionHistoryDrawer Component", () => {
 
     it("renders deltas relative to currentContent on historical version cards when provided", () => {
       // mockVersions[1] has content: "Line 1\nLine 2"
-      // currentContent: "Line 1\nLine 2 updated\nLine 3 added" (+28 / -5)
+      // currentContent: "Line 1\nLine 2 updated\nLine 3 added" (+28 / -4, excluding newlines)
       renderWithTheme(
         <NoteVersionHistoryDrawer
           {...defaultProps}
@@ -210,7 +210,7 @@ describe("NoteVersionHistoryDrawer Component", () => {
         />,
       );
 
-      expect(screen.getByText("+28 / -5")).toBeInTheDocument();
+      expect(screen.getByText("+28 / -4")).toBeInTheDocument();
     });
   });
 

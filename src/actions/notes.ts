@@ -31,19 +31,20 @@ import {
 
 const log = logger.child({ module: "notes" });
 
-async function enforceMutationRateLimit(
-  session: { dashboard_id: string; user_id: string },
-  actionName: string,
-  extraContext?: Record<string, unknown>,
-): Promise<
+export type MutationRateLimitResult =
   | { success: true }
   | {
       success: false;
       error: string;
       rateLimited: true;
       retryAfterSeconds: number;
-    }
-> {
+    };
+
+async function enforceMutationRateLimit(
+  session: { dashboard_id: string; user_id: string },
+  actionName: string,
+  extraContext?: Record<string, unknown>,
+): Promise<MutationRateLimitResult> {
   const rateLimitKey = `${session.dashboard_id}:${session.user_id}`;
   const rateCheck = await checkRateLimit("noteMutation", rateLimitKey);
   if (!rateCheck.success) {

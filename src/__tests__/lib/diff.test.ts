@@ -1,10 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   computeNoteWordDiff,
+  computeVersionDelta,
+  computeVersionDeltas,
+  DIFF_ROW_BGCOLOR_MAP,
   formatDiffLines,
   summarizeDiff,
   type WordDiffToken,
 } from "@/lib/diff";
+import type { HydratedNoteVersion } from "@/schemas/notes";
 
 describe("diff utility", () => {
   describe("computeNoteWordDiff", () => {
@@ -184,6 +188,110 @@ describe("diff utility", () => {
         { value: "unchanged text", added: false, removed: false },
       ];
       expect(summarizeDiff(tokens)).toEqual({ addedChars: 0, removedChars: 0 });
+    });
+
+    it("does not count newline characters in additions and deletions", () => {
+      const tokens: WordDiffToken[] = [
+        { value: "line1\nline2\r\n", added: true },
+        { value: "old1\nold2\n", removed: true },
+      ];
+      expect(summarizeDiff(tokens)).toEqual({ addedChars: 10, removedChars: 8 });
+    });
+  });
+
+  describe("computeVersionDelta", () => {
+    const mockVersion1: HydratedNoteVersion = {
+      id: "v-1",
+      note_id: "n-1",
+      version: 1,
+      title: "Note 1",
+      content: "Hello\nWorld",
+      author_id: "u-1",
+      author_alias: "Alice",
+      created_at: "2026-09-01T00:00:00Z",
+    };
+
+    const mockVersion2: HydratedNoteVersion = {
+      id: "v-2",
+      note_id: "n-1",
+      version: 2,
+      title: "Note 1",
+      content: "Hello\nBrave World",
+      author_id: "u-1",
+      author_alias: "Alice",
+      created_at: "2026-09-02T00:00:00Z",
+    };
+
+    it("returns +length without newlines for version 1 without predecessor", () => {
+      expect(computeVersionDelta(mockVersion1)).toBe("+10"); // "Hello" (5) + "World" (5)
+    });
+
+    it("computes delta against currentContent string", () => {
+      const delta = computeVersionDelta(mockVersion1, "Hello World modified");
+      expect(delta).toContain("+");
+      expect(delta).toContain("-");
+    });
+
+    it("computes delta against predecessor version", () => {
+      const delta = computeVersionDelta(mockVersion2, mockVersion1);
+      expect(delta).toBe("+6 / -0");
+    });
+  });
+
+  describe("computeVersionDeltas", () => {
+    const versions: HydratedNoteVersion[] = [
+      {
+        id: "v-3",
+        note_id: "n-1",
+        version: 3,
+        title: "V3",
+        content: "Content 3",
+        author_id: "u-1",
+        author_alias: "Alice",
+        created_at: "2026-09-03T00:00:00Z",
+      },
+      {
+        id: "v-2",
+        note_id: "n-1",
+        version: 2,
+        title: "V2",
+        content: "Content 2",
+        author_id: "u-1",
+        author_alias: "Alice",
+        created_at: "2026-09-02T00:00:00Z",
+      },
+      {
+        id: "v-1",
+        note_id: "n-1",
+        version: 1,
+        title: "V1",
+        content: "Content 1",
+        author_id: "u-1",
+        author_alias: "Alice",
+        created_at: "2026-09-01T00:00:00Z",
+      },
+    ];
+
+    it("computes delta map using currentContent when provided", () => {
+      const deltas = computeVersionDeltas(versions, "Current draft");
+      expect(deltas.has("v-2")).toBe(true);
+      expect(deltas.has("v-1")).toBe(true);
+      expect(deltas.has("v-3")).toBe(false); // Current version is skipped
+    });
+
+    it("computes delta map against predecessors when currentContent is undefined", () => {
+      const deltas = computeVersionDeltas(versions);
+      expect(deltas.has("v-2")).toBe(true);
+      expect(deltas.has("v-1")).toBe(true);
+    });
+  });
+
+  describe("DIFF_ROW_BGCOLOR_MAP", () => {
+    it("provides background colors for all diff line types", () => {
+      expect(DIFF_ROW_BGCOLOR_MAP.add).toBe("rgba(46, 125, 50, 0.08)");
+      expect(DIFF_ROW_BGCOLOR_MAP.delete).toBe("rgba(211, 47, 47, 0.08)");
+      expect(DIFF_ROW_BGCOLOR_MAP.modify).toBe("rgba(255, 152, 0, 0.06)");
+      expect(DIFF_ROW_BGCOLOR_MAP.normal).toBe("transparent");
     });
   });
 });

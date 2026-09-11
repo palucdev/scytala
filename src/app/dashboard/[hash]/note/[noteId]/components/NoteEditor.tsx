@@ -1,15 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Container from "@mui/material/Container";
-import FormHelperText from "@mui/material/FormHelperText";
-import TextField from "@mui/material/TextField";
-
 import {
   createNoteAction,
   updateNoteAction,
@@ -18,8 +15,9 @@ import {
 import type { HydratedNoteVersion } from "@/schemas/notes";
 import { DeleteNoteDialog } from "./DeleteNoteDialog";
 import { EditorToolbar } from "./EditorToolbar";
-import { LineNumberGutter } from "./LineNumberGutter";
+import { NoteContentArea } from "./NoteContentArea";
 import { NoteEditorHeader } from "./NoteEditorHeader";
+import { NoteTitleInput } from "./NoteTitleInput";
 import { NoteVersionHistoryDrawer } from "./NoteVersionHistoryDrawer";
 import { NoteVersionPreview } from "./NoteVersionPreview";
 
@@ -63,8 +61,6 @@ export function NoteEditor({
   const [versionHistoryError, setVersionHistoryError] = useState<string | null>(null);
   const [selectedVersion, setSelectedVersion] = useState<HydratedNoteVersion | null>(null);
 
-  const gutterRef = useRef<HTMLDivElement>(null);
-
   const isDirty =
     !isSaved &&
     (title !== (initialTitle ?? "") || content !== (initialContent ?? ""));
@@ -88,12 +84,6 @@ export function NoteEditor({
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setContent(e.target.value);
-  };
-
-  const handleScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
-    if (gutterRef.current) {
-      gutterRef.current.scrollTop = e.currentTarget.scrollTop;
-    }
   };
 
   const handleSave = () => {
@@ -294,83 +284,20 @@ export function NoteEditor({
             isPreview={Boolean(selectedVersion)}
           />
 
-          <Box sx={{ px: { xs: 2, sm: 3 }, py: 1 }}>
-            <TextField
-              id="note-title-input"
-              placeholder="Title (optional)"
-              value={title}
-              onChange={handleTitleChange}
-              fullWidth
-              variant="standard"
-              error={Boolean(fieldErrors.title)}
-              helperText={fieldErrors.title?.[0]}
-              slotProps={{
-                htmlInput: {
-                  "aria-label": "Note title",
-                  maxLength: MAX_NOTE_TITLE_LENGTH,
-                },
-              }}
-              sx={{
-                "& .MuiInputBase-input": {
-                  fontSize: "1.15rem",
-                  fontWeight: 600,
-                },
-                "& .MuiInput-underline:before": {
-                  borderBottomColor: "transparent",
-                },
-                "& .MuiInput-underline:hover:not(.Mui-disabled):before": {
-                  borderBottomColor: "divider",
-                },
-              }}
-            />
-          </Box>
+          <NoteTitleInput
+            value={title}
+            onChange={handleTitleChange}
+            error={Boolean(fieldErrors.title)}
+            helperText={fieldErrors.title?.[0]}
+          />
 
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "row",
-              minHeight: 450,
-              position: "relative",
-              borderTop: "1px solid",
-              borderColor: "divider",
-            }}
-          >
-            <LineNumberGutter content={content} ref={gutterRef} />
-            <Box
-              component="textarea"
-              wrap="off"
-              id="note-content-input"
-              aria-label="Note content"
-              maxLength={MAX_NOTE_CONTENT_LENGTH}
-              value={content}
-              onChange={handleContentChange}
-              onScroll={handleScroll}
-              placeholder="Type plain text note content here..."
-              spellCheck={false}
-              sx={{
-                flex: 1,
-                p: 1.5,
-                border: "none",
-                outline: "none",
-                resize: "vertical",
-                fontFamily: "monospace",
-                whiteSpace: "pre",
-                overflowX: "auto",
-                fontSize: "0.875rem",
-                lineHeight: 1.5,
-                bgcolor: "transparent",
-                color: "text.primary",
-                width: "100%",
-                minHeight: 450,
-                boxSizing: "border-box",
-              }}
-            />
-          </Box>
-          {fieldErrors.content && (
-            <FormHelperText error sx={{ px: { xs: 2, sm: 3 }, pb: 1 }}>
-              {fieldErrors.content[0]}
-            </FormHelperText>
-          )}
+          <NoteContentArea
+            mode="edit"
+            value={content}
+            onChange={handleContentChange}
+            error={Boolean(fieldErrors.content)}
+            helperText={fieldErrors.content?.[0]}
+          />
         </Card>
 
         {mode === "edit" && noteId && deleteDialogOpen && (
