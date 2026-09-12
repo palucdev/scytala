@@ -34,7 +34,8 @@ Introduce Playwright end-to-end browser automation into Scytala to verify critic
 - **MUI Visual Regression / Pixel Snapshots**: Not testing exact CSS colors, margins, or pixel diffs, as agreed in [context/foundation/test-plan.md:147-155](file:///home/projekty/10xdevs/scytala/context/foundation/test-plan.md#L147-L155). Assertions focus on accessible roles (`getByRole`), visible text content, and URL state changes.
 - **Server Action Mocking**: Not intercepting Server Action POST requests or using MSW proxies. Tests run against the real application backend using dynamic test tenants.
 - **Multi-user Concurrency & Three-Way Diff Conflicts**: Concurrent multi-user conflict resolution is reserved for Phase 3 of the test rollout plan ([context/foundation/test-plan.md:72](file:///home/projekty/10xdevs/scytala/context/foundation/test-plan.md#L72)).
-- **Modifying Production Runtime Code**: No production code changes under `src/app/` or `src/actions/` are required; all additions are strictly test configuration, test fixtures, test specs, and CI workflow scripts.
+- **Modifying Production Runtime Code**: No production code changes under `src/app/` or `src/actions/` are required; all additions are strictly test configuration, test fixtures, test specs, and npm scripts.
+- **Automated CI/CD Integration**: Not integrating Playwright into `.github/workflows/test.yml` or GitHub Actions. E2E tests are run strictly locally by the developer on demand. Reasons: Full browser automation against database containers is compute/cost-heavy, and currently there are no means to have a non-production Supabase setup on the free usage plan.
 
 ## Implementation Approach
 
@@ -42,8 +43,8 @@ The implementation follows a 4-phase progression:
 
 1. **Phase 1: Dependencies & 5-Layer Build Isolation Hardening** — Install `@playwright/test`, lock all exclusion configurations across TypeScript, Next.js NFT, Vitest, ESLint, and Git, and verify that production worker builds and unit tests remain green.
 2. **Phase 2: Playwright Configuration & Custom Test Fixtures** — Author `playwright.config.ts` with `webServer` orchestration and construct type-safe `test.extend` fixtures in `e2e/fixtures/test-base.ts` for clipboard access, dynamic tenant creation, and login.
-3. **Phase 3: Critical Golden Path & Note Lifecycle E2E Test Suite** — Implement comprehensive browser tests in `e2e/golden-path.spec.ts` and `e2e/note-lifecycle.spec.ts` covering wizard creation, clipboard assertion, login, note authoring, version history diffs, version restore, note deletion, and logout.
-4. **Phase 4: CI/CD Pipeline & Documentation Hardening** — Update `.github/workflows/test.yml` with a dedicated `e2e` job with browser caching and Supabase integration, update cookbook documentation in `context/foundation/test-plan.md`, and verify full system readiness.
+3. **Phase 3: Critical Golden Path & Note Lifecycle E2E Test Suite** — Implement comprehensive browser tests in `e2e/golden-path.spec.ts` and `e2e/note-lifecycle.spec.ts` covering wizard creation, clipboard assertion, login, note authoring, version history diffs, version restore, note deletion, and logout across Chromium and Firefox.
+4. **Phase 4: Local Developer Tooling & Documentation Hardening** — Add developer setup script (`test:e2e:init`) to `package.json`, update cookbook documentation and quality gates in `context/foundation/test-plan.md`, formalize the local-only developer execution model (free-tier Supabase constraints), and verify all local quality gates pass.
 
 ## Critical Implementation Details
 
@@ -269,60 +270,54 @@ Implement the core Golden Path test suite verifying the complete browser lifecyc
 
 ---
 
-## Phase 4: CI/CD Pipeline & Documentation Hardening
+## Phase 4: Local Developer Tooling & Documentation Hardening
 
 ### Overview
 
-Integrate Playwright into the GitHub Actions CI pipeline with dedicated caching and Supabase container execution, and update project test documentation in `context/foundation/test-plan.md`.
+Finalize local developer tooling by registering the browser installation script (`test:e2e:init`) in `package.json`, updating project test documentation in `context/foundation/test-plan.md`, and documenting the decision that E2E tests are strictly developer-side with no CI/CD integration planned due to costs and free-tier Supabase constraints.
 
 ### Changes Required:
 
-#### 1. GitHub Actions CI Workflow
+#### 1. Developer Setup Script (`package.json`)
 
-**File**: `.github/workflows/test.yml`
+**File**: `package.json`
 
-**Intent**: Add a dedicated `e2e` job that runs in parallel with the `test` (Vitest) job, setting up Playwright browsers and local Supabase CLI.
+**Intent**: Provide a single command for developers to initialize the Playwright environment by downloading required browser binaries and OS dependencies.
 
-**Contract**: Add job `e2e`:
+**Contract**: Add `"test:e2e:init": "playwright install --with-deps"` to `scripts`.
 
-- `runs-on: ubuntu-latest`
-- Steps:
-  1. `actions/checkout@v4`
-  2. `actions/setup-node@v4` with `node-version: 20`, `cache: 'npm'`
-  3. `npm ci`
-  4. Cache `~/.cache/ms-playwright` keyed by OS and Playwright version from `package-lock.json`
-  5. `npx playwright install --with-deps chromium firefox`
-  6. Setup Supabase CLI via `supabase/setup-cli@v1` and run `supabase start`
-  7. Run `npm run test:e2e` with environment variables (`CI=true`, `SUPABASE_URL=http://127.0.0.1:54321`, local anon & service role keys, `SESSION_SECRET`)
-  8. Upload `playwright-report/` artifact on `always()` (14 days retention)
-  9. Upload `test-results/` artifact on `failure()` (7 days retention)
-
-#### 2. Test Plan Freshness & Cookbook Update
+#### 2. Test Plan Freshness & Cookbook Update (`context/foundation/test-plan.md`)
 
 **File**: `context/foundation/test-plan.md`
 
-**Intent**: Advance Phase 2 status in the phased rollout table and populate §6.4 with the established Playwright cookbook patterns.
+**Intent**: Advance Phase 2 status to `complete`, document the local Playwright cookbook patterns, and record the explicit negative-space exclusion of automated CI/CD for E2E suites.
 
 **Contract**:
-
 - In §3 Phased Rollout table, set Phase 2 status from `change opened` to `complete`.
+- In §4 Stack table, reflect `@playwright/test` ^1.63.0.
+- In §5 Quality Gates, update the `e2e on critical flows` gate to `local only (developer side)`, noting that no CI/CD integration is planned.
 - In §6.4 "Adding an E2E browser test in Playwright", document:
   - Spec location: `e2e/*.spec.ts`.
+  - Setup script: `npm run test:e2e:init`.
   - Fixture imports: `import { test, expect } from './fixtures/test-base'`.
-  - How to run locally: `npm run test:e2e` or `npx playwright test --ui`.
-  - Build isolation rule reminder (`tsconfig.build.json` and `outputFileTracingExcludes`).
+  - How to run locally: `npm run test:e2e` (headless), `npm run test:e2e:ui` (interactive).
+  - Prerequisites: Local Supabase running and environment variables sourced.
+  - Build isolation reminders (`tsconfig.build.json` and `outputFileTracingExcludes`).
+- In §7 "What We Deliberately Don't Test", document that E2E execution is excluded from GitHub Actions CI because browser automation is costly and the project operates on a free-tier Supabase plan without a dedicated non-production cloud environment.
 
 ### Success Criteria:
 
 #### Automated Verification:
 
-- Full verification suite passes: `npm run check:ready`
-- Full E2E suite passes: `npm run test:e2e`
-- Workflow syntax is valid YAML: parsed cleanly
+- `test:e2e:init` script registered: `npm run test:e2e:init` available in `package.json`
+- Full E2E suite passes locally on Chromium and Firefox: `npm run test:e2e`
+- Type checking passes: `npx tsc --noEmit`
+- ESLint passes: `npm run lint`
+- Vitest coverage remains >= 80%: `npm test`
 
 #### Manual Verification:
 
-- Review GitHub Actions workflow file to confirm step ordering and secret fallbacks.
+- Review `context/foundation/test-plan.md` to ensure local developer workflow and cost/free-plan rationale are thoroughly documented.
 
 ---
 
@@ -412,14 +407,16 @@ Integrate Playwright into the GitHub Actions CI pipeline with dedicated caching 
 
 - [x] 3.7 Inspect video/trace recording of Golden Path test execution
 
-### Phase 4: CI/CD Pipeline & Documentation Hardening
+### Phase 4: Local Developer Tooling & Documentation Hardening
 
 #### Automated
 
-- [ ] 4.1 Full check ready passes (lint, check:type, test, build:worker)
-- [ ] 4.2 Full E2E suite passes
-- [ ] 4.3 GitHub Actions workflow syntax is valid YAML
+- [x] 4.1 test:e2e:init script registered in package.json
+- [x] 4.2 Full E2E suite passes locally on Chromium and Firefox
+- [x] 4.3 Type checking passes (tsc --noEmit)
+- [x] 4.4 ESLint passes (npm run lint)
+- [x] 4.5 Vitest coverage remains >= 80% (npm test)
 
 #### Manual
 
-- [ ] 4.4 Review GitHub Actions workflow file for correct step ordering and secret fallbacks
+- [x] 4.6 Review test-plan.md to confirm local-only developer workflow and cost/free-plan rationale

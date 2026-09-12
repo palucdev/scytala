@@ -245,18 +245,17 @@ When Next.js starts up (in `next dev`), `src/instrumentation.ts:16` executes `ge
 
 ---
 
-### 5. CI/CD Pipeline Architecture (`.github/workflows/test.yml`)
+### 5. Local Execution vs. CI/CD Architecture
 
-The existing CI workflow runs on `ubuntu-slim` with `npm test` (Vitest). To integrate Playwright cleanly without destabilizing the existing Vitest gate:
-1. **Dedicated CI Job or Separate Workflow**: Create a dedicated `e2e` job or stage in GitHub Actions.
-2. **System Dependencies & Browser Caching**:
-   - Cache `~/.cache/ms-playwright` keyed by Playwright version.
-   - Run `npx playwright install --with-deps chromium` to install browser binaries and missing Linux system libraries.
-3. **Database Spin-Up in CI**:
-   - Use `supabase/setup-cli@v1` followed by `supabase start` to launch the local Supabase container stack.
-4. **Artifact Retention**:
-   - Upload `playwright-report/` on `always()` (14 days retention).
-   - Upload `test-results/` on `failure()` (7 days retention) for debugging screenshots and video recordings.
+> **Architecture Decision Note (2026-09-12)**: CI/CD pipeline integration for Playwright E2E suites was formally evaluated and deliberately excluded. E2E browser tests are established strictly on the developer side for local verification.
+> **Reasons**: Running full browser automation suites with real Supabase database backends is a costly operation (compute, memory, and time), and the project currently operates on a free-tier Supabase plan without a dedicated non-production cloud staging environment.
+
+For local execution on developer workstations:
+1. **Developer Setup (`package.json`)**: Developers run `npm run test:e2e:init` (`playwright install --with-deps`) to install required browser binaries and system OS libraries.
+2. **Local Database Spin-Up**: The developer boots the local Supabase container via `npx supabase start` (or host port mapping when inside a container).
+3. **Local Test Execution**: The developer executes `npm run test:e2e` (headless) or `npm run test:e2e:ui` (interactive trace/timeline mode).
+4. **Dev Server Supervision**: Playwright automatically orchestrates the Next.js dev server (`npx next dev --webpack`) on `localhost:3000` via the `webServer` block in `playwright.config.ts`.
+5. **Artifact Retention**: Local HTML reports and traces are generated in `playwright-report/` and excluded from git/build bundles.
 
 ---
 
@@ -358,5 +357,5 @@ The existing CI workflow runs on `ubuntu-slim` with `npm test` (Vitest). To inte
    - Install `@playwright/test` in `devDependencies` (version `^1.51.0` per Context7 resolution).
 2. **Page Object Models vs. Direct Locators**:
    - For the initial Golden Path, create concise helper fixtures (e.g. `e2e/fixtures/dashboard-fixture.ts`) encapsulating wizard creation and login to keep individual spec files clear and readable.
-3. **Continuous Integration Runner**:
-   - For GitHub Actions, either add an `e2e` job to `.github/workflows/test.yml` or create `.github/workflows/e2e.yml` running on `ubuntu-latest` with `npx playwright install --with-deps chromium`.
+3. **Execution Model (Local-Only Developer Tooling)**:
+   - Run E2E suites exclusively on developer machines using `npm run test:e2e` and `npm run test:e2e:ui`. Omit GitHub Actions CI integration due to execution costs and absence of a non-production cloud Supabase environment on the free tier. Provide `npm run test:e2e:init` for automated local environment bootstrapping.

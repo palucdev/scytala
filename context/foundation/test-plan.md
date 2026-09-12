@@ -68,7 +68,7 @@ orchestrator updates Status as artifacts appear on disk.
 | # | Phase name | Goal (one line) | Risks covered | Test types | Status | Change folder |
 |---|---|---|---|---|---|---|
 | 1 | Core Unit & Integration Regression Suite | Defend tenant isolation, crypto, session cookies, rate limiting, and note CRUD actions with Vitest | #1, #2, #5, #6 | unit + integration | complete | context/changes/note-crud-and-version-persistence/ |
-| 2 | Playwright E2E Test Suite & Critical Browser Flows | Introduce Playwright for end-to-end browser testing covering dashboard creation, login, note editing, and history | #4 | e2e | change opened | context/changes/testing-playwright-e2e-critical-flows/ |
+| 2 | Playwright E2E Test Suite & Critical Browser Flows | Introduce Playwright for end-to-end browser testing covering dashboard creation, login, note editing, and history | #4 | e2e | complete | context/changes/testing-playwright-e2e-critical-flows/ |
 | 3 | Multi-user Concurrency & Conflict Diff Resolution Tests | Verify three-way diff calculations and concurrent edit conflict resolution under simulated multi-user mutations | #3, #7 | integration + e2e | not started | — |
 | 4 | Observability, APM & Pre-prod Gate Hardening | Wire centralized error reporting, synthetic health checks, and pre-deployment bundle & isolate validation | cross-cutting | gates | not started | — |
 
@@ -84,13 +84,13 @@ The classic test base for this project. Recommendations in this section are grou
 | schema validation | Zod | ^4.4.3 | Server Action and API payload validation |
 | edge runtime | @opennextjs/cloudflare | ^1.20.6 | Cloudflare Workers V8 isolates (`workerd`) |
 | database & auth | @supabase/supabase-js | ^2.112.3 | PostgreSQL client with custom PBKDF2 Web Crypto & JWT sessions |
-| e2e browser testing | Playwright (@playwright/test) | ^1.50.0 (planned) | Headless Chromium/Firefox browser automation for full user flows (planned in §3 Phase 2) |
+| e2e browser testing | Playwright (@playwright/test) | ^1.63.0 | Headless Chromium/Firefox browser automation running locally on developer machines (local-only, no CI/CD) |
 
 **Stack grounding tools (current session):**
-- Docs: Context7 CLI (`npx ctx7`) — available for current framework/library API verification; checked: 2026-09-11
-- Search: Exa.ai (`web_search_exa`, `web_fetch_exa`) — available in session for documentation lookup; checked: 2026-09-11
-- Runtime/browser: Playwright / browser tools — available for browser automation verification; checked: 2026-09-11
-- Provider/platform: Supabase CLI & OpenNext Cloudflare deployment scripts — local and CI deployment tools; checked: 2026-09-11
+- Docs: Context7 CLI (`npx ctx7`) — available for current framework/library API verification; checked: 2026-09-12
+- Search: Exa.ai (`web_search_exa`, `web_fetch_exa`) — available in session for documentation lookup; checked: 2026-09-12
+- Runtime/browser: Playwright / browser tools — available for browser automation verification; checked: 2026-09-12
+- Provider/platform: Supabase CLI & OpenNext Cloudflare deployment scripts — local and deployment tools; checked: 2026-09-12
 
 ## 5. Quality Gates
 
@@ -103,7 +103,7 @@ The full set of gates that must pass before a change reaches production. "Requir
 | unit + integration (Vitest) | local + CI | required (enforced) | logic regressions, crypto failures, session errors |
 | 80% coverage threshold (v8) | local + CI | required (enforced) | untested logic branches, functions, and statements |
 | build verification (OpenNext) | local + CI | required (enforced) | Cloudflare Worker isolate bundle compatibility |
-| e2e on critical flows (Playwright) | local + CI | required after §3 Phase 2 | broken browser navigation, cookie failures, clipboard regressions |
+| e2e on critical flows (Playwright) | local only (developer side) | required manually / on demand before PR | broken browser navigation, cookie failures, clipboard regressions (local only; no CI/CD integration due to execution costs and absence of nonprod Supabase setup on free plan) |
 
 ## 6. Cookbook Patterns
 
@@ -134,7 +134,28 @@ How to add new tests in this project. Each sub-section is filled in once the rel
 
 ### 6.4 Adding an E2E browser test in Playwright
 
-- TBD — see §3 Phase 2 for Playwright configuration, webServer fixtures, and authenticated session test patterns.
+- **Location**: `e2e/`.
+- **Naming**: `<feature>.spec.ts` (e2e test files must match `**/*.spec.ts` to be discovered by `@playwright.config.ts` and excluded from Vitest/builds).
+- **Setup dependencies**: Run `npm run test:e2e:init` (`playwright install --with-deps`) to install required browser binaries (Chromium, Firefox) and Linux system libraries.
+- **Fixture imports**: Always import `test` and `expect` from `e2e/fixtures/test-base`:
+  ```ts
+  import { test, expect } from "./fixtures/test-base";
+  ```
+  The fixture provides:
+  - `createTestDashboard({ title, description, alias, password })`: Creates an isolated workspace via `/new` and returns credentials.
+  - `loginToDashboard(hash, alias, password)`: Authenticates via `#login-user-alias` and awaits session transition to dashboard.
+  - `clipboard`: Cross-browser clipboard read/write simulation.
+  - `_rateLimitReset`: Automatically clears Supabase `public.rate_limits` table before each test to prevent 429 throttling.
+- **Execution Model (Local-Only)**:
+  - **No CI/CD Integration**: E2E browser tests are run strictly on the developer side. They are deliberately NOT integrated into GitHub Actions CI pipelines because full browser automation against database services is a costly operation and the project operates on a free-tier Supabase plan without dedicated non-production cloud staging instances.
+  - **Prerequisites**: A running local Supabase instance (`npx supabase start` or host Docker container) with environment variables loaded (`.env.local` or `.env.ai`).
+  - **Dev Server**: The Next.js dev server runs with webpack (`npx next dev --webpack`) managed automatically by `webServer` in `playwright.config.ts`.
+- **Run commands**:
+  - Full suite headless: `npm run test:e2e`
+  - Interactive UI mode: `npm run test:e2e:ui`
+  - Single spec: `npx playwright test e2e/golden-path.spec.ts`
+  - Browser project filter: `npx playwright test --project=chromium` or `npx playwright test --project=firefox`
+- **Build isolation reminder**: Tests under `e2e/` must never be imported into production modules. Build isolation is enforced across `tsconfig.build.json` and `outputFileTracingExcludes` in `next.config.ts`.
 
 ### 6.5 Adding a multi-user concurrency & conflict diff test
 
@@ -143,20 +164,28 @@ How to add new tests in this project. Each sub-section is filled in once the rel
 ### 6.6 Per-rollout-phase notes
 
 - Phase 1 shipped 42 test files and 549 tests covering tenant isolation, authentication sessions, cryptographic utilities, rate limiting, and note CRUD operations with >80% coverage enforced by `@vitest.config.ts`. Tests run under `happy-dom` with Cloudflare Worker bindings mocked in `src/__tests__/setup.ts`. Production builds use `@tsconfig.build.json` to guarantee test files are never bundled into Cloudflare Workers edge assets.
+- Phase 2 shipped the Playwright E2E testing framework (`@playwright/test` ^1.63.0) with custom fixtures in `e2e/fixtures/test-base.ts`, smoke tests in `e2e/smoke.spec.ts`, seed exemplar in `e2e/seed.spec.ts`, complete golden path user journey in `e2e/golden-path.spec.ts`, and note lifecycle & password re-auth verification in `e2e/note-lifecycle.spec.ts`. All specs pass across Chromium and Firefox. Execution is designated local-only for developers.
 
 ## 7. What We Deliberately Don't Test
 
 Exclusions agreed during the rollout (Phase 2 interview, Q5). Future contributors should respect these unless the underlying assumption changes.
 
+- **Automated E2E execution in CI/CD pipelines** — Browser-level Playwright test runs are strictly local developer checks. They are not integrated into GitHub Actions CI workflows because running headless browsers with database containers is compute/cost-heavy, and the project operates on a free-tier Supabase plan without dedicated non-production cloud environments.
 - **MUI visual snapshot & styling details** — Testing exact CSS colors, font families, margins, or DOM class hierarchies produces brittle tests with low regression signal. Rely on manual review and standard MUI theme tokens. (Source: Phase 2 interview Q5.)
 - **Third-party library internals** — Do not test Supabase client internals or Web Crypto engine standards directly; test our application contracts and boundaries. (Source: Phase 2 interview Q5.)
 - **Ephemeral in-memory states** — Serverless edge functions do not share memory across requests; state must be asserted against database rows or signed session cookies.
 
 ## 8. Freshness Ledger
 
-- Strategy (§1–§5) last reviewed: 2026-09-11
-- Stack versions last verified: 2026-09-11
-- AI-native tool references last verified: 2026-09-11
+- Strategy (§1–§5) last reviewed: 2026-09-12
+- Stack versions last verified: 2026-09-12
+- AI-native tool references last verified: 2026-09-12
+
+Refresh (`/10x-test-plan --refresh`) when:
+- a new top-3 risk surfaces from the roadmap or archive,
+- a recommended tool's `checked:` date is older than three months,
+- the project's tech stack changes (new framework, new test runner),
+- §7 negative-space no longer matches what the team believes.
 
 Refresh (`/10x-test-plan --refresh`) when:
 - a new top-3 risk surfaces from the roadmap or archive,
