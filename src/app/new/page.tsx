@@ -14,7 +14,7 @@ import {
 } from "./components";
 import { useWizardState } from "./hooks/useWizardState";
 
-export function DashboardCreationWizard() {
+export default function DashboardCreationWizard() {
   const {
     activeStep,
     title,
@@ -113,5 +113,3 @@ export function DashboardCreationWizard() {
     </Box>
   );
 }
-
-export default DashboardCreationWizard;

@@ -1,48 +1,18 @@
 import { notFound } from "next/navigation";
 
-import {
-  createDatabaseClient,
-  type Dashboard,
-  type Note,
-} from "@/client/db-client";
+import { createDatabaseClient } from "@/client/db-client";
 import {
   verifyDashboardSession,
   SessionRateLimitError,
 } from "@/lib/auth-guard";
 import { RateLimitNotice } from "@/components";
-import {
-  LoginForm,
-  DashboardView,
-  type DashboardDto,
-  type NoteDto,
-} from "./components";
+import { LoginForm, DashboardView } from "./components";
+import { mapDashboardToDto, mapNotesToDto } from "./dto";
 
 export const dynamic = "force-dynamic";
 
 export interface DashboardPageProps {
   params: Promise<{ hash: string }>;
-}
-
-export function mapDashboardToDto(dashboard: Dashboard): DashboardDto {
-  return {
-    title: dashboard.title,
-    description: dashboard.description,
-  };
-}
-
-export function mapNotesToDto(notes: Note[] = []): NoteDto[] {
-  return [...(notes || [])]
-    .sort(
-      (a, b) =>
-        new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
-    )
-    .map((note) => ({
-      id: note.id,
-      title: note.title,
-      content: note.content.slice(0, 300),
-      version: note.version,
-      updated_at: note.updated_at,
-    }));
 }
 
 export default async function DashboardPage({ params }: DashboardPageProps) {

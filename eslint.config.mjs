@@ -18,6 +18,9 @@ const eslintConfig = defineConfig([
     "supabase/.temp/**",
     // Test coverage artifacts:
     "coverage",
+    // Playwright test artifacts:
+    "playwright-report/**",
+    "test-results/**",
   ]),
 ]);
 

@@ -96,6 +96,7 @@ export function NoteEditor({
 
           if (result.success) {
             setIsSaved(true);
+            router.push(`/dashboard/${dashboardHash}/note/${result.note.id}`);
           } else {
             setError(result.error);
             if (result.fieldErrors) {
@@ -118,6 +119,7 @@ export function NoteEditor({
 
           if (result.success) {
             setIsSaved(true);
+            router.refresh();
           } else {
             setError(result.error);
             if (result.versionConflict) {

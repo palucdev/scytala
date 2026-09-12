@@ -21,3 +21,12 @@ Living repository of patterns, architectural decisions, and failure modes discov
 - **Problem**: Running the full test suite repeatedly during intermediate steps causes long execution delays, potential timeouts, and blocks iteration
 - **Rule**: Always run targeted tests during intermediate phases and reserve the full test suite for the end of the implementation step as it is an expensive operation.
 - **Applies to**: all
+
+---
+
+## Never write full filesystem paths in public markdown
+
+- **Context**: All phases and all markdown files committed to the repository (`context/`, `docs/`, `README.md`, `AGENTS.md`, and any other public markdown).
+- **Problem**: Full filesystem paths from the developer's machine (e.g. `/home/user/projects/scytala/`) are doxxed into version-controlled files, leaking private directory structure and usernames.
+- **Rule**: Never write full filesystem paths in `context/`, `docs/`, `README.md`, or any other public markdown. Always use paths relative to the project root and document only project-related files.
+- **Applies to**: all
