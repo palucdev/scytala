@@ -1,71 +1,70 @@
 import { test, expect } from "./fixtures/test-base";
 
-test.describe(
-  "Note Concurrency E2E (Risk #3 & #7: Multi-User Conflict Handling)",
-  () => {
-    test("conflicting save warns without destroying draft and reload recovers latest version", async ({
-      page,
-      browser,
-      createTestDashboard,
-      loginToDashboard,
-    }) => {
-      test.setTimeout(120000);
+test.describe("Note Concurrency E2E (Risk #3 & #7: Multi-User Conflict Handling)", () => {
+  test("conflicting save warns without destroying draft and reload recovers latest version", async ({
+    page,
+    browser,
+    createTestDashboard,
+    loginToDashboard,
+  }) => {
+    test.setTimeout(120000);
 
-      const timestamp = Date.now();
-      const aliceAlias = "Alice";
-      const bobAlias = "Bob";
-      const noteTitle = `Concurrency Note ${timestamp}`;
+    const timestamp = Date.now();
+    const aliceAlias = "Alice";
+    const bobAlias = "Bob";
+    const noteTitle = `Concurrency Note ${timestamp}`;
 
-      // -------------------------------------------------------------
-      // Step 1: Create dashboard with Alice and Bob
-      // -------------------------------------------------------------
-      const dashboard = await createTestDashboard({
-        title: `Concurrency Workspace ${timestamp}`,
-        description: "Dual-context note concurrency verification workspace",
-        alias: aliceAlias,
-        additionalParticipants: [{ alias: bobAlias }],
-      });
+    // -------------------------------------------------------------
+    // Step 1: Create dashboard with Alice and Bob
+    // -------------------------------------------------------------
+    const dashboard = await createTestDashboard({
+      title: `Concurrency Workspace ${timestamp}`,
+      description: "Dual-context note concurrency verification workspace",
+      alias: aliceAlias,
+      additionalParticipants: [{ alias: bobAlias }],
+    });
 
-      const bob = dashboard.participants.find(
-        (participant) => participant.alias === bobAlias,
-      );
-      expect(bob).toBeTruthy();
-      expect(bob?.password.length).toBeGreaterThanOrEqual(16);
+    const bob = dashboard.participants.find(
+      (participant) => participant.alias === bobAlias,
+    );
+    expect(bob).toBeTruthy();
+    expect(bob?.password.length).toBeGreaterThanOrEqual(16);
 
-      // -------------------------------------------------------------
-      // Step 2: Alice logs in and creates note v1
-      // -------------------------------------------------------------
-      await loginToDashboard(dashboard.hash, dashboard.alias, dashboard.password);
+    // -------------------------------------------------------------
+    // Step 2: Alice logs in and creates note v1
+    // -------------------------------------------------------------
+    await loginToDashboard(dashboard.hash, dashboard.alias, dashboard.password);
 
-      await expect(
-        page.getByRole("heading", { name: "No notes yet" }),
-      ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "No notes yet" }),
+    ).toBeVisible();
 
-      await page.locator("#header-create-note-btn").click();
-      await page.waitForURL(`**/dashboard/${dashboard.hash}/note/new`);
-      await page.getByRole("textbox", { name: "Note title" }).fill(noteTitle);
-      await page
-        .getByRole("textbox", { name: "Note content" })
-        .fill("Initial shared content");
+    await page.locator("#header-create-note-btn").click();
+    await page.waitForURL(`**/dashboard/${dashboard.hash}/note/new`);
+    await page.getByRole("textbox", { name: "Note title" }).fill(noteTitle);
+    await page
+      .getByRole("textbox", { name: "Note content" })
+      .fill("Initial shared content");
 
-      const aliceSaveBtn = page.getByRole("button", { name: "Save note" });
-      await expect(aliceSaveBtn).toBeEnabled();
-      await aliceSaveBtn.click();
+    const aliceSaveBtn = page.getByRole("button", { name: "Save note" });
+    await expect(aliceSaveBtn).toBeEnabled();
+    await aliceSaveBtn.click();
 
-      await page.waitForURL(
-        new RegExp(`/dashboard/${dashboard.hash}/note/[0-9a-fA-F-]{36}$`),
-      );
-      const noteUrl = page.url();
-      const noteId = noteUrl.split("/note/")[1]?.split("?")[0]?.trim();
-      expect(noteId).toBeTruthy();
-      await expect(page.getByText("v1")).toBeVisible();
+    await page.waitForURL(
+      new RegExp(`/dashboard/${dashboard.hash}/note/[0-9a-fA-F-]{36}$`),
+    );
+    const noteUrl = page.url();
+    const noteId = noteUrl.split("/note/")[1]?.split("?")[0]?.trim();
+    expect(noteId).toBeTruthy();
+    await expect(page.getByText("v1")).toBeVisible();
 
-      // -------------------------------------------------------------
-      // Step 3: Bob logs in via an isolated browser context
-      // (session cookies are scoped per dashboard hash, so a second
-      // context is required to keep Alice's session intact)
-      // -------------------------------------------------------------
-      const bobContext = await browser.newContext();
+    // -------------------------------------------------------------
+    // Step 3: Bob logs in via an isolated browser context
+    // (session cookies are scoped per dashboard hash, so a second
+    // context is required to keep Alice's session intact)
+    // -------------------------------------------------------------
+    const bobContext = await browser.newContext();
+    try {
       const bobPage = await bobContext.newPage();
 
       await bobPage.goto(`/dashboard/${dashboard.hash}`);
@@ -97,12 +96,10 @@ test.describe(
       await expect(bobSaveBtn).toBeEnabled();
       await bobSaveBtn.click();
 
-      const conflictAlert = bobPage
-        .getByRole("alert")
-        .filter({
-          hasText:
-            "This note has been modified by someone else. Please reload and try again.",
-        });
+      const conflictAlert = bobPage.getByRole("alert").filter({
+        hasText:
+          "This note has been modified by someone else. Please reload and try again.",
+      });
       await expect(conflictAlert).toBeVisible();
 
       // Alice's content must not be overwritten server-side, and Bob's
@@ -128,8 +125,8 @@ test.describe(
 
       await expect(bobPage.getByText("v3")).toBeVisible();
       await expect(bobContent).toHaveValue("Bob follow-up version 3");
-
+    } finally {
       await bobContext.close();
-    });
-  },
-);
+    }
+  });
+});

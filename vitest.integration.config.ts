@@ -19,7 +19,7 @@ export default defineConfig({
     globals: true,
     include: ['src/__tests__/integration/**/*.integration.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**'],
-    passWithNoTests: true,
+    passWithNoTests: false,
     testTimeout: 30000,
     hookTimeout: 30000,
   },

@@ -53,18 +53,32 @@ export async function clearRateLimits(): Promise<void> {
   }
 }
 
+function isLocalSupabaseUrl(url: string): boolean {
+  try {
+    const { hostname } = new URL(url);
+    return (
+      hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]"
+    );
+  } catch {
+    return false;
+  }
+}
+
 export async function cleanupE2ENotes(): Promise<void> {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
-  if (url && key) {
+  if (url && key && isLocalSupabaseUrl(url)) {
     try {
       const supabase = createClient(url, key);
-      await supabase
+      const { error } = await supabase
         .from("notes")
         .delete()
         .or(
           "title.like.Initial E2E Note %,title.like.Seed Note %,title.like.Lifecycle Deletion Note %",
         );
+      if (error) {
+        console.warn("cleanupE2ENotes failed:", error.message);
+      }
     } catch {
       // Ignore in mock or offline runs
     }
