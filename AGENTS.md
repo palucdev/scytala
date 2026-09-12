@@ -21,6 +21,7 @@ Scytala is a private hypermedia and note sharing web platform built with Next.js
 ## Build & Test Commands
 - `npm run dev` - Starts the Next.js development server.
 - `npm run test` - Runs Vitest tests with coverage check.
+- `npm run test:integration` - Runs Vitest integration tests against the live local Supabase PostgreSQL (load `.env.ai` in bash first, e.g. `set -a && [ -f .env.ai ] && . ./.env.ai && set +a && npm run test:integration`; when running inside Docker use the `.env.ai` variables, which point at `host.docker.internal`).
 - `npm run test:e2e` - Runs local Playwright browser tests in headless mode (load `.env.ai` in bash first, e.g. `set -a && [ -f .env.ai ] && . ./.env.ai && set +a && npm run test:e2e`).
 - `npm run test:e2e:ui` - Opens the interactive Playwright test runner UI.
 - `npm run test:e2e:init` - Downloads Playwright browser binaries and dependencies.

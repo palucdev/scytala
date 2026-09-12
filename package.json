@@ -1,6 +1,6 @@
 {
   "name": "scytala",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "type": "module",
   "private": true,
   "scripts": {
@@ -54,5 +54,9 @@
     "typescript": "^5",
     "vitest": "^4.1.11",
     "wrangler": "^4.130.0"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-linux-x64-gnu": "1.2.4",
+    "@rolldown/binding-win32-x64-msvc": "1.2.4"
   }
 }

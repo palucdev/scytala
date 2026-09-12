@@ -132,6 +132,7 @@ Implement the database-level integration test in `src/__tests__/integration/note
 **Intent**: Test live PostgreSQL row-level locks, transaction rollback, and version increments when concurrent updates collide on the same note.
 
 **Contract**:
+
 - Suite: `Note Versioning & Concurrency Integrity Integration`
 - Test 1 (Sequential Updates): Create note (v1), update to v2, update to v3; assert sequential version incrementing and snapshot persistence in `note_versions`.
 - Test 2 (Concurrent Update Race): Create note (v1); trigger two simultaneous updates with `expected_version: 1` via `Promise.allSettled`; assert exactly one succeeds and one fails with `"Version mismatch or note not found"`; assert `notes.version === 2`; assert `note_versions` has exactly 2 contiguous rows `[1, 2]`; assert losing draft was rolled back completely.
@@ -171,6 +172,7 @@ Extend Playwright test fixtures to support creating multi-participant workspaces
 **Intent**: Extend `createTestDashboard` options to support adding additional participants during wizard creation and returning their credentials.
 
 **Contract**:
+
 - Add `additionalParticipants?: { alias: string; password?: string }[]` to `CreateTestDashboardOptions`.
 - In `createTestDashboard`, click `#add-participant-btn`, fill alias and password for each additional participant, and collect credentials from `#shareable-url-input` and credential cards.
 - Add `participants: { alias: string; password: string }[]` to `TestDashboardInfo`.
@@ -182,6 +184,7 @@ Extend Playwright test fixtures to support creating multi-participant workspaces
 **Intent**: Verify that when two distinct users concurrently edit the same note, the second save is rejected with a warning alert, the user's unsaved draft is not destroyed, and clicking Reload refreshes the editor with the latest server state.
 
 **Contract**:
+
 - Create dashboard with Alice and Bob.
 - Context A (Alice): Log in, create note (v1), navigate to note editor.
 - Context B (Bob via `browser.newContext()`): Log in, navigate to note editor.
@@ -228,6 +231,7 @@ Execute the complete verification matrix across all project quality gates, updat
 **Intent**: Update §3 Phased Rollout table, fill in §6.5 Cookbook with the concurrency test pattern, and record verification in §8 Freshness Ledger.
 
 **Contract**:
+
 - Update §3 Phase 3 row: Change folder `context/changes/testing-note-versioning-and-concurrency-integrity/`.
 - Fill §6.5 with guidelines on writing database integration tests with `Promise.allSettled` and Playwright dual-context specs.
 - Update §8 Freshness Ledger with current date.
@@ -251,6 +255,57 @@ Execute the complete verification matrix across all project quality gates, updat
 #### Manual Verification:
 
 - Review `context/foundation/test-plan.md` to confirm documentation is clear and accurate.
+
+---
+
+## Phase 5: E2E Test Note Cleanup
+
+### Overview
+
+Add automatic cleanup of notes created by E2E test runs so that repeated executions do not leave orphaned artifacts titled `"Initial E2E Note <number>"` (from `e2e/golden-path.spec.ts`), `"Seed Note <number>"` (from `e2e/seed.spec.ts`), and `"Lifecycle Deletion Note <number>"` (from `e2e/note-lifecycle.spec.ts`) bloating the local database and test dashboards. The cleanup runs once after the full Playwright suite completes, mirroring the existing `clearRateLimits()` service-role pattern in `e2e/fixtures/test-base.ts:36-47`.
+
+### Changes Required:
+
+#### 1. E2E Note Cleanup Helper
+
+**File**: `e2e/fixtures/test-base.ts`
+
+**Intent**: Provide a reusable service-role cleanup helper that deletes E2E-generated notes (and their cascade-removed `note_versions` snapshots, per `ON DELETE CASCADE` in `supabase/migrations/20260819000000_create_dashboard_schema.sql:62`) without touching production data.
+
+**Contract**:
+
+- Export `cleanupE2ENotes(): Promise<void>` following the `clearRateLimits()` pattern:
+  - Read `process.env.SUPABASE_URL` and `process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY`; return without action when either is missing (mock/offline runs).
+  - Create a `@supabase/supabase-js` client (service role bypasses RLS enabled on `public.notes`).
+  - Delete rows from `notes` where `title` matches the E2E note title patterns: `like('title', 'Initial E2E Note %')`, `like('title', 'Seed Note %')`, and `like('title', 'Lifecycle Deletion Note %')` (delete call must OR these conditions so one pass removes all three).
+  - Wrap in `try/catch` and ignore failures in mock or offline runs, same as `clearRateLimits()`.
+
+#### 2. Global Teardown Wiring
+
+**File**: `playwright.config.ts` + `e2e/global-teardown.ts`
+
+**Intent**: Run the note cleanup exactly once after the entire Playwright suite (all projects) finishes, so cleanup works for both `npm run test:e2e` and single-project runs like `npx playwright test e2e/note-concurrency.spec.ts --project=chromium`.
+
+**Contract**:
+
+- Add `e2e/global-teardown.ts` exporting a default async function that calls `cleanupE2ENotes()`.
+- Register `globalTeardown: './e2e/global-teardown.ts'` in `playwright.config.ts` (env is already loaded at config level via `process.loadEnvFile('.env.local')`, so teardown sees `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`).
+
+### Success Criteria:
+
+#### Automated Verification:
+
+- Playwright suite completes and teardown executes without errors: `npm run test:e2e`
+- No notes matching the cleanup patterns remain in the database after a run: query `notes` via Supabase client and assert zero rows with titles like `Initial E2E Note %`, `Seed Note %`, or `Lifecycle Deletion Note %`
+- Type checking passes: `npm run check:type`
+- Lint passes: `npm run lint`
+- Unit test suite remains green with >= 80% coverage: `npm test`
+
+#### Manual Verification:
+
+- Inspect the local Supabase dashboard after `npm run test:e2e` and confirm the E2E workspaces contain no leftover E2E notes (only notes created interactively by a human, if any).
+
+**Implementation Note**: After completing this phase and all automated verification passes, pause here for manual confirmation from the human that the manual testing was successful before proceeding to the next phase. Phase blocks use plain bullets — the corresponding `- [ ]` checkboxes for these items live in the `## Progress` section at the bottom of the plan.
 
 ---
 
@@ -311,21 +366,21 @@ Execute the complete verification matrix across all project quality gates, updat
 
 #### Manual
 
-- [ ] 1.5 Verify `npm test` does not require `SUPABASE_URL` to be present
+- [x] 1.5 Verify `npm test` does not require `SUPABASE_URL` to be present
 
 ### Phase 2: Database RPC & Optimistic Concurrency Integration Suite
 
 #### Automated
 
-- [ ] 2.1 Integration test suite passes against local Supabase: `npm run test:integration`
-- [ ] 2.2 Race test asserts exactly 1 fulfilled and 1 rejected result under `Promise.allSettled`
-- [ ] 2.3 Database assertions confirm `notes.version === 2` and `note_versions` length is 2 with sorted versions `[1, 2]`
-- [ ] 2.4 Unit test suite remains green: `npm test`
-- [ ] 2.5 Type checking passes: `npm run check:type`
+- [x] 2.1 Integration test suite passes against local Supabase: `npm run test:integration`
+- [x] 2.2 Race test asserts exactly 1 fulfilled and 1 rejected result under `Promise.allSettled`
+- [x] 2.3 Database assertions confirm `notes.version === 2` and `note_versions` length is 2 with sorted versions `[1, 2]`
+- [x] 2.4 Unit test suite remains green: `npm test`
+- [x] 2.5 Type checking passes: `npm run check:type`
 
 #### Manual
 
-- [ ] 2.6 Inspect Supabase PostgreSQL database to confirm no orphaned `note_versions` rows or broken sequences exist after test execution
+- [x] 2.6 Inspect Supabase PostgreSQL database to confirm no orphaned `note_versions` rows or broken sequences exist after test execution
 
 ### Phase 3: Playwright Dual-Context Multi-User Concurrency E2E Spec
 
@@ -353,3 +408,17 @@ Execute the complete verification matrix across all project quality gates, updat
 #### Manual
 
 - [ ] 4.4 Review `context/foundation/test-plan.md` to confirm documentation is clear and accurate
+
+### Phase 5: E2E Test Note Cleanup
+
+#### Automated
+
+- [ ] 5.1 Playwright suite completes and teardown executes without errors: `npm run test:e2e`
+- [ ] 5.2 No notes matching the cleanup patterns remain in the database after a run (zero rows for `Initial E2E Note %`, `Seed Note %`, `Lifecycle Deletion Note %`)
+- [ ] 5.3 Type checking passes: `npm run check:type`
+- [ ] 5.4 Lint passes: `npm run lint`
+- [ ] 5.5 Unit test suite remains green with >= 80% coverage: `npm test`
+
+#### Manual
+
+- [ ] 5.6 Inspect the local Supabase dashboard after `npm run test:e2e` and confirm the E2E workspaces contain no leftover E2E notes
