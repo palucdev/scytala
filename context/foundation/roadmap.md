@@ -3,7 +3,7 @@ project: "Scytala"
 version: 1
 status: active
 created: 2026-08-18
-updated: 2026-09-09
+updated: 2026-09-12
 prd_version: 1
 main_goal: low-complexity
 top_blocker: time
@@ -36,9 +36,10 @@ Scytala addresses the problem where teams, families, and friend groups need to s
 | S-05 | `manual-sync-and-conflict-diff-resolution`             | User can manually trigger sync to pull remote note changes and resolve concurrent edit conflicts via a side-by-side diff merge modal                                               | S-03             | US-04, FR-007, FR-012                                | ready    |
 | S-06 | `dashboard-management-and-lifecycle`                   | User can update dashboard metadata (title, description) or permanently delete the dashboard and all its associated notes and credentials                                           | S-02             | FR-009, FR-010                                       | ready    |
 | T-01 | `testing-tenant-isolation-and-auth-session-guards`     | (testing) Verify cross-dashboard data isolation and authenticated session guard boundaries with unit and integration tests                                                         | F-01, S-01, S-02 | Test Plan §3 Phase 1, FR-004, FR-005                 | ready    |
-| T-02 | `testing-note-versioning-and-concurrency-integrity`    | (testing) Ensure atomic note updates, immutable version history snapshots, and conflict detection under concurrent mutations                                                       | S-03             | Test Plan §3 Phase 2, FR-007, FR-011, FR-012         | ready    |
-| T-03 | `testing-server-input-validation-and-security-defense` | (testing) Enforce server-side Zod validation parity, injection defense, and credential formatting contracts                                                                        | S-01             | Test Plan §3 Phase 3, FR-001, FR-002, FR-003, FR-006 | ready    |
+| T-02 | `testing-note-versioning-and-concurrency-integrity`    | (testing) Ensure atomic note updates, immutable version history snapshots, and conflict detection under concurrent mutations                                                       | S-03             | Test Plan §3 Phase 3, FR-007, FR-011, FR-012         | ready    |
+| T-03 | `testing-server-input-validation-and-security-defense` | (testing) Enforce server-side Zod validation parity, injection defense, and credential formatting contracts                                                                        | S-01             | Test Plan §3 Phase 1, FR-001, FR-002, FR-003, FR-006 | ready    |
 | T-04 | `testing-ci-quality-gates-and-coverage-hardening`      | (testing) Lock the 80% coverage floor and automated quality checks across the CI/CD pipeline                                                                                       | T-01, T-03       | Test Plan §3 Phase 4, NFRs                           | proposed |
+| T-05 | `testing-playwright-e2e-critical-flows`                | (testing) End-to-end browser automation for critical flows (wizard -> credentials -> login -> note CRUD & versions -> restore -> logout) with 5-layer build isolation              | S-03, S-04       | Test Plan §3 Phase 2, Risk #4, US-01–US-05           | done     |
 | O-01 | `edge-centralized-error-tracking-and-apm`              | (observability) Centralized external error tracking (Sentry Store REST API / APM) via Next.js `instrumentation.ts` (`onRequestError`) with edge compatibility and secret redaction | F-02             | NFRs, Production Readiness Blocker 1                 | proposed |
 
 ## Streams
@@ -50,17 +51,18 @@ Navigation aid — groups items that share a Prerequisites chain. Canonical orde
 | A      | Core Access & Note Lifecycle       | `F-01` (done) → `S-01` (done) → `S-02` (done) → `S-03` (done) | North Star slice (`S-03`) completed on 2026-09-09. Core note CRUD and immutable versioning paths operational.                                                                                                       |
 | B      | Multi-user Collaboration & History | `S-04` / `S-05`                                               | Joins Stream A at `S-03`; now unblocked and ready for implementation. Builds on version persistence to provide history browsing and conflict diff resolution.                                                       |
 | C      | Governance & Observability         | `F-02` (done) / `S-06` / `O-01`                               | Joins Stream A at `S-02`; provides operational error tracking, APM integration, and dashboard lifecycle management.                                                                                                 |
-| D      | Quality & Security Verification    | `T-01` / `T-03` → `T-02` → `T-04`                             | Phased test rollout from `test-plan.md`. Note mutation unit/action tests delivered in S-03 (>98% coverage); dedicated concurrency (`T-02`), tenant isolation (`T-01`), and security defense (`T-03`) are all ready. |
+| D      | Quality & Security Verification    | `T-01` / `T-03` → `T-02` → `T-04`; `T-05` (done)              | Phased test rollout from `test-plan.md`. Playwright E2E browser suite (`T-05`) delivered on 2026-09-12 with Golden Path and note lifecycle coverage. Note mutation unit/action tests delivered in S-03 (>98% coverage); dedicated concurrency (`T-02`), tenant isolation (`T-01`), and security defense (`T-03`) remain ready. |
 
 ## Baseline
 
-What's already in place in the codebase as of `2026-09-09` (auto-researched + user-confirmed).
+What's already in place in the codebase as of `2026-09-12` (auto-researched + user-confirmed).
 Foundations below assume these are present and do NOT re-scaffold them.
 
 - **Frontend:** present — Next.js 16 App Router + MUI 9 theme and providers (`src/providers/mui-theme-provider.tsx`, `src/app/layout.tsx`), Dashboard Creation Wizard at `/new` (`src/app/new/page.tsx`), Dashboard Login / Note Tiles view at `/dashboard/[hash]` (`src/app/dashboard/[hash]/page.tsx`, `src/app/dashboard/[hash]/components/`), and full-page Note Editor with line numbers and password-gated delete dialog at `/dashboard/[hash]/note/[noteId]` (`src/app/dashboard/[hash]/note/[noteId]/components/`).
 - **Backend / API:** present — Next.js Server Actions for dashboard creation (`src/actions/dashboard.ts`), authentication and session management (`src/actions/auth.ts`), startup audit (`src/actions/audit.ts`), note CRUD operations (`src/actions/notes.ts`), and health check route handler (`src/app/api/health/route.ts`).
 - **Data:** present — PostgreSQL schema with migrations for `dashboards`, `dashboard_users`, `notes`, `note_versions`, and `rate_limits` with atomic RPC functions (`create_dashboard_with_users`, `create_note_with_version`, `update_note_with_version`, `check_rate_limit`) and `DatabaseClient` adapter layer (`src/client/db-client.ts`, `supabase/migrations/`). Schema management is strictly forward-only.
 - **Auth & Security:** present — Per-dashboard credentials validation (PBKDF2 Web Crypto with dummy timing-equalization), signed HttpOnly session cookies (`scytala_session_<hash>`), HMAC session token signing/verification (`src/lib/session.ts`), shared session guard helper (`src/lib/auth-guard.ts`), dual-layer rate limiting (Cloudflare Worker edge rate limiter bindings + Supabase token bucket RPC) protecting login and note mutations (`src/lib/rate-limit.ts`), edge session verification rate limiting, and password re-authentication on note deletion.
+- **Testing & E2E:** present — 42 Vitest test files (549 tests) running under `happy-dom` with strict 80% coverage enforcement; Playwright E2E suite (`playwright.config.ts`, `e2e/fixtures/test-base.ts`, `e2e/golden-path.spec.ts`, `e2e/note-lifecycle.spec.ts`) covering Golden Path and note deletion flows locally across Chromium and Firefox with 5-layer Cloudflare production build isolation (`tsconfig.build.json`, `next.config.ts` `outputFileTracingExcludes`, `vitest.config.ts`, `eslint.config.mjs`, `.gitignore`).
 - **Deploy / infra:** present — OpenNext Cloudflare Workers deployment configuration (`wrangler.jsonc`), test build isolation (`.assetsignore`, dedicated tsconfig excluding test files from production bundles), and GitHub Actions CI workflow (`.github/workflows/test.yml`).
 - **Observability & Resilience:** present — Edge-compatible zero-dependency structured JSON logger with recursive sanitization (`src/lib/logger.ts`), App Router error boundaries (`src/app/error.tsx`, `src/app/global-error.tsx`), health check probe endpoint (`src/app/api/health/route.ts`), startup deployment audit logging (`src/instrumentation.ts`), and 8-second global timeout fetch (`createTimeoutFetch` via `SUPABASE_TIMEOUT_MS`) on all Supabase database queries.
 
@@ -217,6 +219,19 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Risk:** CI threshold enforcement must prevent regression without slowing down deployment pipelines.
 - **Status:** proposed
 
+### T-05: Playwright E2E Test Suite and Critical Browser Flows
+
+- **Outcome:** (testing) Automated end-to-end browser testing verifies critical user journeys (wizard creation, credential copy, login, note authoring, version history drawer diff inspection, version restoration, note deletion with password re-authentication, and logout) in headless Chromium and Firefox using custom fixtures (`test.extend`) and local Supabase persistence, protected by 5-layer Cloudflare production build isolation.
+- **Change ID:** `testing-playwright-e2e-critical-flows`
+- **PRD refs:** Test Plan §3 Phase 2, Risk #4, US-01, US-02, US-03, US-04, US-05
+- **Prerequisites:** S-03, S-04
+- **Parallel with:** S-05, S-06
+- **Blockers:** —
+- **Unknowns:**
+  - CI/CD execution vs local-only: Resolved in plan — E2E execution is strictly local developer-side (`npm run test:e2e`, `npm run test:e2e:ui`, `npm run test:e2e:init`) due to compute cost and the absence of a non-production Supabase environment on the free usage plan. Excluded from GitHub Actions CI.
+- **Risk:** Build isolation and test runner collision risks resolved via 5-layer isolation (`tsconfig.build.json`, `next.config.ts` `outputFileTracingExcludes`, `vitest.config.ts` exclusions, `eslint.config.mjs`, and `.gitignore`).
+- **Status:** done (commits `952b906`, `1b66e39`, 2026-09-12)
+
 ## Observability & Operations
 
 ### O-01: Edge Centralized Error Tracking and APM Integration
@@ -251,6 +266,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 | T-02       | `testing-note-versioning-and-concurrency-integrity`    | [#26: [T-02] Note Versioning & Concurrency Integrity](https://github.com/palucdev/scytala/issues/26)             | ready         | S-03              |
 | T-03       | `testing-server-input-validation-and-security-defense` | [#27: [T-03] Server Input Validation & Security Defense](https://github.com/palucdev/scytala/issues/27)          | ready         | S-01              |
 | T-04       | `testing-ci-quality-gates-and-coverage-hardening`      | [#28: [T-04] CI Quality Gates & Coverage Hardening](https://github.com/palucdev/scytala/issues/28)               | proposed      | T-01, T-03        |
+| T-05       | `testing-playwright-e2e-critical-flows`                | [Plan](context/changes/testing-playwright-e2e-critical-flows/plan.md) (Branch `feature/e2e`, Commits `952b906`, `1b66e39`)       | done          | S-03, S-04        |
 | O-01       | `edge-centralized-error-tracking-and-apm`              | [#33: [O-01] Edge Centralized Error Tracking and APM Integration](https://github.com/palucdev/scytala/issues/33) | proposed      | F-02              |
 
 ## Open Roadmap Questions
@@ -259,7 +275,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 2. **Note tile ordering policy** — Resolved in S-02: sorted by `updated_at` descending so most recently modified notes appear first.
 3. **Note CRUD mutation strategy** — Resolved in S-03: Editor manages local client state, invoking Server Actions directly (`createNoteAction`, `updateNoteAction`, `deleteNoteAction`). On successful mutation, `router.push()` + `router.refresh()` triggers SSR re-rendering of dashboard tiles. Version mismatches return typed `{ versionConflict: true }` prompting a manual reload to prevent lost updates.
 4. **Speculative UI elements pruning** — Owner: product/developer. 7 disabled placeholder buttons ("Add Directory", "Add File", "Add Image", "Add Survey", "Dashboard settings" in `DashboardHeader`, and "Note history", "Contributors" in `NoteEditorHeader`) were flagged during S-03 reality review as out-of-scope for MVP. Should they be pruned or retained behind feature flags until their respective slices ship?
-5. **Version history presentation format (S-04)** — Owner: developer. Block: S-04. Should the version history drawer display full past note content snapshots or computed unified text diffs against current state?
+5. **Version history presentation format (S-04)** — Resolved in S-04: Drawer displays past snapshots with metadata and character delta badges; clicking opens a modal preview with optional inline word-level diff and restore CTA.
 
 ## Parked
 
@@ -277,6 +293,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **S-02: Dashboard Auth Login and Tiles View** — Implemented 2026-08-27 (`context/changes/dashboard-auth-login-and-tiles-view/`). User can open `/dashboard/<hash>`, authenticate using per-dashboard credentials, receive a signed HttpOnly session cookie, and view note tiles with logout and empty-state handling.
 - **S-03: Note CRUD and Version Persistence (North Star)** — Implemented 2026-09-09 (`context/changes/note-crud-and-version-persistence/`, PR #31, commit `1249e5e`). Authenticated users can create plain text notes, edit notes in a full-page editor with line numbering (`/dashboard/<hash>/note/<noteId>`), and delete notes with password re-authentication (`DeleteNoteDialog`). Edits atomically commit immutable versions via PostgreSQL RPCs (`create_note_with_version`, `update_note_with_version`), guarded by optimistic concurrency conflict detection and `noteMutation` rate limiting (30 ops/min). Tested with 98.07% line coverage.
 - **S-04: Note Version History Browser** — Implemented 2026-09-10 (`context/changes/note-version-history-browser/`, Issue #19). Authenticated users can open a slide-over non-dimming version history drawer while editing a note, browse chronological version snapshots with timestamps, author attribution, and character deltas, inspect full read-only snapshots in a popup modal dialog with optional word-level inline diff against current state, and restore past versions via non-destructive append-only commits with optimistic concurrency protection. Tested with 97.72% line coverage.
+- **T-05: Playwright E2E Test Suite and Critical Browser Flows** — Implemented 2026-09-12 (`context/changes/testing-playwright-e2e-critical-flows/`, commits `952b906`, `1b66e39`). Installed `@playwright/test` and hardened 5-layer build isolation (`tsconfig.build.json`, `next.config.ts`, `vitest.config.ts`, `eslint.config.mjs`, `.gitignore`) shielding Cloudflare Worker production bundles and Vitest coverage gates. Delivered custom fixtures (`test.extend`) in `e2e/fixtures/test-base.ts` for clipboard permissions, dynamic tenant creation, and login. Verified complete Golden Path journey (`e2e/golden-path.spec.ts`: wizard creation $\rightarrow$ credential copy $\rightarrow$ login $\rightarrow$ note authoring $\rightarrow$ version history drawer diff inspection $\rightarrow$ restore $\rightarrow$ logout) and note lifecycle (`e2e/note-lifecycle.spec.ts`: note deletion with password re-authentication) across Chromium and Firefox. Registered `test:e2e:init` in `package.json`, updated cookbook patterns in `context/foundation/test-plan.md`, and formalized the local developer-only execution model (due to compute cost and free-tier Supabase constraints).
 - **Supporting Infrastructure & Hardening (Post-S-02)**:
   - **Native Stack Rate Limiting Migration** — Implemented 2026-08-27 (`context/changes/replace-upstash-rate-limiting/`, commit `7f6a0f3`). Replaced external Upstash dependency with Cloudflare Worker edge rate limiter bindings and native Supabase PostgreSQL token bucket RPC (`rate_limits` table + `check_rate_limit`).
   - **Cloudflare Build Isolation** — Implemented 2026-08-28 (`context/changes/exclude-tests-from-cloudflare-build/`, commit `0708ef7`). Isolated automated test files (`src/__tests__/**`, `vitest.config.ts`) from production Cloudflare builds via tsconfig separation and `.assetsignore`.
