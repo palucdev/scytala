@@ -69,7 +69,7 @@ orchestrator updates Status as artifacts appear on disk.
 |---|---|---|---|---|---|---|
 | 1 | Core Unit & Integration Regression Suite | Defend tenant isolation, crypto, session cookies, rate limiting, and note CRUD actions with Vitest | #1, #2, #5, #6 | unit + integration | complete | context/changes/note-crud-and-version-persistence/ |
 | 2 | Playwright E2E Test Suite & Critical Browser Flows | Introduce Playwright for end-to-end browser testing covering dashboard creation, login, note editing, and history | #4 | e2e | complete | context/changes/testing-playwright-e2e-critical-flows/ |
-| 3 | Multi-user Concurrency & Conflict Diff Resolution Tests | Verify three-way diff calculations and concurrent edit conflict resolution under simulated multi-user mutations | #3, #7 | integration + e2e | not started | — |
+| 3 | Multi-user Concurrency & Conflict Diff Resolution Tests | Verify three-way diff calculations and concurrent edit conflict resolution under simulated multi-user mutations | #3, #7 | integration + e2e | implementing | context/changes/testing-note-versioning-and-concurrency-integrity/ |
 | 4 | Observability, APM & Pre-prod Gate Hardening | Wire centralized error reporting, synthetic health checks, and pre-deployment bundle & isolate validation | cross-cutting | gates | not started | — |
 
 ## 4. Stack
@@ -187,8 +187,3 @@ Refresh (`/10x-test-plan --refresh`) when:
 - the project's tech stack changes (new framework, new test runner),
 - §7 negative-space no longer matches what the team believes.
 
-Refresh (`/10x-test-plan --refresh`) when:
-- a new top-3 risk surfaces from the roadmap or archive,
-- a recommended tool's `checked:` date is older than three months,
-- the project's tech stack changes (new framework, new test runner),
-- §7 negative-space no longer matches what the team believes.
