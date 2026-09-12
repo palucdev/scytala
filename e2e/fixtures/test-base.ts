@@ -53,6 +53,24 @@ export async function clearRateLimits(): Promise<void> {
   }
 }
 
+export async function cleanupE2ENotes(): Promise<void> {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+  if (url && key) {
+    try {
+      const supabase = createClient(url, key);
+      await supabase
+        .from("notes")
+        .delete()
+        .or(
+          "title.like.Initial E2E Note %,title.like.Seed Note %,title.like.Lifecycle Deletion Note %",
+        );
+    } catch {
+      // Ignore in mock or offline runs
+    }
+  }
+}
+
 export const test = base.extend<TestFixtures & { _rateLimitReset: void }>({
   _rateLimitReset: [
     async ({}, use) => {

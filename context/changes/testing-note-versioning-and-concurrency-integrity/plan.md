@@ -395,29 +395,29 @@ Add automatic cleanup of notes created by E2E test runs so that repeated executi
 
 #### Manual
 
-- [ ] 3.7 Run interactive UI mode (`npm run test:e2e:ui`) to visually observe the conflict banner rendering and reload transition
+- [x] 3.7 Run interactive UI mode (`npm run test:e2e:ui`) to visually observe the conflict banner rendering and reload transition
 
 ### Phase 4: Quality Gate Verification & Test Plan Documentation
 
 #### Automated
 
-- [x] 4.1 Full quality check command succeeds: `npm run check:ready`
-- [x] 4.2 Integration test suite passes: `npm run test:integration`
-- [x] 4.3 All unit, integration, and E2E tests pass with zero failures
+- [x] 4.1 Full quality check command succeeds: `npm run check:ready` — 2c64dbb
+- [x] 4.2 Integration test suite passes: `npm run test:integration` — 2c64dbb
+- [x] 4.3 All unit, integration, and E2E tests pass with zero failures — 2c64dbb
 
 #### Manual
 
-- [ ] 4.4 Review `context/foundation/test-plan.md` to confirm documentation is clear and accurate
+- [x] 4.4 Review `context/foundation/test-plan.md` to confirm documentation is clear and accurate
 
 ### Phase 5: E2E Test Note Cleanup
 
 #### Automated
 
-- [ ] 5.1 Playwright suite completes and teardown executes without errors: `npm run test:e2e`
-- [ ] 5.2 No notes matching the cleanup patterns remain in the database after a run (zero rows for `Initial E2E Note %`, `Seed Note %`, `Lifecycle Deletion Note %`)
-- [ ] 5.3 Type checking passes: `npm run check:type`
-- [ ] 5.4 Lint passes: `npm run lint`
-- [ ] 5.5 Unit test suite remains green with >= 80% coverage: `npm test`
+- [x] 5.1 Playwright suite completes and teardown executes without errors: `npm run test:e2e` — fda74b3
+- [x] 5.2 No notes matching the cleanup patterns remain in the database after a run (zero rows for `Initial E2E Note %`, `Seed Note %`, `Lifecycle Deletion Note %`) — fda74b3
+- [x] 5.3 Type checking passes: `npm run check:type` — fda74b3
+- [x] 5.4 Lint passes: `npm run lint` — fda74b3
+- [x] 5.5 Unit test suite remains green with >= 80% coverage: `npm test` — fda74b3
 
 #### Manual
 

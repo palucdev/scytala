@@ -11,6 +11,7 @@ if (fs.existsSync(envLocalPath)) {
 export default defineConfig({
   testDir: "./e2e",
   testMatch: "**/*.spec.ts",
+  globalTeardown: "./e2e/global-teardown.ts",
   timeout: 90000,
   fullyParallel: false,
   workers: 1,

@@ -1,7 +1,7 @@
 ---
 change_id: testing-note-versioning-and-concurrency-integrity
 title: Note Versioning & Concurrency Integrity
-status: implementing
+status: implemented
 created: 2026-09-12
 updated: 2026-09-12
 archived_at: null
@@ -18,3 +18,4 @@ Defend atomic note updates, immutable version history snapshots, and conflict de
 - Phase 2 shipped `src/__tests__/integration/note-concurrency.integration.test.ts` verifying sequential version advancement, `Promise.allSettled` race (exactly 1 fulfilled / 1 rejected), stale-version rejection, and post-conflict recovery against the live `update_note_with_version` RPC.
 - Phase 3 shipped multi-participant support in `e2e/fixtures/test-base.ts` (`additionalParticipants`) and the dual-context spec `e2e/note-concurrency.spec.ts` covering conflict alert, draft preservation, reload recovery, and v3 follow-up save.
 - Phase 4 records full quality-gate verification (`check:ready`, `test:integration`) and fills the test-plan cookbook (§6.5).
+- Phase 5 shipped E2E note cleanup: `cleanupE2ENotes()` service-role helper in `e2e/fixtures/test-base.ts` (OR-matched title patterns `Initial E2E Note %`, `Seed Note %`, `Lifecycle Deletion Note %`), `e2e/global-teardown.ts` running it once after the full Playwright suite, and `globalTeardown` registration in `playwright.config.ts`.
