@@ -386,12 +386,12 @@ Add automatic cleanup of notes created by E2E test runs so that repeated executi
 
 #### Automated
 
-- [ ] 3.1 Playwright concurrency test passes in Chromium: `npx playwright test e2e/note-concurrency.spec.ts --project=chromium`
-- [ ] 3.2 Playwright concurrency test passes in Firefox: `npx playwright test e2e/note-concurrency.spec.ts --project=firefox`
-- [ ] 3.3 Full E2E suite passes: `npm run test:e2e`
-- [ ] 3.4 Unit tests remain green with >= 80% coverage: `npm test`
-- [ ] 3.5 Type checking passes: `npm run check:type`
-- [ ] 3.6 Lint passes: `npm run lint`
+- [x] 3.1 Playwright concurrency test passes in Chromium: `npx playwright test e2e/note-concurrency.spec.ts --project=chromium`
+- [x] 3.2 Playwright concurrency test passes in Firefox: `npx playwright test e2e/note-concurrency.spec.ts --project=firefox`
+- [x] 3.3 Full E2E suite passes: `npm run test:e2e`
+- [x] 3.4 Unit tests remain green with >= 80% coverage: `npm test`
+- [x] 3.5 Type checking passes: `npm run check:type`
+- [x] 3.6 Lint passes: `npm run lint`
 
 #### Manual
 

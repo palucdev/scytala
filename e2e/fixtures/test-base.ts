@@ -1,12 +1,18 @@
 /* eslint-disable react-hooks/rules-of-hooks */
 import { test as base, expect } from "@playwright/test";
 
+export interface TestDashboardParticipant {
+  alias: string;
+  password: string;
+}
+
 export interface TestDashboardInfo {
   hash: string;
   title: string;
   alias: string;
   password: string;
   shareableUrl: string;
+  participants: TestDashboardParticipant[];
 }
 
 export interface CreateTestDashboardOptions {
@@ -14,6 +20,7 @@ export interface CreateTestDashboardOptions {
   description?: string;
   alias?: string;
   password?: string;
+  additionalParticipants?: { alias: string; password?: string }[];
 }
 
 export interface TestFixtures {
@@ -110,6 +117,25 @@ export const test = base.extend<TestFixtures & { _rateLimitReset: void }>({
       }
       const password = await passwordInput.inputValue();
 
+      const additionalParticipants = options?.additionalParticipants ?? [];
+      for (const [offset, participant] of additionalParticipants.entries()) {
+        await page.locator("#add-participant-btn").click();
+
+        const participantNumber = offset + 2;
+        const extraAliasInput = page.locator(
+          `input[aria-label="Participant ${participantNumber} Alias"]`,
+        );
+        await extraAliasInput.waitFor({ state: "visible" });
+        await extraAliasInput.fill(participant.alias);
+
+        const extraPasswordInput = page.locator(
+          `input[aria-label="Participant ${participantNumber} Password"]`,
+        );
+        if (participant.password) {
+          await extraPasswordInput.fill(participant.password);
+        }
+      }
+
       await page.locator("#wizard-next-btn").click();
 
       // Step 3: Review
@@ -122,12 +148,35 @@ export const test = base.extend<TestFixtures & { _rateLimitReset: void }>({
       const shareableUrl = await shareableUrlInput.inputValue();
       const hash = shareableUrl.split("/dashboard/")[1]?.trim() || "";
 
+      const participants: TestDashboardParticipant[] = [
+        { alias, password },
+      ];
+      for (const participant of additionalParticipants) {
+        if (participant.password) {
+          participants.push({
+            alias: participant.alias,
+            password: participant.password,
+          });
+          continue;
+        }
+        const credentialRow = page
+          .getByRole("button", {
+            name: `Copy credentials for ${participant.alias}`,
+          })
+          .locator("..");
+        const passwordText =
+          (await credentialRow.locator(".credential-password").textContent()) ??
+          "";
+        participants.push({ alias: participant.alias, password: passwordText });
+      }
+
       return {
         hash,
         title,
         alias,
         password,
         shareableUrl,
+        participants,
       };
     };
 
