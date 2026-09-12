@@ -40,6 +40,8 @@ export interface TestFixtures {
 
 import { createClient } from "@supabase/supabase-js";
 
+let lastTestFinishedAt = 0;
+
 export async function clearRateLimits(): Promise<void> {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
@@ -85,7 +87,31 @@ export async function cleanupE2ENotes(): Promise<void> {
   }
 }
 
-export const test = base.extend<TestFixtures & { _rateLimitReset: void }>({
+export const test = base.extend<
+  TestFixtures & { _rateLimitReset: void; _rateLimitCooldown: void }
+>({
+  /**
+   * Structural gap between tests within a project.
+   *
+   * The in-memory `sessionVerifyIp` sliding window (60 req / 60s) lives in the
+   * dev-server process and accumulates across tests sharing `127.0.0.1`
+   * (DB-backed clearRateLimits() cannot reset it). Enforcing >=65s between
+   * consecutive tests lets every timestamp age out of the window so each test
+   * starts with a full token budget.
+   */
+  _rateLimitCooldown: [
+    async ({}, use) => {
+      const COOLDOWN_MS = 65_000;
+      const elapsed = Date.now() - lastTestFinishedAt;
+      const wait = COOLDOWN_MS - elapsed;
+      if (lastTestFinishedAt > 0 && wait > 0) {
+        await new Promise((resolve) => setTimeout(resolve, wait));
+      }
+      await use();
+      lastTestFinishedAt = Date.now();
+    },
+    { auto: true },
+  ],
   _rateLimitReset: [
     async ({}, use) => {
       await clearRateLimits();
