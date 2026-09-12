@@ -14,9 +14,6 @@ test.describe("Golden Path E2E (Risk #4: Browser Workflow & Persistence)", () =>
     const initialContent = "Line 1: Initial content";
     const updatedContent = "Line 1: Initial content\nLine 2: Appended update";
 
-    page.on("console", (msg) => console.log("[BROWSER CONSOLE]", msg.type(), msg.text()));
-    page.on("pageerror", (err) => console.log("[BROWSER ERROR]", err.message));
-
     // -------------------------------------------------------------
     // Step 1: Wizard Creation
     // -------------------------------------------------------------
@@ -139,15 +136,14 @@ test.describe("Golden Path E2E (Risk #4: Browser Workflow & Persistence)", () =>
     await expect(saveBtn).toBeEnabled();
     await saveBtn.click();
 
-    // Await save completion (button transitions to disabled state)
-    await expect(saveBtn).toBeDisabled();
+    // Await save completion (transition to note edit page with v1 chip)
+    await page.waitForURL(
+      new RegExp(`/dashboard/${dashboardHash}/note/[0-9a-fA-F-]{36}$`),
+    );
+    await expect(page.getByText("v1")).toBeVisible();
 
     // Navigate back to Dashboard
     await page.getByRole("link", { name: "Back" }).click();
-    const leaveBtn = page.getByRole("button", { name: "Leave" });
-    if (await leaveBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
-      await leaveBtn.click();
-    }
     await page.waitForURL(`**/dashboard/${dashboardHash}`);
 
     // Assert note tile in NoteGrid
@@ -187,7 +183,7 @@ test.describe("Golden Path E2E (Risk #4: Browser Workflow & Persistence)", () =>
     ).toBeVisible();
 
     // Select historical version v1 in drawer
-    const v1Item = page.locator(".MuiListItemButton-root").filter({ hasText: /v1/ });
+    const v1Item = page.getByRole("button").filter({ hasText: /v1/ });
     await expect(v1Item).toBeVisible();
     await v1Item.click();
 
@@ -217,10 +213,6 @@ test.describe("Golden Path E2E (Risk #4: Browser Workflow & Persistence)", () =>
     // Step 6: Logout & Session Eviction
     // -------------------------------------------------------------
     await page.getByRole("link", { name: "Back" }).click();
-    const leaveBtnStep6 = page.getByRole("button", { name: "Leave" });
-    if (await leaveBtnStep6.isVisible({ timeout: 1500 }).catch(() => false)) {
-      await leaveBtnStep6.click();
-    }
     await page.waitForURL(`**/dashboard/${dashboardHash}`);
     await expect(page.getByRole("heading", { name: "Text note" })).toBeHidden();
     await expect(
@@ -237,19 +229,13 @@ test.describe("Golden Path E2E (Risk #4: Browser Workflow & Persistence)", () =>
     await expect(logoutBtn).toBeEnabled();
 
     // Trigger logout submission and ensure session cookie eviction
-    const logoutResponsePromise = page.waitForResponse(
-      (resp) => resp.url().includes("/api/auth/logout"),
-      { timeout: 15000 },
-    );
-    await logoutBtn.click();
-    const responded = await Promise.race([
-      logoutResponsePromise.then(() => true),
-      page.waitForTimeout(3000).then(() => false),
+    await Promise.all([
+      page.waitForResponse(
+        (resp) => resp.url().includes("/api/auth/logout"),
+        { timeout: 15000 },
+      ),
+      logoutBtn.click(),
     ]);
-    if (!responded) {
-      await logoutForm.evaluate((form: HTMLFormElement) => form.requestSubmit());
-      await logoutResponsePromise;
-    }
 
     // Await redirect and verify login form presentation
     await expect(page.locator("#login-user-alias")).toBeVisible({ timeout: 15000 });

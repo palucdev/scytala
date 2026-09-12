@@ -1,7 +1,7 @@
 ---
 change_id: testing-playwright-e2e-critical-flows
 title: Playwright E2E test suite and critical browser flows
-status: implementing
+status: impl_reviewed
 created: 2026-09-11
 updated: 2026-09-12
 archived_at: null

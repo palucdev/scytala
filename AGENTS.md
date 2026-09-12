@@ -21,6 +21,9 @@ Scytala is a private hypermedia and note sharing web platform built with Next.js
 ## Build & Test Commands
 - `npm run dev` - Starts the Next.js development server.
 - `npm run test` - Runs Vitest tests with coverage check.
+- `npm run test:e2e` - Runs local Playwright browser tests in headless mode (load `.env.ai` in bash first, e.g. `set -a && [ -f .env.ai ] && . ./.env.ai && set +a && npm run test:e2e`).
+- `npm run test:e2e:ui` - Opens the interactive Playwright test runner UI.
+- `npm run test:e2e:init` - Downloads Playwright browser binaries and dependencies.
 - `npm run lint` - Runs ESLint against the codebase.
 - `npm run typecheck` - Runs TypeScript type checking (`tsc --noEmit`).
 - `npm run preview` - Builds and previews the Cloudflare Worker locally via OpenNext.
@@ -36,6 +39,7 @@ Scytala is a private hypermedia and note sharing web platform built with Next.js
 - **Location**: Test files must be co-located or placed in `src/` matching the `*.test.ts` or `*.test.tsx` pattern.
 - **Setup**: Global test setup runs from `@src/__tests__/setup.ts`.
 - **Threshold**: CI will fail if branch, line, statement, or function coverage drops below 80%.
+- **E2E Testing (Playwright)**: Always load `.env.ai` in the bash shell prior to running Playwright tests (`set -a && [ -f .env.ai ] && . ./.env.ai && set +a && npm run test:e2e` or `env $(grep -v '^#' .env.ai | xargs) npm run test:e2e`). This injects `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` into `process.env` so that `clearRateLimits()` in `e2e/fixtures/test-base.ts` can reset the PostgreSQL `rate_limits` table between test runs and avoid throttling.
 
 ## Commit & Pull Request Guidelines
 - Branch names follow the `feature/<name>` or `fix/<name>` pattern.

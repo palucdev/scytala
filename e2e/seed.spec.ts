@@ -25,25 +25,22 @@ test.describe("E2E Seed Exemplar (Risk #4: Browser Workflow & Persistence)", () 
 
     // 3. Create a note
     const createNoteBtn = page.getByRole("link", { name: "Create note" });
-    if (await createNoteBtn.isVisible()) {
-      await createNoteBtn.click();
-    } else {
-      await page.goto(`/dashboard/${dashboard.hash}/note/new`);
-    }
+    await expect(createNoteBtn).toBeVisible();
+    await createNoteBtn.click();
+    await page.waitForURL(`**/dashboard/${dashboard.hash}/note/new`);
 
     await page.getByRole("textbox", { name: "Note title" }).fill(noteTitle);
     await page.getByRole("textbox", { name: "Note content" }).fill(noteContent);
     const saveBtn = page.getByRole("button", { name: "Save note" });
     await expect(saveBtn).toBeEnabled();
     await saveBtn.click();
-    await expect(saveBtn).toBeDisabled();
+    await page.waitForURL(
+      new RegExp(`/dashboard/${dashboard.hash}/note/[0-9a-fA-F-]{36}$`),
+    );
+    await expect(page.getByText("v1")).toBeVisible();
 
     // Return to dashboard
     await page.getByRole("link", { name: "Back" }).click();
-    const leaveBtn = page.getByRole("button", { name: "Leave" });
-    if (await leaveBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
-      await leaveBtn.click();
-    }
     await page.waitForURL(`**/dashboard/${dashboard.hash}`);
 
     // Re-open saved note from dashboard tile

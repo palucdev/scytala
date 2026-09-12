@@ -1,4 +1,12 @@
+import fs from "node:fs";
+import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
+
+// Load .env.local if present (cross-platform)
+const envLocalPath = path.resolve(process.cwd(), ".env.local");
+if (fs.existsSync(envLocalPath)) {
+  process.loadEnvFile(envLocalPath);
+}
 
 export default defineConfig({
   testDir: "./e2e",

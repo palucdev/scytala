@@ -361,6 +361,12 @@ Finalize local developer tooling by registering the browser installation script 
 - Build Isolation Historical Plan: `context/changes/exclude-tests-from-cloudflare-build/plan.md`
 - Lessons Learned: `context/foundation/lessons.md`
 
+## Addendum: Operational Adaptations
+
+During execution of Phase 1 and Phase 2, two targeted adaptations were introduced to stabilize Next.js App Router local execution during Playwright runs:
+1. **`allowedDevOrigins` in `next.config.ts`**: Set to `["127.0.0.1", "localhost"]` to permit Next.js Server Actions execution when browser requests originate across local loopback hosts (`localhost` vs `127.0.0.1`). This is a dev-only setting ignored in production.
+2. **`--webpack` dev flag in `playwright.config.ts`**: Configured `command: "npx next dev --webpack"` to ensure fast and deterministic bundling for Playwright's local `webServer`.
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.

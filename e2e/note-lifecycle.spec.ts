@@ -49,14 +49,13 @@ test.describe("Note Lifecycle & Deletion Security (Risk #3: Cryptographic Integr
     const saveBtn = page.getByRole("button", { name: "Save note" });
     await expect(saveBtn).toBeEnabled();
     await saveBtn.click();
-    await expect(saveBtn).toBeDisabled();
+    await page.waitForURL(
+      new RegExp(`/dashboard/${dashboard.hash}/note/[0-9a-fA-F-]{36}$`),
+    );
+    await expect(page.getByText("v1")).toBeVisible();
 
     // Return to dashboard
     await page.getByRole("link", { name: "Back" }).click();
-    const leaveBtn = page.getByRole("button", { name: "Leave" });
-    if (await leaveBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
-      await leaveBtn.click();
-    }
     await page.waitForURL(`**/dashboard/${dashboard.hash}`);
 
     // Verify note tile exists

@@ -14,7 +14,7 @@ const cspHeader = `
   style-src 'self' 'unsafe-inline';
   img-src 'self' data: blob: https:;
   font-src 'self' data: https://fonts.gstatic.com;
-  connect-src 'self' https://*.supabase.co http://127.0.0.1:* http://localhost:* ${!isProd ? "ws://127.0.0.1:* ws://localhost:*" : ""};
+  connect-src 'self' https://*.supabase.co ${!isProd ? "http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*" : ""};
   object-src 'none';
   base-uri 'self';
   form-action 'self';

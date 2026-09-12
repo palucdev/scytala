@@ -116,9 +116,9 @@ export const test = base.extend<TestFixtures & { _rateLimitReset: void }>({
       await page.locator("#wizard-create-btn").click();
 
       // Step 4: Success
-      await page.waitForSelector("#wizard-success-alert", { state: "visible" });
+      await expect(page.locator("#wizard-success-alert")).toBeVisible();
       const shareableUrlInput = page.locator("#shareable-url-input");
-      await shareableUrlInput.waitFor({ state: "visible" });
+      await expect(shareableUrlInput).toBeVisible();
       const shareableUrl = await shareableUrlInput.inputValue();
       const hash = shareableUrl.split("/dashboard/")[1]?.trim() || "";
 
@@ -146,8 +146,8 @@ export const test = base.extend<TestFixtures & { _rateLimitReset: void }>({
       await page.getByRole("button", { name: "Sign In" }).click();
 
       // Wait for router.refresh() transition from LoginForm to DashboardView
-      await page.locator("#login-user-alias").waitFor({ state: "detached" });
-      await page.locator("#dashboard-logout-btn").waitFor({ state: "visible" });
+      await expect(page.locator("#login-user-alias")).toBeHidden();
+      await expect(page.locator("#dashboard-logout-btn")).toBeVisible();
     };
 
     await use(helper);

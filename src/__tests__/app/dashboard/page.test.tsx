@@ -310,7 +310,7 @@ describe("src/app/dashboard/[hash]/page.tsx (DashboardPage SSR)", () => {
 
   describe("DTO Mappers & RSC Boundary Defense", () => {
     it("mapDashboardToDto strips internal database properties", async () => {
-      const { mapDashboardToDto } = await import("@/app/dashboard/[hash]/page");
+      const { mapDashboardToDto } = await import("@/app/dashboard/[hash]/dto");
       const dto = mapDashboardToDto(mockDashboard);
 
       expect(dto).toEqual({
@@ -325,7 +325,7 @@ describe("src/app/dashboard/[hash]/page.tsx (DashboardPage SSR)", () => {
     });
 
     it("mapNotesToDto strips note internals and sorts by updated_at desc", async () => {
-      const { mapNotesToDto } = await import("@/app/dashboard/[hash]/page");
+      const { mapNotesToDto } = await import("@/app/dashboard/[hash]/dto");
       const unorderedNotes: Note[] = [
         {
           id: "note-1",
@@ -369,7 +369,7 @@ describe("src/app/dashboard/[hash]/page.tsx (DashboardPage SSR)", () => {
     });
 
     it("truncates note content exceeding 300 characters in preview DTO", async () => {
-      const { mapNotesToDto } = await import("@/app/dashboard/[hash]/page");
+      const { mapNotesToDto } = await import("@/app/dashboard/[hash]/dto");
       const longContent = "A".repeat(500);
       const notes: Note[] = [
         {
