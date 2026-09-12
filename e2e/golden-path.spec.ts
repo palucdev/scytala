@@ -128,7 +128,9 @@ test.describe("Golden Path E2E (Risk #4: Browser Workflow & Persistence)", () =>
     ).toBeVisible();
 
     await page.getByRole("textbox", { name: "Note title" }).fill(noteTitle);
-    await page.getByRole("textbox", { name: "Note content" }).fill(initialContent);
+    await page
+      .getByRole("textbox", { name: "Note content" })
+      .fill(initialContent);
 
     test.setTimeout(120000);
 
@@ -230,15 +232,16 @@ test.describe("Golden Path E2E (Risk #4: Browser Workflow & Persistence)", () =>
 
     // Trigger logout submission and ensure session cookie eviction
     await Promise.all([
-      page.waitForResponse(
-        (resp) => resp.url().includes("/api/auth/logout"),
-        { timeout: 15000 },
-      ),
+      page.waitForResponse((resp) => resp.url().includes("/api/auth/logout"), {
+        timeout: 15000,
+      }),
       logoutBtn.click(),
     ]);
 
     // Await redirect and verify login form presentation
-    await expect(page.locator("#login-user-alias")).toBeVisible({ timeout: 15000 });
+    await expect(page.locator("#login-user-alias")).toBeVisible({
+      timeout: 15000,
+    });
     await expect(page.locator("#login-password")).toBeVisible();
     await expect(page.getByText(workspaceTitle)).toBeHidden();
 

@@ -33,8 +33,14 @@ export default defineConfig({
       },
     },
     {
+      name: "rate-limit-cooldown",
+      testMatch: /cooldown\.setup\.ts/,
+      dependencies: ["chromium"],
+    },
+    {
       name: "firefox",
       use: { ...devices["Desktop Firefox"] },
+      dependencies: ["rate-limit-cooldown"],
     },
   ],
   webServer: {
