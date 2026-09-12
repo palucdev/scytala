@@ -401,9 +401,9 @@ Add automatic cleanup of notes created by E2E test runs so that repeated executi
 
 #### Automated
 
-- [ ] 4.1 Full quality check command succeeds: `npm run check:ready`
-- [ ] 4.2 Integration test suite passes: `npm run test:integration`
-- [ ] 4.3 All unit, integration, and E2E tests pass with zero failures
+- [x] 4.1 Full quality check command succeeds: `npm run check:ready`
+- [x] 4.2 Integration test suite passes: `npm run test:integration`
+- [x] 4.3 All unit, integration, and E2E tests pass with zero failures
 
 #### Manual
 
