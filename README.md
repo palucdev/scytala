@@ -35,7 +35,7 @@ Scytala provides:
 - **Note Management**: Create, edit, and delete plain text notes presented as readable dashboard tiles.
 - **Full-Page Editor**: Line-numbered text editor with atomic updates and version conflict detection.
 - **Version History Browser**: Chronological history drawer with timestamps, authors, and character-delta badges; past versions can be inspected read-only, diffed word-level against the current state, and restored non-destructively.
-- **Encrypted at Rest**: Note titles and contents (including every version snapshot) are AES-256-GCM encrypted in the database adapter before storage — the database alone never holds readable note content.
+- **Encrypted at Rest**: Note titles and contents (including every version snapshot) are AES-256-GCM encrypted before storage — the database alone never holds readable note content.
 - **Secure Deletion**: Password re-authentication is required to delete notes or dashboards.
 
 **Where it's heading:** Scytala is evolving from a notes dashboard into a complete private sharing platform — beyond notes, the roadmap is to support **file, image, and media sharing, surveys, calendars, chats and more**, so friends, collaborators, and family can keep every kind of shared content in one organized, searchable, private place instead of scattered across chat streams and cloud services.
@@ -46,14 +46,14 @@ Scytala is built around a simple threat model: your notes — and eventually you
 
 **What is true today (v1, at-rest encryption):**
 
-- Note titles and contents — including every version snapshot — are encrypted inside the persistence adapter with AES-256-GCM (`v1:<iv>:<ciphertext>` envelopes, 128-bit random IV, note-ID-bound AAD) before anything reaches PostgreSQL. A database dump without the application's `NOTE_ENCRYPTION_KEY` yields unreadable ciphertext.
+- Note titles and contents — including every version snapshot — are encrypted inside the database with the AES-256-GCM approach. A database dump yields unreadable ciphertext instead of real data.
 
 **What we are building next (v2, zero-knowledge end-to-end encryption):**
 
 - A database leak will not be the only scenario covered — the current v1 design still allows anyone holding *both* the DB and the server-side key material to read everything. The next slice (S-08, zero-knowledge client-side E2EE, modeled on Tuta's architecture) removes that residual access:
-  - Notes are encrypted **in the browser** under a random per-dashboard data key (DEK); the DEK is wrapped per participant under a key derived client-side from their password (PBKDF2-SHA256, 600k iterations, non-extractable keys).
+  - Notes are encrypted **in the browser** under a random per-dashboard data key; the data key is wrapped per participant under a key derived client-side from their password (PBKDF2-SHA256 key derivation).
   - Login authenticates with a one-way password-derived verifier — the raw password never crosses the network, even over TLS, so the server holds nothing usable to derive decryption keys.
-  - The encryption keys exist only in the participant's browser memory (passive "Vault locked" state after reload, 30-minute auto-lock), and the operator of the instance — even an admin with full production DB access — cannot read note content.
+  - The encryption keys exist only in the participant's browser memory (passive "Vault locked" state after reload, auto-lock after inactivity), and the operator of the instance — even an admin with full production DB access — cannot read note content.
 - **Accepted trade-off of zero-knowledge:** there is deliberately no server-side recovery. A forgotten password means the notes are permanently unreadable — that is the point. Passwords are generated once at dashboard creation and never change.
 
 **Self-hosting as the privacy endgame:**
@@ -64,9 +64,9 @@ Scytala is built around a simple threat model: your notes — and eventually you
 
 **Defense-in-depth measures already in place:**
 
-- Server secrets (`SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`, `NOTE_ENCRYPTION_KEY`) are strictly validated at runtime via `src/lib/env.ts` and never leaked to client bundles.
-- Authentication uses constant-time comparisons and signed, HttpOnly, SameSite session cookies (`scytala_session_<hash>`).
-- Sensitive operations (login and note mutations) are protected by dual-layer rate limiting: Cloudflare edge bindings and a PostgreSQL token bucket RPC.
+- Server secrets are strictly validated at runtime via validated environment configuration and never leaked to client bundles.
+- Authentication uses constant-time comparisons and signed, HttpOnly, SameSite session cookies.
+- Sensitive operations (login and note mutations) are protected by dual-layer rate limiting.
 
 ## Architecture & Tech Stack
 
@@ -83,15 +83,15 @@ Scytala is built around a simple threat model: your notes — and eventually you
 - **No Global Accounts**: Identity is scoped entirely to the dashboard. A user on one dashboard has no implicit association with another dashboard.
 - **Egalitarian Rights & Collective Ownership**: A goal Scytala is committed to is that every dashboard is *fully owned by all of its participants* — flat rights, no privileged roles, no creator-vs-member asymmetry. Whoever is inside a dashboard can do everything anyone else inside can: create, edit, restore, delete content, and manage dashboard settings. The person who created the dashboard and distributes credentials is a facilitator, not an owner; their only special moment is the brief window *before* other members join. Long-term, this extends cryptographically: every participant wraps the same dashboard encryption key, so as far as the data is concerned, all members are equal holders of the space.
 - **Defense-in-Depth Security** (see [Security, Privacy & Self-Hosting](#security-privacy--self-hosting) for the full E2EE/zero-knowledge model):
-  - Server secrets (`SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`, `NOTE_ENCRYPTION_KEY`) are strictly validated at runtime via `src/lib/env.ts` and never leaked to client bundles.
-  - Authentication uses constant-time comparisons and signed, HttpOnly, SameSite session cookies (`scytala_session_<hash>`).
-  - Sensitive operations (login and note mutations) are protected by dual-layer rate limiting: Cloudflare edge bindings and a PostgreSQL token bucket RPC.
+  - Server secrets are strictly validated at runtime via validated environment configuration and never leaked to client bundles.
+  - Authentication uses constant-time comparisons and signed, HttpOnly, SameSite session cookies.
+  - Sensitive operations (login and note mutations) are protected by dual-layer rate limiting.
 - **Data Integrity & Concurrency**:
-  - Database schema evolution is forward-only (`supabase/migrations/`). Down migrations (`DROP TABLE ... CASCADE`) are prohibited to eliminate accidental production data loss.
-  - Note updates execute through transactional RPCs that enforce optimistic concurrency checks (`expected_version`). Concurrent edits prompt diff resolution instead of silent overwrites.
+  - Database schema evolution is forward-only; destructive down migrations are prohibited to eliminate accidental production data loss.
+  - Note updates execute through transactional stored procedures that enforce optimistic concurrency checks. Concurrent edits prompt diff resolution instead of silent overwrites.
 - **Build & Test Isolation**:
-  - Cloudflare production builds strictly exclude test files, coverage reports, and mocks via `tsconfig.build.json`, `outputFileTracingExcludes` in `next.config.ts`, and `public/.assetsignore`.
-  - Cloudflare Git integration evaluates build watch paths to skip unnecessary deployments when only tests or documentation are changed.
+  - Cloudflare production builds strictly exclude test files, coverage reports, and mocks.
+  - Build watch paths skip unnecessary deployments when only tests or documentation are changed.
 - **Strict Quality Gates**:
   - The test suite enforces an 80% coverage threshold across lines, functions, branches, and statements via Vitest.
   - All pull requests must pass TypeScript strict type checking (`tsc --noEmit`), ESLint, and test coverage checks.
@@ -184,7 +184,7 @@ Development follows structured, test-verified slices. For complete details, see 
 - **S-02**: Dashboard Login (`/dashboard/<hash>`) with signed HttpOnly sessions and note tiles view.
 - **S-03 (North Star)**: Note CRUD operations with full-page line-numbered editor (`/dashboard/<hash>/note/<noteId>`), immutable version persistence, password-gated deletion, and optimistic concurrency control.
 - **S-04**: Note Version History Browser — chronological drawer, read-only snapshot previews, word-level diff against current state, and non-destructive restore.
-- **S-07**: Note Encryption at Rest — AES-256-GCM envelopes (`v1:` format, note-ID-bound AAD) for note titles and contents, including all version snapshots; deployed to production. Superseded as the next-release design by S-08 (see below).
+- **S-07**: Note Encryption at Rest — AES-256-GCM encryption of note titles and contents, including all version snapshots; deployed to production. Superseded as the next-release design by S-08 (see below).
 - **T-05**: Playwright E2E suite — Golden Path (wizard → credentials → login → note authoring → version history → restore → logout) and note lifecycle flows across Chromium and Firefox, with 5-layer build isolation.
 - **Infra Hardening**: Dual-layer rate limiting (Cloudflare Worker binding + Supabase RPC), Cloudflare 5-layer test build isolation, and dashboard logout session cleanup.
 
