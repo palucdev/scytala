@@ -10,7 +10,10 @@
  * - Decryption accepts only a valid v1 envelope:
  *     v1: -> AES-256-GCM decrypt with AAD = noteId; any failure throws (fail closed)
  *     anything else -> throws (fail closed; no legacy/plaintext support)
- * - AAD = note ID (UTF-8) binds ciphertext to its row; cross-row decrypts fail.
+ * - AAD = note ID (UTF-8) binds ciphertext to its note. Decrypts under a
+ *   different note's ID fail; transplants between versions of the SAME note
+ *   still authenticate (version rows share AAD = note_id, row identity there
+ *   is (note_id, version)).
  *
  * Key: getEnv().NOTE_ENCRYPTION_KEY — a 64-hex-char string decoded to exactly 32 bytes
  * (AES-256 raw key material), following the hex helper style of src/lib/crypto.ts.

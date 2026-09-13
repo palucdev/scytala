@@ -97,6 +97,8 @@ export type CreateNoteActionResult =
   | {
       success: true;
       note: Note;
+      /** True when the write committed but the saved content cannot be decrypted for display. */
+      decryptionFailed?: boolean;
     }
   | {
       success: false;
@@ -110,6 +112,8 @@ export type UpdateNoteActionResult =
   | {
       success: true;
       note: Note;
+      /** True when the write committed but the saved content cannot be decrypted for display. */
+      decryptionFailed?: boolean;
     }
   | {
       success: false;

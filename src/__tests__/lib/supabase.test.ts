@@ -712,6 +712,58 @@ describe('src/lib/supabase domain adapter', () => {
           })
         ).rejects.toThrow('[SupabaseDatabaseClient] createNote failed: Unknown error');
       });
+
+      it('degrades to a safe placeholder when post-create decryption fails (write already committed)', async () => {
+        const mockSupabase = {
+          rpc: vi.fn().mockImplementation(
+            async (
+              _name: string,
+              params: { p_note_id: string; p_title: string; p_content: string },
+            ) => {
+              // Rows encrypted under a DIFFERENT note id → AAD mismatch on decrypt.
+              const note: Note = {
+                id: params.p_note_id,
+                dashboard_id: 'dash-uuid-1',
+                title: await encryptNoteField('Grocery List', 'other-note-uuid'),
+                content: await encryptNoteField('Milk, Bread, Eggs', 'other-note-uuid'),
+                version: 1,
+                created_at: '2026-08-20T10:00:00Z',
+                updated_at: '2026-08-20T10:00:00Z',
+              };
+              const version: NoteVersion = {
+                id: 'version-uuid-1',
+                note_id: params.p_note_id,
+                version: 1,
+                title: await encryptNoteField('Grocery List', 'other-note-uuid'),
+                content: await encryptNoteField('Milk, Bread, Eggs', 'other-note-uuid'),
+                author_id: 'user-uuid-1',
+                created_at: '2026-08-20T10:00:00Z',
+              };
+              return {
+                data: { note, initialVersion: version },
+                error: null,
+              };
+            },
+          ),
+        } as unknown as SupabaseClient;
+
+        const db = new SupabaseDatabaseClient(mockSupabase);
+        const result = await db.createNote({
+          dashboard_id: 'dash-uuid-1',
+          title: 'Grocery List',
+          content: 'Milk, Bread, Eggs',
+          author_id: 'user-uuid-1',
+        });
+
+        expect(result.decryptionFailed).toBe(true);
+        expect(result.note.title).toBe('');
+        expect(result.note.content).toBe('');
+        expect(result.note.id).toMatch(UUID_REGEX);
+        expect(result.note.version).toBe(1);
+        expect(result.initialVersion.title).toBe('');
+        expect(result.initialVersion.content).toBe('');
+        expect(JSON.stringify(result)).not.toContain('v1:');
+      });
     });
 
     describe('updateNote (optimistic concurrency via rpc)', () => {
@@ -882,6 +934,64 @@ describe('src/lib/supabase domain adapter', () => {
           '[SupabaseDatabaseClient] updateNote failed: Unknown error'
         );
       });
+
+      it('degrades to a safe placeholder when post-update decryption fails (write already committed)', async () => {
+        const mockSupabase = {
+          rpc: vi.fn().mockImplementation(
+            async (
+              _name: string,
+              params: {
+                p_note_id: string;
+                p_title: string;
+                p_content: string;
+              },
+            ) => {
+              // Rows encrypted under a DIFFERENT note id → AAD mismatch on decrypt.
+              const note: Note = {
+                id: params.p_note_id,
+                dashboard_id: 'dash-uuid-1',
+                title: await encryptNoteField('Updated Title', 'other-note-uuid'),
+                content: await encryptNoteField('Updated content', 'other-note-uuid'),
+                version: 2,
+                created_at: '2026-08-20T10:00:00Z',
+                updated_at: '2026-08-20T10:05:00Z',
+              };
+
+              const newVersion: NoteVersion = {
+                id: 'version-uuid-2',
+                note_id: params.p_note_id,
+                version: 2,
+                title: await encryptNoteField('Updated Title', 'other-note-uuid'),
+                content: await encryptNoteField('Updated content', 'other-note-uuid'),
+                author_id: 'user-uuid-2',
+                created_at: '2026-08-20T10:05:00Z',
+              };
+
+              return {
+                data: { note, newVersion },
+                error: null,
+              };
+            },
+          ),
+        } as unknown as SupabaseClient;
+
+        const db = new SupabaseDatabaseClient(mockSupabase);
+        const result = await db.updateNote({
+          note_id: 'note-uuid-1',
+          title: 'Updated Title',
+          content: 'Updated content',
+          expected_version: 1,
+          author_id: 'user-uuid-2',
+        });
+
+        expect(result.decryptionFailed).toBe(true);
+        expect(result.note.title).toBe('');
+        expect(result.note.content).toBe('');
+        expect(result.note.version).toBe(2);
+        expect(result.newVersion.title).toBe('');
+        expect(result.newVersion.content).toBe('');
+        expect(JSON.stringify(result)).not.toContain('v1:');
+      });
     });
 
     describe('getNotesByDashboard and getNoteById', () => {
@@ -1039,6 +1149,36 @@ describe('src/lib/supabase domain adapter', () => {
         await expect(dbErr.getNoteVersions('n1')).rejects.toThrow(
           '[SupabaseDatabaseClient] getNoteVersions failed: Err'
         );
+      });
+
+      it('getNoteVersions degrades corrupt rows to placeholders instead of failing the listing', async () => {
+        const encryptedVersions = await Promise.all(
+          baseVersions.map((version) => encryptVersionRow(version)),
+        );
+        // Corrupt one row's ciphertext so its GCM tag verification fails.
+        const corrupt = encryptedVersions.map((version) =>
+          version.id === 'v1'
+            ? { ...version, content: `v1:${version.content.slice(3).slice(0, -4)}AAAA` }
+            : version,
+        );
+        const mockSupabase = {
+          from: vi.fn(() =>
+            createQueryBuilderMock({ data: corrupt, error: null })
+          ),
+        } as unknown as SupabaseClient;
+
+        const db = new SupabaseDatabaseClient(mockSupabase);
+        const result = await db.getNoteVersions('n1');
+
+        expect(result).toHaveLength(2);
+        const healthy = result.find((version) => version.id === 'v2');
+        const degraded = result.find((version) => version.id === 'v1');
+        expect(healthy).toEqual(baseVersions[0]);
+        expect(degraded?.title).toBe('');
+        expect(degraded?.content).toBe('');
+        expect(degraded?.version).toBe(1);
+        expect(degraded?.created_at).toBe('2026-08-20T10:00:00Z');
+        expect(JSON.stringify(result)).not.toContain('v1:');
       });
 
       it('deleteNote returns true when note is deleted, false when not found', async () => {

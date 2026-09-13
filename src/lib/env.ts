@@ -14,7 +14,7 @@ export const envSchema = z.object({
       error: "NOTE_ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes)",
     })
     .regex(
-      /^[0-9a-f]{64}$/,
+      /^[0-9a-fA-F]{64}$/,
       "NOTE_ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes)",
     ),
   DEPLOY_ID: z.string().optional().default("development"),

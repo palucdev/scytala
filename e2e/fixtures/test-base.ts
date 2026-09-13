@@ -98,7 +98,11 @@ function isLocalSupabaseUrl(url: string): boolean {
 /**
  * Dashboard hashes visited/created during this run (fixture + navigation
  * hook). `cleanupE2ENotes` scopes its deletion to the notes of exactly these
- * dashboards so pre-existing local data is never touched.
+ * dashboards. NOTE: because the navigation hook registers every
+ * `/dashboard/<hash>` URL the page requests, the notes of pre-existing local
+ * dashboards that a test merely VISITS are also cleanup targets — this is
+ * acceptable because cleanup only ever runs against a local Supabase URL
+ * (`isLocalSupabaseUrl` guard), never against a cloud project.
  *
  * Test workers and the global teardown run in separate Node processes, so the
  * registry is also mirrored to an NDJSON file (NDJSON appends are

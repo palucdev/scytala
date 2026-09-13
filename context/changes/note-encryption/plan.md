@@ -11,7 +11,7 @@ Encrypt `notes.title`/`notes.content` and `note_versions.title`/`note_versions.c
 - `src/lib/crypto.ts` already hosts edge-compatible WebCrypto utilities (PBKDF2, constant-time compare) — the natural home for AES-GCM helpers.
 - Content-required validation already exists (`src/schemas/notes.ts:19-21, 41-43`): `min(1)` + non-whitespace refine on both create and update. Only the title default is new.
 - Create normalizes empty title to `""` persisted (`src/schemas/notes.ts:16`); update maps explicit `""` to "intentionally clear the title" (`src/schemas/notes.ts:36-38`).
-- `src/__tests__/lib/supabase.test.ts` tests the adapter against a mocked Supabase client — these tests WILL change (mocked RPC calls will receive ciphertext). Actions-level tests that mock the adapter stay untouched.
+- `src/__tests__/lib/supabase.test.ts` tests the adapter against a mocked Supabase client — these tests WILL change (mocked RPC calls will receive ciphertext). Actions-level tests that mock the adapter stay untouched except for one assertion forced by the Phase 2 title transform (`title: ""` → `"Untitled Note"` in `src/__tests__/actions/notes.test.ts`; impl-review F10).
 - E2E `cleanupE2ENotes` (`e2e/fixtures/test-base.ts:96-98`) deletes by `title.like` patterns — silently broken once titles are ciphertext.
 - Integration tests need `NOTE_ENCRYPTION_KEY` in the environment or `getEnv()` throws.
 
@@ -57,7 +57,7 @@ Envelope encryption at the adapter choke point: writes encrypt title/content imm
 - **Strict envelope-only contract (review decision, 2026-09-13)**: there is no plaintext passthrough of any kind. `encryptNoteField` always encrypts — including the empty string — so every stored value is a `v1:` envelope. `decryptNoteField` accepts only a valid `v1:` envelope and throws on anything else (fail closed). This removes the earlier `v0:` escape design: a plaintext starting with the literal `v1:` is now encrypted like any other content, and a stray legacy plaintext row (e.g. from a restored backup) fails closed instead of surfacing as plaintext. Round-trip tests must include a plaintext title starting with `v1:` and a non-envelope decrypt rejection.
 - **Base64 on Workers**: ciphertext bytes → base64 must avoid `String.fromCharCode(...spread)` on unbounded arrays; content is capped at 10 000 chars so chunked conversion is a safe bound. Use the existing bytes/hex helper style of `src/lib/crypto.ts` as the convention reference.
 - **Timing-safe tamper handling**: rely on GCM tag verification failure (decrypt rejection) rather than any manual comparison — per research §Architecture Insights (Cloudflare timing warning).
-- **Wipe-before-deploy ordering (Phase 4)**: the Worker secret must be set and the prod `notes` table wiped *before* the encrypted app serves traffic, so no plaintext row is ever read by an expecting-to-decrypt path and no ciphertext is written by a keyless deploy.
+- **Wipe-before-deploy ordering (Phase 4)**: the Worker secret must be set and the prod `notes` table wiped _before_ the encrypted app serves traffic, so no plaintext row is ever read by an expecting-to-decrypt path and no ciphertext is written by a keyless deploy.
 
 ## Phase 1: Crypto Core + Required Env Key
 
@@ -74,6 +74,7 @@ Build the self-contained encryption module and its failure semantics, and make `
 **Intent**: Own the envelope format and all AES-GCM primitives so the adapter and tests share one implementation.
 
 **Contract**:
+
 - `encryptNoteField(plaintext: string, noteId: string): Promise<string>` — returns `v1:<iv_b64>:<ciphertext_b64>`; always encrypts, including the empty string (strict envelope-only contract).
 - `decryptNoteField(stored: string, noteId: string): Promise<string>` — only valid `v1:` envelopes are accepted and decrypted with AAD = `noteId`; any non-envelope value or decrypt failure throws (fail closed; no legacy/plaintext support).
 - `isEncryptedEnvelope(value: string): boolean` — strict prefix check.
@@ -81,7 +82,7 @@ Build the self-contained encryption module and its failure semantics, and make `
   ```
   v1:<iv_128bit_b64>:<ciphertext_b64>
   ```
-   AES-256-GCM, 128-bit random IV per write (`crypto.getRandomValues`), AAD = note ID (UTF-8), key = `getEnv().NOTE_ENCRYPTION_KEY` — a 64-hex-char string decoded to exactly 32 bytes (following the hex helper style of `src/lib/crypto.ts`) before `importKey("raw", …, "AES-256")`, which requires byte-exact 32-byte key material (a raw 44-char base64 string as produced by `openssl rand -base64 32` would throw).
+  AES-256-GCM, 128-bit random IV per write (`crypto.getRandomValues`), AAD = note ID (UTF-8), key = `getEnv().NOTE_ENCRYPTION_KEY` — a 64-hex-char string decoded to exactly 32 bytes (following the hex helper style of `src/lib/crypto.ts`) before `importKey("raw", …, "AES-256")`, which requires byte-exact 32-byte key material (a raw 44-char base64 string as produced by `openssl rand -base64 32` would throw).
 
 #### 2. Env schema field
 
@@ -139,7 +140,7 @@ Wire encryption into the 5 adapter methods, extend the create RPC with an option
 
 **Contract**: `CREATE OR REPLACE FUNCTION create_note_with_version(..., p_note_id uuid DEFAULT NULL)` — new trailing optional parameter; internal insert uses `COALESCE(p_note_id, gen_random_uuid())`. Existing callers (none besides the adapter) keep working unchanged. Forward-only, additive.
 
-**Privileges + overload hygiene (load-bearing)**: because `CREATE OR REPLACE` with a changed argument list creates a *new* function identity, the migration must repeat the existing hardening on the new 5-arg signature — `REVOKE ALL ON FUNCTION public.create_note_with_version(uuid, text, text, uuid, uuid) FROM anon, authenticated;` and `GRANT EXECUTE ... TO service_role` — otherwise the new overload gets default PUBLIC EXECUTE privileges (existing grants live at 20260820000000_create_dashboard_rpcs.sql:138, 142). The migration also `DROP FUNCTION public.create_note_with_version(uuid, text, text, uuid);` to remove the now-unused 4-arg overload (no other callers exist; additive cleanup, no destructive data SQL).
+**Privileges + overload hygiene (load-bearing)**: because `CREATE OR REPLACE` with a changed argument list creates a _new_ function identity, the migration must repeat the existing hardening on the new 5-arg signature — `REVOKE ALL ON FUNCTION public.create_note_with_version(uuid, text, text, uuid, uuid) FROM anon, authenticated;` and `GRANT EXECUTE ... TO service_role` — otherwise the new overload gets default PUBLIC EXECUTE privileges (existing grants live at 20260820000000_create_dashboard_rpcs.sql:138, 142). The migration also `DROP FUNCTION public.create_note_with_version(uuid, text, text, uuid);` to remove the now-unused 4-arg overload (no other callers exist; additive cleanup, no destructive data SQL).
 
 #### 2. Adapter encryption
 
@@ -148,6 +149,7 @@ Wire encryption into the 5 adapter methods, extend the create RPC with an option
 **Intent**: Encrypt on write, decrypt on read — all downstream consumers keep receiving plaintext.
 
 **Contract**:
+
 - `createNote` (supabase.ts:414): pre-generate `note_id = crypto.randomUUID()`, encrypt title/content with AAD = that ID, pass `p_note_id`; decrypt the returned `note` + `initialVersion` before returning.
 - `updateNote` (supabase.ts:437): encrypt title/content with AAD = `input.note_id`; `p_title` stays `input.title ?? null` (sentinel preserved); decrypt the returned `note` + `newVersion`.
 - `getNotesByDashboard` (supabase.ts:461), `getNoteById` (supabase.ts:481): decrypt `title` + `content` of each row, AAD = row `id`.
@@ -162,6 +164,7 @@ Wire encryption into the 5 adapter methods, extend the create RPC with an option
 **Intent**: Empty titles never persist — create and explicit-clear both normalize to the literal "Untitled Note".
 
 **Contract**:
+
 - `createNoteSchema.title` (schemas/notes.ts:9-16): transform empty/whitespace-only to `"Untitled Note"` instead of `undefined`.
 - `updateNoteSchema.title` (schemas/notes.ts:30-38): explicit `""` now maps to `"Untitled Note"` (reset-to-default) instead of `""` (clear); `undefined` (absent) still maps to the keep-title path — the RPC's `p_title IS NULL` sentinel is untouched.
 - Update the two inline comments to document the new semantics.
@@ -173,6 +176,7 @@ Wire encryption into the 5 adapter methods, extend the create RPC with an option
 **Intent**: Give users a clear, non-technical surface for the fail-closed path: when a note (or its versions) cannot be decrypted, the UI explains the problem instead of crashing or leaking ciphertext.
 
 **Contract**:
+
 - A Material-UI `Alert` with `severity="error"` (matching the `RateLimitNotice` component style) that renders a generic message: the note's content is unavailable because of an encryption problem, with a hint to try again later — no ciphertext, key material, or stack details ever reach the client.
 - The note page (`note/[noteId]/page.tsx`) wraps the adapter read in a try/catch that distinguishes decryption failure (log server-side, render `EncryptionErrorNotice` instead of the note content) — a missing note and a corrupt note render differently, per the fail-closed contract of `decryptNoteField`.
 - The dashboard page (`dashboard/[hash]/page.tsx`) no longer needs a crypto catch: the adapter degrades undecryptable rows to `undecryptable` placeholders (see step 2), which `NoteTile` renders as a distinct error-styled "Note unavailable" card (no note content, no ciphertext, no editor link) while healthy notes render normally.
@@ -184,6 +188,7 @@ Wire encryption into the 5 adapter methods, extend the create RPC with an option
 **Intent**: Align tests with ciphertext-at-the-boundary behavior and the new title semantics.
 
 **Contract**:
+
 - `supabase.test.ts`: mocked RPC assertions now expect encrypted `p_title`/`p_content` (assert envelope-shape via `isEncryptedEnvelope`, not exact bytes — ciphertext is non-deterministic); mocked return values supply ciphertext the adapter must decrypt back to the asserted plaintext; create assertions verify `p_note_id` is a valid UUID; the suite's `process.env` snapshot must include a valid 64-hex-char `NOTE_ENCRYPTION_KEY` (via the existing env snapshot/restore block, supabase.test.ts:34-43) — adapter methods now call `getEnv()` through note-crypto, so unit tests throw env-validation errors without it.
 - `schemas/notes.test.ts`: empty/whitespace title now expects `"Untitled Note"`; update with explicit `""` expects `"Untitled Note"`.
 - All env files carry the new key stub: `.env.example` (Phase 1), `.env.ai` (integration), and the unit-suite env stub above — any environment that exercises `getEnv()` needs a valid `NOTE_ENCRYPTION_KEY` or validation fails.
@@ -267,6 +272,7 @@ Execute the one-time data decision (wipe prod test notes), set the Worker secret
 **Intent**: Make the new secret and its ordering requirement part of the standing deploy checklist.
 
 **Contract**:
+
 - Add `NOTE_ENCRYPTION_KEY` to the secrets checklist with the ordering note: secret set → prod notes wiped → deploy.
 - Add the key to the H-01 pre-deploy gate list (roadmap.md:263) so future hardening work covers it.
 - Note that migration `20260913000000_create_note_with_version_optional_id.sql` drops the old 4-arg `create_note_with_version(uuid, text, text, uuid)` overload when it applies (impl-review F4) — ops should expect the function identity to swap atomically during migration; the sole caller (the adapter) already uses the 5-arg signature.
@@ -278,6 +284,7 @@ Execute the one-time data decision (wipe prod test notes), set the Worker secret
 **Intent**: Remove legacy plaintext test data so no plaintext rows persist after deploy.
 
 **Contract**:
+
 1. `SELECT COUNT(*) FROM notes;` and `SELECT COUNT(*) FROM note_versions;` — confirm only test data (agreed loss-of-data decision, 2026-09-13).
 2. `DELETE FROM notes;` — FK cascade removes `note_versions`.
 3. Re-count → 0 rows.
@@ -379,7 +386,7 @@ Execute the one-time data decision (wipe prod test notes), set the Worker secret
 
 #### Manual
 
-- [ ] 3.6 Tiles, editor, version history, restore verified in local dev app; no ciphertext in UI
+- [x] 3.6 Tiles, editor, version history, restore verified in local dev app; no ciphertext in UI
 
 ### Phase 4: Prod Wipe + Deploy Runbook
 

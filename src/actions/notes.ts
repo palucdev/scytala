@@ -126,6 +126,7 @@ export async function createNoteAction(
     return {
       success: true,
       note: result.note,
+      decryptionFailed: result.decryptionFailed === true,
     };
   } catch (error) {
     if (error instanceof SessionRateLimitError) {
@@ -224,6 +225,7 @@ export async function updateNoteAction(
     return {
       success: true,
       note: result.note,
+      decryptionFailed: result.decryptionFailed === true,
     };
   } catch (error) {
     if (error instanceof SessionRateLimitError) {

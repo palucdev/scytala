@@ -21,7 +21,11 @@ import type {
 } from "../client/db-client";
 import { generateDashboardSlug } from "./crypto";
 import { logger } from "./logger";
-import { decryptNoteField, encryptNoteField } from "./note-crypto";
+import {
+  decryptNoteField,
+  encryptNoteField,
+  NoteCryptoError,
+} from "./note-crypto";
 
 /**
  * Creates a fetch wrapper that aborts requests exceeding the specified timeout duration.
@@ -417,6 +421,7 @@ export class SupabaseDatabaseClient implements DatabaseClient {
   async createNote(input: CreateNoteInput): Promise<{
     note: Note;
     initialVersion: NoteVersion;
+    decryptionFailed?: boolean;
   }> {
     // AAD binding requires the note ID at creation time, but the RPC could
     // generate it server-side; pre-generate here and pass it through so the
@@ -450,9 +455,17 @@ export class SupabaseDatabaseClient implements DatabaseClient {
       initialVersion: NoteVersion;
     };
 
+    const noteResult = await this.decryptCommittedRow(result.note, noteId);
+    const versionResult = await this.decryptCommittedRow(
+      result.initialVersion,
+      noteId,
+    );
+
     return {
-      note: await this.decryptNote(result.note),
-      initialVersion: await this.decryptNoteVersion(result.initialVersion),
+      note: noteResult.row,
+      initialVersion: versionResult.row,
+      decryptionFailed:
+        noteResult.decryptionFailed || versionResult.decryptionFailed,
     };
   }
 
@@ -462,6 +475,7 @@ export class SupabaseDatabaseClient implements DatabaseClient {
   async updateNote(input: UpdateNoteInput): Promise<{
     note: Note;
     newVersion: NoteVersion;
+    decryptionFailed?: boolean;
   }> {
     const encryptedTitle = await encryptNoteField(
       input.title ?? "",
@@ -491,9 +505,17 @@ export class SupabaseDatabaseClient implements DatabaseClient {
       newVersion: NoteVersion;
     };
 
+    const noteResult = await this.decryptCommittedRow(result.note, input.note_id);
+    const versionResult = await this.decryptCommittedRow(
+      result.newVersion,
+      input.note_id,
+    );
+
     return {
-      note: await this.decryptNote(result.note),
-      newVersion: await this.decryptNoteVersion(result.newVersion),
+      note: noteResult.row,
+      newVersion: versionResult.row,
+      decryptionFailed:
+        noteResult.decryptionFailed || versionResult.decryptionFailed,
     };
   }
 
@@ -558,7 +580,7 @@ export class SupabaseDatabaseClient implements DatabaseClient {
     }
 
     return await Promise.all(
-      (data ?? []).map((version) => this.decryptNoteVersion(version)),
+      (data ?? []).map((version) => this.decryptVersionRowOrDegrade(version)),
     );
   }
 
@@ -590,6 +612,39 @@ export class SupabaseDatabaseClient implements DatabaseClient {
   }
 
   /**
+   * Decrypts a row returned by a write RPC. The write has already committed at
+   * this point, so a decrypt failure must not surface as a failed save (each
+   * user retry would bump the version or create a duplicate). Degrades to a
+   * safe placeholder — real metadata, empty title/content, never ciphertext —
+   * and flags `decryptionFailed` so callers report the save as successful.
+   */
+  private async decryptCommittedRow<T extends { title: string; content: string }>(
+    row: T,
+    aadId: string,
+  ): Promise<{ row: T; decryptionFailed: boolean }> {
+    try {
+      return {
+        row: {
+          ...row,
+          title: await decryptNoteField(row.title, aadId),
+          content: await decryptNoteField(row.content, aadId),
+        },
+        decryptionFailed: false,
+      };
+    } catch (error) {
+      if (!(error instanceof NoteCryptoError)) {
+        throw error;
+      }
+      logger.error(
+        "Post-write decryption failed; degrading committed write result",
+        error,
+        { note_id: aadId },
+      );
+      return { row: { ...row, title: "", content: "" }, decryptionFailed: true };
+    }
+  }
+
+  /**
    * Decrypts a listed note row, degrading to an `undecryptable` placeholder
    * (safe metadata only — never ciphertext) when decryption fails.
    */
@@ -617,5 +672,28 @@ export class SupabaseDatabaseClient implements DatabaseClient {
       title: await decryptNoteField(row.title, row.note_id),
       content: await decryptNoteField(row.content, row.note_id),
     };
+  }
+
+  /**
+   * Decrypts a history version row, degrading to a safe placeholder (real
+   * metadata, empty title/content — never ciphertext) when decryption fails,
+   * so one corrupt snapshot never blanks the whole version history.
+   */
+  private async decryptVersionRowOrDegrade(
+    row: NoteVersion,
+  ): Promise<NoteVersion> {
+    try {
+      return await this.decryptNoteVersion(row);
+    } catch (error) {
+      if (!(error instanceof NoteCryptoError)) {
+        throw error;
+      }
+      logger.error(
+        "Version decryption failed; returning undecryptable placeholder",
+        error,
+        { note_id: row.note_id, version_id: row.id, version: row.version },
+      );
+      return { ...row, title: "", content: "" };
+    }
   }
 }

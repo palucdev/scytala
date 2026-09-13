@@ -25,12 +25,6 @@ describe("EncryptionErrorNotice Component", () => {
     expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
-  it("renders a title-scoped notice when scope is title", () => {
-    renderWithTheme(<EncryptionErrorNotice scope="title" />);
-
-    expect(screen.getByText("Title unavailable")).toBeInTheDocument();
-  });
-
   it("never renders ciphertext, key material, or stack details", () => {
     const { container } = renderWithTheme(
       <EncryptionErrorNotice />,

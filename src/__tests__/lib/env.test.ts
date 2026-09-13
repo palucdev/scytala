@@ -133,6 +133,16 @@ describe("src/lib/env", () => {
       ).toThrowError(/NOTE_ENCRYPTION_KEY must be exactly 64 hex characters/);
     });
 
+    it("accepts uppercase hex NOTE_ENCRYPTION_KEY (matches the note-crypto parser)", () => {
+      expect(() =>
+        getEnv({
+          ...validEnvVars,
+          NOTE_ENCRYPTION_KEY:
+            "ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789",
+        }),
+      ).not.toThrow();
+    });
+
     it("decodes a 64-hex-char NOTE_ENCRYPTION_KEY to exactly 32 bytes for raw AES-256 import", () => {
       expect(validEnvVars.NOTE_ENCRYPTION_KEY).toHaveLength(64);
       expect(validEnvVars.NOTE_ENCRYPTION_KEY).toMatch(/^[0-9a-f]{64}$/);

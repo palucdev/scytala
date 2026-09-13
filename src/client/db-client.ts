@@ -225,6 +225,12 @@ export interface DatabaseClient {
   createNote(input: CreateNoteInput): Promise<{
     note: Note;
     initialVersion: NoteVersion;
+    /**
+     * True when the write committed but decrypting the returned rows failed.
+     * The note/version fields are then safe placeholders (empty title/content,
+     * real metadata) — never ciphertext.
+     */
+    decryptionFailed?: boolean;
   }>;
 
   /**
@@ -233,6 +239,12 @@ export interface DatabaseClient {
   updateNote(input: UpdateNoteInput): Promise<{
     note: Note;
     newVersion: NoteVersion;
+    /**
+     * True when the write committed but decrypting the returned rows failed.
+     * The note/version fields are then safe placeholders (empty title/content,
+     * real metadata) — never ciphertext.
+     */
+    decryptionFailed?: boolean;
   }>;
 
   /**
