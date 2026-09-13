@@ -393,9 +393,9 @@ Execute the one-time data decision (wipe prod test notes), set the Worker secret
 
 #### Automated
 
-- [ ] 4.1 Prod smoke round-trip passes post-deploy
-- [ ] 4.2 Prod row counts verified (0 pre-deploy, encrypted-only post-smoke)
+- [x] 4.1 Prod smoke round-trip passes post-deploy
+- [x] 4.2 Prod row counts verified (0 pre-deploy, encrypted-only post-smoke)
 
 #### Manual
 
-- [ ] 4.3 Prod UI renders plaintext, DB ciphertext-only; runbook documented and committed
+- [x] 4.3 Prod UI renders plaintext, DB ciphertext-only; runbook documented and committed

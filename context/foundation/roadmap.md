@@ -1,10 +1,10 @@
 ---
 project: "Scytala"
-version: 1
+version: 2
 status: active
 created: 2026-08-18
 updated: 2026-09-13
-prd_version: 1
+prd_version: 2
 main_goal: low-complexity
 top_blocker: time
 ---
@@ -35,7 +35,10 @@ Scytala addresses the problem where teams, families, and friend groups need to s
 | S-04 | `note-version-history-browser`                         | User can open any note's version history panel and browse past versions with timestamps and author details                                                                         | S-03             | US-05, FR-011                                        | done     |
 | S-05 | `manual-sync-and-conflict-diff-resolution`             | User can manually trigger sync to pull remote note changes and resolve concurrent edit conflicts via a side-by-side diff merge modal                                               | S-03             | US-04, FR-007, FR-012                                | ready    |
 | S-06 | `dashboard-management-and-lifecycle`                   | User can update dashboard metadata (title, description) or permanently delete the dashboard and all its associated notes and credentials                                           | S-02             | FR-009, FR-010                                       | ready    |
-| S-07 | `note-encryption`                                      | (security) Note titles and contents — across `notes` and all `note_versions` snapshots — are AES-256-GCM encrypted at rest; UI renders plaintext unchanged while the DB stores only `v1:` ciphertext | S-03             | Guardrails, FR-006, FR-007, FR-011                   | ready    |
+| S-07 | `note-encryption`                                      | (security) v1: Note titles and contents AES-256-GCM encrypted at rest; DB stores only `v1:` ciphertext — done in production, superseded by S-08 for release | S-03             | Guardrails (v1), FR-006, FR-007, FR-011              | done     |
+| S-08 | `note-e2ee-zero-knowledge`                             | (security) Zero-knowledge client-side E2EE: notes encrypted in the browser under a per-dashboard DEK wrapped per participant; login authenticates with a one-way password-derived verifier; the instance operator with DB access cannot read note content | S-03             | Guardrails (v2), FR-013–FR-016                       | ready    |
+| B-01 | `fix-note-version-modification-count`                  | (bug) Modification count is consistent between the Version History Drawer and the Note Version Preview popup (shared counting component with a mini/standard flag) | S-04             | [#40: [B-01] Note version history modification count](https://github.com/palucdev/scytala/issues/40) | ready    |
+| B-02 | `fix-duplicate-participant-aliases`                    | (bug) Dashboard creation wizard blocks duplicate participant aliases within one dashboard with a validation error before progress is possible | S-01             | [#41: [B-02] Dashboard creation participants](https://github.com/palucdev/scytala/issues/41)      | ready    |
 | T-01 | `testing-tenant-isolation-and-auth-session-guards`     | (testing) Verify cross-dashboard data isolation and authenticated session guard boundaries with unit and integration tests                                                         | F-01, S-01, S-02 | Test Plan §3 Phase 1, FR-004, FR-005                 | ready    |
 | T-02 | `testing-note-versioning-and-concurrency-integrity`    | (testing) Ensure atomic note updates, immutable version history snapshots, and conflict detection under concurrent mutations                                                       | S-03             | Test Plan §3 Phase 3, FR-007, FR-011, FR-012         | ready    |
 | T-03 | `testing-server-input-validation-and-security-defense` | (testing) Enforce server-side Zod validation parity, injection defense, and credential formatting contracts                                                                        | S-01             | Test Plan §3 Phase 1, FR-001, FR-002, FR-003, FR-006 | ready    |
@@ -54,7 +57,7 @@ Navigation aid — groups items that share a Prerequisites chain. Canonical orde
 | B      | Multi-user Collaboration & History | `S-04` / `S-05`                                               | Joins Stream A at `S-03`; now unblocked and ready for implementation. Builds on version persistence to provide history browsing and conflict diff resolution.                                                       |
 | C      | Governance & Observability         | `F-02` (done) / `S-06` / `O-01`                               | Joins Stream A at `S-02`; provides operational error tracking, APM integration, and dashboard lifecycle management.                                                                                                 |
 | D      | Quality & Security Verification    | `T-01` / `T-03` → `T-02` → `T-04`; `T-05` (done)              | Phased test rollout from `test-plan.md`. Playwright E2E browser suite (`T-05`) delivered on 2026-09-12 with Golden Path and note lifecycle coverage. Note mutation unit/action tests delivered in S-03 (>98% coverage); dedicated concurrency (`T-02`), tenant isolation (`T-01`), and security defense (`T-03`) remain ready. |
-| E      | Production Hardening & Readiness   | `S-07` / `O-01` / `H-01`                                      | Derived from the production readiness review (2026-09-12, report in `context/changes/testing-note-versioning-and-concurrency-integrity/reviews/production-readiness-report.md`). `S-07` (note encryption at rest, plan reviewed 2026-09-13) closes the biggest security gap — DB access alone currently reads every note as plaintext. Pre-deployment gates (error alerting, migrations, secrets) run first; see "Proposed Change: Production Hardening" below. |
+| E      | Production Hardening & Readiness   | `S-08` / `O-01` / `H-01`                                      | Derived from the production readiness review (2026-09-12, report in `context/changes/testing-note-versioning-and-concurrency-integrity/reviews/production-readiness-report.md`). `S-08` (zero-knowledge client-side E2EE, plan in `context/changes/note-e2ee-zero-knowledge/plan.md`) replaces the superseded S-07 v1 design after the user challenge "can an admin with DB access + `NOTE_ENCRYPTION_KEY` decrypt every note?" (v1: yes). Pre-deployment gates (error alerting, migrations, secrets, DB reset) run first; see "Proposed Change: Production Hardening" below. |
 
 ## Baseline
 
@@ -172,19 +175,56 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Risk:** Cascade deletion must cleanly remove all dependent notes, versions, and credentials without leaving orphaned rows.
 - **Status:** ready
 
-### S-07: Note Encryption at Rest
+### S-07: Note Encryption at Rest — done (superseded by S-08 for release design)
 
-- **Outcome:** (security) All note titles and contents — across `notes` and every `note_versions` snapshot — are encrypted at rest with AES-256-GCM envelope encryption (`v1:<iv_128bit_b64>:<ciphertext_b64>`, 128-bit random IV, AAD = note ID) inside the `SupabaseDatabaseClient` adapter, the single choke point of the `DatabaseClient` port. Users notice nothing — tiles, editor, version history, diffs, and restore all render plaintext exactly as today — while the database stores only ciphertext. Adds a required `NOTE_ENCRYPTION_KEY` Worker secret (64 hex chars, no fallback), an "Untitled Note" title default, a one-time wipe of legacy prod test data (no backfill), and fixes the E2E cleanup fixture that deletes by plaintext title patterns.
+> **Done, then superseded 2026-09-13:** v1 shipped and works on production (server-side AES-256-GCM envelopes via `NOTE_ENCRYPTION_KEY`). The user challenge ("an admin with DB access + the key can decrypt any note — can we make it no?") was validated in-session and produced S-08 as the follow-up design. The v1 change folder (`context/changes/note-encryption/`) is kept as lineage record — its implementation (`src/lib/note-crypto.ts`, adapter choke point) is replaced by S-08. No v1 data migration: prod/local DBs will be reset before the S-08 deploy.
+
+- **Outcome (as originally shipped):** All note titles and contents — across `notes` and every `note_versions` snapshot — are encrypted at rest with AES-256-GCM envelope encryption (`v1:<iv_128bit_b64>:<ciphertext_b64>`, AAD = note ID) inside the `SupabaseDatabaseClient` adapter; DB stores only ciphertext; required `NOTE_ENCRYPTION_KEY` Worker secret.
 - **Change ID:** `note-encryption`
-- **PRD refs:** Guardrails ("Note content must not be accessible without valid credentials" — defense-in-depth, not zero-knowledge), FR-006, FR-007, FR-011
+- **Status:** done (deployed to production; superseded by S-08 as the next release design)
+
+### S-08: Zero-Knowledge Note Encryption (Client-Side E2EE, Tuta-inspired)
+
+- **Outcome:** (security) Note titles and contents are encrypted **in the browser** under a random per-**dashboard** DEK (AES-256-GCM `v2:<iv_b64>:<ciphertext_b64>`, AAD = note ID, covering `notes` and all `note_versions` snapshots). The DEK is wrapped once per **participant** under a KEK derived client-side from their password (PBKDF2-SHA256, 600k iterations, per-participant salt, non-extractable keys). Login authenticates with a one-way `authVerifier` derived from the password (raw password never transmitted) and the response bundles the participant's vault material (`kdf_salt`, `kdf_iterations`, `wrapped_dek`, `unwrap_verifier`) for same-step unlock. Session-long DEK lives only in browser memory (passive "Vault locked" banner on reload; 30-min idle auto-lock; client-side unwrap check for note deletion). The server becomes an opaque ciphertext passthrough — `NOTE_ENCRYPTION_KEY` and all server-side note crypto are deleted. Supersedes S-07; DB (local + prod) reset before deploy, no legacy envelope support.
+- **Change ID:** `note-e2ee-zero-knowledge`
+- **PRD refs:** Guardrails (v2), FR-013, FR-014, FR-015, FR-016
 - **Prerequisites:** S-03 (done)
-- **Parallel with:** S-05, S-06
-- **Blockers:** —
+- **Parallel with:** S-05, S-06 (S-05's conflict diff path is client-side already and decrypts via the same VaultProvider; S-06 dashboard deletion cascades users — vault columns cascade with them)
+- **Blockers:** DB reset of prod before deploy (operator action, mirrors S-07's wipe-before-deploy ordering)
 - **Unknowns:**
-  - Key material format: Resolved in plan review — key is generated as 64 hex chars (`openssl rand -hex 32`) and hex-decoded to exactly 32 bytes for raw AES-256 `importKey`; `NOTE_ENCRYPTION_KEY` is required in the zod env schema with no fallback (fail-fast beats the silent-fallback antipattern H-01 is removing).
-  - Plaintext starting with literal `v1:`: Resolved in plan review — `v0:` escape marker written at encrypt time with three-shape recognition on decrypt (`v1:` → decrypt, `v0:` → unwrap, no prefix → legacy passthrough).
-- **Risk:** Decrypt must fail closed (throw) — garbage plaintext or masked key errors defeat authenticated encryption. Wipe-before-deploy ordering: the Worker secret + prod `notes` wipe must precede the encrypted deploy. The new 5-arg `create_note_with_version` overload must repeat REVOKE/GRANT hardening and drop the old 4-arg signature.
-- **Status:** ready (plan reviewed SOUND 2026-09-13)
+  - Derivation indirection fixed in planning: `PBKDF2(password, salt, 600k)` → HKDF-SHA256 split into two info-separated domains — `"scyatla-kek-v1"` (KEK, decryption material) and `"scytala-verifier-v1"` (auth verifier, cryptographically independent). Verifier hash never acceptable as key material.
+  - Per-user vs per-dashboard DEK: resolved during planning — dashboards are collaborative (US-04/US-05), so the DEK is per-dashboard wrapped per participant (Tuta "user group key" pattern); the early-research per-user-DEK idea was corrected.
+- **Risk:** Hydration-time leak — server components can no longer render plaintext, so tiles/editor decrypt client-side; the pre-hydration HTML must contain no secret text (Playwright assertion + manual view-source check). Second risk class: E2EE turns server outage-class bugs into permanent-data-loss-class bugs — the boot-time envelope self-test (`unwrap_verifier`) blocks writes when the vault can't decrypt.
+- **Accepted trade-offs:** no recovery (lost password = notes gone forever); no password rotation; no server-side content search; server-ships-JS residual risk documented honestly.
+- **Status:** ready (plan written 2026-09-13; next step `/10x-implement note-e2ee-zero-knowledge phase 1`)
+
+## Bug Fixes
+
+### B-01: Note Version History Modification Count ([#40](https://github.com/palucdev/scytala/issues/40))
+
+- **Defect:** The modification count renders with different values in the "Version History Drawer" and in the "Note Version Preview" popup for the same note.
+- **Fix:** Unify the counting logic in a single shared component/helper (one counting method) consumed by both surfaces, with a `mini` vs `standard` display flag so each surface keeps its visual density.
+- **Change ID:** `fix-note-version-modification-count`
+- **PRD refs:** US-05, FR-011 (consistent history presentation)
+- **Prerequisites:** S-04 (done)
+- **Parallel with:** B-02
+- **Blockers:** —
+- **Unknowns:** Which of the two counting methods is canonical — to be decided from the drawer's semantics (edits per participant vs snapshot count) during `10x-frame`/research; the fix must make both surfaces agree, not pick the wrong denominator.
+- **Risk:** Shared component must not regress either surface's existing tests or version-history drawer layout.
+- **Status:** ready
+
+### B-02: Dashboard Creation Duplicate Participant Aliases ([#41](https://github.com/palucdev/scytala/issues/41))
+
+- **Defect:** The `/new` wizard allows adding multiple participants with the same alias (manual ID) for one dashboard.
+- **Fix:** Reject duplicate aliases within the dashboard as a validation error, blocking wizard progress until unique. Enforce at both layers: wizard local state (`StepParticipants` validation/Branch) and the `dashboardSchema` zod refinement in the server action (defense-in-depth per T-03 pattern) — the DB has no unique constraint on `(dashboard_id, user_alias)` today; likely keep the fix in JS layers for MVP since the server action now materializes from the validated wizard payload.
+- **Change ID:** `fix-duplicate-participant-aliases`
+- **PRD refs:** FR-002, US-01
+- **Prerequisites:** S-01 (done)
+- **Parallel with:** B-01
+- **Blockers:** —
+- **Unknowns:** Whether to add a Postgres UNIQUE constraint — investigate during research; keeping it app-layer is acceptable for MVP (dashboards are private and self-referential), constraints are the cleaner long-term guard if cheap.
+- **Risk:** Trivially low; purely additive validation.
+- **Status:** ready
 
 ## Testing & Verification
 
@@ -311,7 +351,10 @@ Consolidates the configuration, resilience, and security gaps from the review:
 | S-04       | `note-version-history-browser`                         | [#19: [S-04] Note Version History Browser](https://github.com/palucdev/scytala/issues/19)                        | done          | S-03              |
 | S-05       | `manual-sync-and-conflict-diff-resolution`             | [#20: [S-05] Manual Sync and Conflict Diff Resolution](https://github.com/palucdev/scytala/issues/20)            | ready         | S-03              |
 | S-06       | `dashboard-management-and-lifecycle`                   | [#21: [S-06] Dashboard Management and Lifecycle](https://github.com/palucdev/scytala/issues/21)                  | ready         | S-02              |
-| S-07       | `note-encryption`                                      | [#39: [S-07] Note Encryption at Rest (Title + Content)](https://github.com/palucdev/scytala/issues/39)           | ready         | S-03              |
+| S-07       | `note-encryption`                                      | [#39: [S-07] Note Encryption at Rest (Title + Content)](https://github.com/palucdev/scytala/issues/39)           | done (superseded by S-08) | S-03              |
+| S-08       | `note-e2ee-zero-knowledge`                             | Plan (context/changes/note-e2ee-zero-knowledge/plan.md; supersedes #39)                                          | ready         | S-03              |
+| B-01       | `fix-note-version-modification-count`                  | [#40: [B-01] Note version history modification count](https://github.com/palucdev/scytala/issues/40)            | ready         | S-04              |
+| B-02       | `fix-duplicate-participant-aliases`                    | [#41: [B-02] Dashboard creation participants](https://github.com/palucdev/scytala/issues/41)                    | ready         | S-01              |
 | T-01       | `testing-tenant-isolation-and-auth-session-guards`     | [#24: [T-01] Tenant Isolation & Auth Session Guards](https://github.com/palucdev/scytala/issues/24)              | ready         | F-01, S-01, S-02  |
 | T-02       | `testing-note-versioning-and-concurrency-integrity`    | [#26: [T-02] Note Versioning & Concurrency Integrity](https://github.com/palucdev/scytala/issues/26)             | ready         | S-03              |
 | T-03       | `testing-server-input-validation-and-security-defense` | [#27: [T-03] Server Input Validation & Security Defense](https://github.com/palucdev/scytala/issues/27)          | ready         | S-01              |
@@ -338,6 +381,7 @@ Consolidates the configuration, resilience, and security gaps from the review:
 
 ## Done
 
+- **S-07: Note Encryption at Rest** — Implemented and deployed to production 2026-09-13 (`context/changes/note-encryption/`, impl-reviewed). Note titles and contents — across `notes` and all `note_versions` snapshots — are AES-256-GCM encrypted at rest inside the `SupabaseDatabaseClient` adapter (v1 envelopes `v1:<iv>:<ct>`, AAD = note ID) via the required `NOTE_ENCRYPTION_KEY` Worker secret. Superseded as the next-release design by S-08 (zero-knowledge client-side E2EE), which deletes the server key path.
 - **F-01: Wire per-dashboard Data Schema and Auth Scaffold** — Implemented 2026-08-20 (`context/changes/dashboard-data-schema-and-auth-scaffold/`). Database migration creates tables for `dashboards`, `dashboard_users`, `notes`, and `note_versions`, alongside Edge-compatible session cookie / JWT utilities and DatabaseClient adapter.
 - **F-02: Structured API Error Logging and Exception Handling** — Implemented 2026-08-27. Zero-dependency edge-compatible structured JSON logger (`src/lib/logger.ts`) with recursive sensitive field redaction, Next.js App Router error boundaries (`src/app/error.tsx`, `src/app/global-error.tsx`), health check probe endpoint (`src/app/api/health/route.ts`), and structured logging across Server Actions.
 - **S-01: Dashboard Creation Wizard** — Implemented 2026-08-26 (`context/changes/dashboard-creation-wizard/`). User can create a new dashboard at `/new` with title, description, and participant credentials, receiving the shareable link and secrets.
