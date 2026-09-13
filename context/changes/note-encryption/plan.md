@@ -17,7 +17,7 @@ Encrypt `notes.title`/`notes.content` and `note_versions.title`/`note_versions.c
 
 ### Key Discoveries:
 
-- Port/adapter architecture makes this a single-implementation change: no React components, no actions, no rate limiting, no auth changes (research §3, verified).
+- Port/adapter architecture makes this a single-implementation change — no actions, no rate limiting, no auth changes (research §3, verified). One UI surface is added regardless: an encryption error component for the fail-closed decrypt path (Phase 2, step 4).
 - Decryption must live inside the adapter and complete before `dto.ts:20` slices content to 300 chars — otherwise tiles render ciphertext garbage.
 - Encryption must happen after Zod validation so the 200/10 000 limits stay byte-semantic on plaintext.
 - Optimistic concurrency (`version mismatch`, rpcs.sql:122) and the `p_title IS NULL` keep-title sentinel are transport-level and survive untouched.
@@ -113,7 +113,7 @@ Build the self-contained encryption module and its failure semantics, and make `
 #### Automated Verification:
 
 - Targeted unit tests pass: `npx vitest run src/__tests__/lib/note-crypto.test.ts src/__tests__/lib/env.test.ts`
-- Type checking passes: `npm run typecheck`
+- Type checking passes: `npm run check:type`
 - Linting passes: `npm run lint`
 
 #### Manual Verification:
@@ -154,6 +154,7 @@ Wire encryption into the 5 adapter methods, extend the create RPC with an option
 - `getNotesByDashboard` (supabase.ts:461), `getNoteById` (supabase.ts:481): decrypt `title` + `content` of each row, AAD = row `id`.
 - `getNoteVersions` (supabase.ts:500): decrypt `title` + `content` of each row, AAD = row `note_id`.
 - Decryption happens before return — before the `dto.ts:20` 300-char slice and before any action consumes the result.
+- Because decrypt failures throw (fail closed) inside server-rendered pages, pages must catch decryption errors and render the dedicated error component — see step 4 below — instead of crashing with a framework error boundary.
 
 #### 3. Title default in schemas
 
@@ -166,7 +167,18 @@ Wire encryption into the 5 adapter methods, extend the create RPC with an option
 - `updateNoteSchema.title` (schemas/notes.ts:30-38): explicit `""` now maps to `"Untitled Note"` (reset-to-default) instead of `""` (clear); `undefined` (absent) still maps to the keep-title path — the RPC's `p_title IS NULL` sentinel is untouched.
 - Update the two inline comments to document the new semantics.
 
-#### 4. Adapter + schema test updates
+#### 4. Encryption error component
+
+**File**: `src/components/EncryptionErrorNotice.tsx` (export from `src/components/index.ts`)
+
+**Intent**: Give users a clear, non-technical surface for the fail-closed path: when a note (or its versions) cannot be decrypted, the UI explains the problem instead of crashing or leaking ciphertext.
+
+**Contract**:
+- A Material-UI `Alert` with `severity="error"` (matching the `RateLimitNotice` component style) that renders a generic message: the note's content is unavailable because of an encryption problem, with a hint to try again later — no ciphertext, key material, or stack details ever reach the client.
+- Server pages (`dashboard/[hash]/page.tsx`, `note/[noteId]/page.tsx`) wrap adapter reads in a try/catch that distinguishes decryption failure (log server-side with the logger, return `null`/error state, render `EncryptionErrorNotice` instead of the note content) — a missing note and a corrupt note render differently, per the fail-closed contract of `decryptNoteField`.
+- No new interactivity or client JS; it is a pure server-rendered presentation component.
+
+#### 5. Adapter + schema test updates
 
 **Files**: `src/__tests__/lib/supabase.test.ts`, `src/__tests__/schemas/notes.test.ts`, `.env.ai`
 
@@ -182,8 +194,8 @@ Wire encryption into the 5 adapter methods, extend the create RPC with an option
 #### Automated Verification:
 
 - Migration applies cleanly: `npm run db:reset`
-- Targeted unit tests pass: `npx vitest run src/__tests__/lib/supabase.test.ts src/__tests__/schemas/notes.test.ts src/__tests__/actions`
-- Type checking passes: `npm run typecheck`
+- Targeted unit tests pass: `npx vitest run src/__tests__/lib/supabase.test.ts src/__tests__/schemas/notes.test.ts src/__tests__/actions src/__tests__/components`
+- Type checking passes: `npm run check:type`
 - Linting passes: `npm run lint`
 - Integration tests pass: `set -a && . ./.env.ai && set +a && npm run test:integration`
 
@@ -191,6 +203,7 @@ Wire encryption into the 5 adapter methods, extend the create RPC with an option
 
 - Create a note with an empty title via the dev UI → tile shows "Untitled Note"; DB row shows a `v1:`-prefixed ciphertext for title and content (inspect via Supabase studio).
 - Edit the note and open version history → both versions render plaintext, delta chips and word diff work.
+- Corrupt a `v1:` ciphertext value directly in the DB (flip bytes in the studio) → the page loads and renders `EncryptionErrorNotice` instead of crashing; no ciphertext or error details leak to the UI; the failure is logged server-side.
 
 **Implementation Note**: Pause for the manual verification above before Phase 3 — this is the first user-visible encryption behavior.
 
@@ -225,7 +238,7 @@ Fix the only known encryption-induced test breakage and run every gate, includin
 #### Automated Verification:
 
 - Full unit suite with coverage passes: `npm run test`
-- Type checking passes: `npm run typecheck`
+- Type checking passes: `npm run check:type`
 - Linting passes: `npm run lint`
 - Integration tests pass: `set -a && . ./.env.ai && set +a && npm run test:integration`
 - E2E suite passes: `set -a && . ./.env.ai && set +a && npm run test:e2e`
@@ -294,6 +307,7 @@ Execute the one-time data decision (wipe prod test notes), set the Worker secret
 - `env.test.ts`: required key, 64-hex-char format enforcement.
 - `supabase.test.ts`: ciphertext at RPC boundary, plaintext at method boundary, `p_note_id` UUID on create, sentinel `p_title: null` on update without title.
 - `schemas/notes.test.ts`: "Untitled Note" defaulting for create and explicit-clear update; content-required rules unchanged.
+- `components/EncryptionErrorNotice.test.tsx`: renders the error alert with generic (non-technical) copy and never renders note content or ciphertext.
 
 ### Integration Tests:
 
@@ -334,9 +348,9 @@ Execute the one-time data decision (wipe prod test notes), set the Worker secret
 
 #### Automated
 
-- [ ] 1.1 Targeted unit tests pass (`note-crypto.test.ts`, `env.test.ts`)
-- [ ] 1.2 Type checking passes
-- [ ] 1.3 Linting passes
+- [x] 1.1 Targeted unit tests pass (`note-crypto.test.ts`, `env.test.ts`) — 534c093
+- [x] 1.2 Type checking passes — 534c093
+- [x] 1.3 Linting passes — 534c093
 
 ### Phase 2: Adapter Wiring + Title Default + AAD-Capable Create RPC
 
@@ -351,6 +365,7 @@ Execute the one-time data decision (wipe prod test notes), set the Worker secret
 #### Manual
 
 - [ ] 2.6 Empty title → "Untitled Note"; `v1:` ciphertext verified in studio; version history renders plaintext
+- [ ] 2.7 Encryption error component implemented with unit test; corrupted ciphertext in DB renders the notice instead of crashing
 
 ### Phase 3: E2E Fixture Fix + Full-Suite Gates
 

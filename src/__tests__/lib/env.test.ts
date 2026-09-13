@@ -9,6 +9,8 @@ describe("src/lib/env", () => {
     SUPABASE_ANON_KEY: "anon-key-1234567890",
     SUPABASE_SERVICE_ROLE_KEY: "service-role-key-1234567890",
     SESSION_SECRET: "a-very-long-secret-key-that-is-at-least-32-chars-long",
+    NOTE_ENCRYPTION_KEY:
+      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   };
 
   beforeEach(() => {
@@ -33,6 +35,9 @@ describe("src/lib/env", () => {
       );
       expect(parsed.SESSION_SECRET).toBe(
         "a-very-long-secret-key-that-is-at-least-32-chars-long",
+      );
+      expect(parsed.NOTE_ENCRYPTION_KEY).toBe(
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
       );
       expect(parsed.DEPLOY_ID).toBe("development");
       expect(parsed.APP_VERSION).toBe("undefined");
@@ -100,6 +105,39 @@ describe("src/lib/env", () => {
       ).toThrowError(/SESSION_SECRET must be at least 32 characters long/);
     });
 
+    it("throws an error when NOTE_ENCRYPTION_KEY is missing", () => {
+      expect(() =>
+        getEnv({
+          ...validEnvVars,
+          NOTE_ENCRYPTION_KEY: undefined,
+        }),
+      ).toThrowError(/NOTE_ENCRYPTION_KEY must be exactly 64 hex characters/);
+    });
+
+    it("throws an error when NOTE_ENCRYPTION_KEY is malformed (non-hex)", () => {
+      expect(() =>
+        getEnv({
+          ...validEnvVars,
+          NOTE_ENCRYPTION_KEY:
+            "not-hex-at-all-not-hex-at-all-not-hex-at-all-not-hex!!",
+        }),
+      ).toThrowError(/NOTE_ENCRYPTION_KEY must be exactly 64 hex characters/);
+    });
+
+    it("throws an error when NOTE_ENCRYPTION_KEY has the wrong length", () => {
+      expect(() =>
+        getEnv({
+          ...validEnvVars,
+          NOTE_ENCRYPTION_KEY: "deadbeef",
+        }),
+      ).toThrowError(/NOTE_ENCRYPTION_KEY must be exactly 64 hex characters/);
+    });
+
+    it("decodes a 64-hex-char NOTE_ENCRYPTION_KEY to exactly 32 bytes for raw AES-256 import", () => {
+      expect(validEnvVars.NOTE_ENCRYPTION_KEY).toHaveLength(64);
+      expect(validEnvVars.NOTE_ENCRYPTION_KEY).toMatch(/^[0-9a-f]{64}$/);
+    });
+
     it("throws an error when LOG_LEVEL is invalid", () => {
       expect(() =>
         getEnv({
@@ -115,6 +153,8 @@ describe("src/lib/env", () => {
       process.env.SUPABASE_SERVICE_ROLE_KEY = "live-service-key";
       process.env.SESSION_SECRET =
         "this-is-a-32-char-secret-for-testing-purposes";
+      process.env.NOTE_ENCRYPTION_KEY =
+        "f0e1d2c3b4a5968778695a4b3c2d1e0ff0e1d2c3b4a5968778695a4b3c2d1e0f";
 
       const firstCall = getEnv();
       expect(firstCall.SUPABASE_URL).toBe("https://live.supabase.co");

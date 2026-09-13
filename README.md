@@ -91,6 +91,7 @@ Scytala provides:
    SUPABASE_ANON_KEY=<your-supabase-anon-key>
    SUPABASE_SERVICE_ROLE_KEY=<your-supabase-service-role-key>
    SESSION_SECRET=<generated-session-secret>
+   NOTE_ENCRYPTION_KEY=<64-hex-char-key>   # openssl rand -hex 32
    DEPLOY_ID=development
    APP_VERSION=0.3.1
    LOG_LEVEL=info
