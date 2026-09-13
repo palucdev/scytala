@@ -18,6 +18,11 @@ export interface NoteDto {
   content: string;
   version: number;
   updated_at: string;
+  /**
+   * True when the note's ciphertext could not be decrypted; the tile renders
+   * an "unavailable" placeholder instead of note content.
+   */
+  decryptionFailed?: boolean;
 }
 
 export interface DashboardViewProps {

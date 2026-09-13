@@ -16,6 +16,8 @@ import * as cryptoModule from "@/lib/crypto";
 import * as rateLimitModule from "@/lib/rate-limit";
 import { resetRateLimits } from "@/lib/rate-limit";
 import { type Note, type NoteVersion, type DashboardUser } from "@/client/db-client";
+import { VersionConflictError } from "@/lib/db-errors";
+import { NoteCryptoError } from "@/lib/note-crypto";
 import { type VerifiedSessionPayload } from "@/lib/session";
 
 describe("src/actions/notes", () => {
@@ -435,6 +437,38 @@ describe("src/actions/notes", () => {
       }
     });
 
+    it("detects version conflict via typed VersionConflictError from the adapter", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockResolvedValue(
+        mockSession,
+      );
+
+      vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
+        getNoteById: vi.fn().mockResolvedValue(mockNote),
+        updateNote: vi
+          .fn()
+          .mockRejectedValue(
+            new VersionConflictError(
+              "[SupabaseDatabaseClient] updateNote failed: Version mismatch or note not found (expected version 1)",
+            ),
+          ),
+      } as unknown as dbClientModule.DatabaseClient);
+
+      const result = await updateNoteAction({
+        dashboardHash: validHash,
+        noteId: validNoteId,
+        content: "Updated content",
+        expectedVersion: 1,
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.versionConflict).toBe(true);
+        expect(result.error).toBe(
+          "This note has been modified by someone else. Please reload and try again.",
+        );
+      }
+    });
+
     it("updates note and clears title when empty string is provided", async () => {
       vi.spyOn(authGuardModule, "verifyDashboardSession").mockResolvedValue(
         mockSession,
@@ -461,7 +495,7 @@ describe("src/actions/notes", () => {
       expect(result.success).toBe(true);
       expect(mockUpdateNote).toHaveBeenCalledWith({
         note_id: validNoteId,
-        title: "",
+        title: "Untitled Note",
         content: "Updated content",
         expected_version: 1,
         author_id: validUserId,
@@ -512,6 +546,32 @@ describe("src/actions/notes", () => {
       expect(result.success).toBe(false);
       if (!result.success) {
         expect(result.error).toBe("Failed to update note. Please try again.");
+      }
+    });
+
+    it("blocks update with a dedicated message when the note is undecryptable", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockResolvedValue(
+        mockSession,
+      );
+
+      vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
+        getNoteById: vi
+          .fn()
+          .mockRejectedValue(new NoteCryptoError("Decrypt failed")),
+      } as unknown as dbClientModule.DatabaseClient);
+
+      const result = await updateNoteAction({
+        dashboardHash: validHash,
+        noteId: validNoteId,
+        content: "Updated content",
+        expectedVersion: 1,
+      });
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toBe(
+          "This note is unavailable due to an encryption problem and cannot be edited.",
+        );
       }
     });
   });
@@ -856,6 +916,36 @@ describe("src/actions/notes", () => {
 
       expect(result.success).toBe(true);
       expect(revalidatePath).toHaveBeenCalledWith(`/dashboard/${validHash}`);
+      expect(mockDeleteNote).toHaveBeenCalledWith(validNoteId);
+    });
+
+    it("deletes an undecryptable note via metadata-only precheck", async () => {
+      vi.spyOn(authGuardModule, "verifyDashboardSession").mockResolvedValue(
+        mockSession,
+      );
+
+      const degradedNote: Note = { ...mockNote, title: "", content: "" };
+      const mockGetNoteById = vi.fn().mockResolvedValue(degradedNote);
+      const mockDeleteNote = vi.fn().mockResolvedValue(true);
+
+      vi.spyOn(dbClientModule, "createDatabaseClient").mockReturnValue({
+        getDashboardUserByAlias: vi.fn().mockResolvedValue(mockUser),
+        getNoteById: mockGetNoteById,
+        deleteNote: mockDeleteNote,
+      } as unknown as dbClientModule.DatabaseClient);
+
+      vi.spyOn(cryptoModule, "verifyPassword").mockResolvedValue(true);
+
+      const result = await deleteNoteAction({
+        dashboardHash: validHash,
+        noteId: validNoteId,
+        password: "correctPassword",
+      });
+
+      expect(mockGetNoteById).toHaveBeenCalledWith(validNoteId, {
+        metadataOnly: true,
+      });
+      expect(result.success).toBe(true);
       expect(mockDeleteNote).toHaveBeenCalledWith(validNoteId);
     });
 

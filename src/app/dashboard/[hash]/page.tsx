@@ -52,8 +52,9 @@ export default async function DashboardPage({ params }: DashboardPageProps) {
     return <LoginForm dashboardHash={normalizedHash} />;
   }
 
-  const rawNotes = await db.getNotesByDashboard(dashboard.id);
-  const notes = mapNotesToDto(rawNotes);
+  // Undecryptable notes are degraded to placeholder tiles by the adapter;
+  // genuine database errors still propagate to the framework error boundary.
+  const notes = mapNotesToDto(await db.getNotesByDashboard(dashboard.id));
   const dashboardDto = mapDashboardToDto(dashboard);
 
   return (

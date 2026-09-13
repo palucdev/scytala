@@ -23,6 +23,11 @@ export interface DeleteNoteDialogProps {
   dashboardHash: string;
   noteId: string;
   noteTitle: string;
+  /**
+   * True when the note's title could not be decrypted; the confirmation copy
+   * then describes the note as unavailable instead of guessing its title.
+   */
+  titleUnavailable?: boolean;
 }
 
 export function DeleteNoteDialog({
@@ -31,6 +36,7 @@ export function DeleteNoteDialog({
   dashboardHash,
   noteId,
   noteTitle,
+  titleUnavailable = false,
 }: DeleteNoteDialogProps) {
   const router = useRouter();
   const [password, setPassword] = useState("");
@@ -79,7 +85,9 @@ export function DeleteNoteDialog({
     });
   };
 
-  const displayTitle = noteTitle.trim() || "Untitled Note";
+  const displayTitle = titleUnavailable
+    ? "an unavailable note (its title cannot be decrypted)"
+    : noteTitle.trim() || "Untitled Note";
 
   return (
     <Dialog
@@ -118,9 +126,9 @@ export function DeleteNoteDialog({
       >
         <DialogContent>
           <DialogContentText id="delete-note-dialog-description" sx={{ mb: 2 }}>
-            Are you sure you want to delete &ldquo;{displayTitle}&rdquo;? This
-            action cannot be undone and will permanently delete all version
-            history.
+            {titleUnavailable
+              ? "Are you sure you want to delete an unavailable note (its title cannot be decrypted)? This action cannot be undone and will permanently delete all version history."
+              : `Are you sure you want to delete “${displayTitle}”? This action cannot be undone and will permanently delete all version history.`}
           </DialogContentText>
 
           <Typography variant="body2" color="text.secondary">

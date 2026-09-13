@@ -9,6 +9,14 @@ export const envSchema = z.object({
   SESSION_SECRET: z
     .string()
     .min(32, "SESSION_SECRET must be at least 32 characters long"),
+  NOTE_ENCRYPTION_KEY: z
+    .string({
+      error: "NOTE_ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes)",
+    })
+    .regex(
+      /^[0-9a-fA-F]{64}$/,
+      "NOTE_ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes)",
+    ),
   DEPLOY_ID: z.string().optional().default("development"),
   APP_VERSION: z.string().optional().default("undefined"),
   LOG_LEVEL: z
@@ -36,6 +44,7 @@ export function getEnv(customEnv?: Record<string, string | undefined>): Env {
     SUPABASE_ANON_KEY: source.SUPABASE_ANON_KEY,
     SUPABASE_SERVICE_ROLE_KEY: source.SUPABASE_SERVICE_ROLE_KEY,
     SESSION_SECRET: source.SESSION_SECRET,
+    NOTE_ENCRYPTION_KEY: source.NOTE_ENCRYPTION_KEY,
     DEPLOY_ID: source.DEPLOY_ID,
     APP_VERSION: customEnv ? customEnv.APP_VERSION : process.env.APP_VERSION,
     LOG_LEVEL: source.LOG_LEVEL,

@@ -91,6 +91,21 @@ export interface NoteVersion {
   created_at: string;
 }
 
+/**
+ * A note row as listed by `getNotesByDashboard`.
+ * `undecryptable` rows carry only safe metadata — never ciphertext — so a
+ * single corrupt note can be surfaced as a placeholder instead of failing
+ * the whole dashboard listing.
+ */
+export type DashboardNote =
+  | { status: "ok"; note: Note }
+  | {
+      status: "undecryptable";
+      id: string;
+      version: number;
+      updated_at: string;
+    };
+
 // ---------------------------------------------------------------------------
 // Input Types
 // ---------------------------------------------------------------------------
@@ -210,6 +225,12 @@ export interface DatabaseClient {
   createNote(input: CreateNoteInput): Promise<{
     note: Note;
     initialVersion: NoteVersion;
+    /**
+     * True when the write committed but decrypting the returned rows failed.
+     * The note/version fields are then safe placeholders (empty title/content,
+     * real metadata) — never ciphertext.
+     */
+    decryptionFailed?: boolean;
   }>;
 
   /**
@@ -218,17 +239,28 @@ export interface DatabaseClient {
   updateNote(input: UpdateNoteInput): Promise<{
     note: Note;
     newVersion: NoteVersion;
+    /**
+     * True when the write committed but decrypting the returned rows failed.
+     * The note/version fields are then safe placeholders (empty title/content,
+     * real metadata) — never ciphertext.
+     */
+    decryptionFailed?: boolean;
   }>;
 
   /**
    * Retrieve all notes belonging to a dashboard ordered by creation date.
+   * Undecryptable rows (corrupt ciphertext) are returned as `undecryptable`
+   * placeholders instead of failing the whole listing.
    */
-  getNotesByDashboard(dashboard_id: string): Promise<Note[]>;
+  getNotesByDashboard(dashboard_id: string): Promise<DashboardNote[]>;
 
   /**
    * Retrieve a note by its UUID primary key.
    */
-  getNoteById(note_id: string): Promise<Note | null>;
+  getNoteById(
+    note_id: string,
+    options?: { metadataOnly?: boolean },
+  ): Promise<Note | null>;
 
   /**
    * Retrieve all version history snapshots for a note ordered by version descending.

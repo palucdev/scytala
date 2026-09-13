@@ -3,6 +3,8 @@
  */
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { getEnv } from "./env";
+import { VersionConflictError } from "./db-errors";
 import type {
   AuditInput,
   AuditRecord,
@@ -10,6 +12,7 @@ import type {
   CreateDashboardInput,
   CreateNoteInput,
   Dashboard,
+  DashboardNote,
   DashboardUser,
   DatabaseClient,
   HealthCheckResult,
@@ -19,6 +22,18 @@ import type {
   UpdateNoteInput,
 } from "../client/db-client";
 import { generateDashboardSlug } from "./crypto";
+import { logger } from "./logger";
+/**
+ * PostgreSQL error code raised by RPCs when a row update yields no matching row
+ * with the expected version (map_no_data / no_data_found) — signals a version conflict.
+ */
+const POSTGRES_VERSION_CONFLICT_CODE = "P0002";
+
+import {
+  decryptNoteField,
+  encryptNoteField,
+  NoteCryptoError,
+} from "./note-crypto";
 
 /**
  * Creates a fetch wrapper that aborts requests exceeding the specified timeout duration.
@@ -67,31 +82,16 @@ export class SupabaseDatabaseClient implements DatabaseClient {
       return;
     }
 
-    const SUPABASE_URL = process.env.SUPABASE_URL;
-    const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const SUPABASE_KEY = SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+    const env = getEnv();
 
-    if (!SUPABASE_URL || !SUPABASE_KEY) {
-      throw new Error(
-        "Missing required environment variables: SUPABASE_URL and/or SUPABASE_KEY. " +
-          "Ensure they are declared in .env",
-      );
-    }
-
-    const parsedTimeout = process.env.SUPABASE_TIMEOUT_MS
-      ? parseInt(process.env.SUPABASE_TIMEOUT_MS, 10)
-      : 8000;
-    const timeoutMs =
-      isNaN(parsedTimeout) || parsedTimeout <= 0 ? 8000 : parsedTimeout;
-
-    this.client = createClient(SUPABASE_URL, SUPABASE_KEY, {
+    this.client = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
         detectSessionInUrl: false,
       },
       global: {
-        fetch: createTimeoutFetch(timeoutMs),
+        fetch: createTimeoutFetch(env.SUPABASE_TIMEOUT_MS),
       },
     });
   }
@@ -414,12 +414,27 @@ export class SupabaseDatabaseClient implements DatabaseClient {
   async createNote(input: CreateNoteInput): Promise<{
     note: Note;
     initialVersion: NoteVersion;
+    decryptionFailed?: boolean;
   }> {
+    // AAD binding requires the note ID at creation time, but the RPC could
+    // generate it server-side; pre-generate here and pass it through so the
+    // ciphertext can bind AAD = noteId before the row exists.
+    const noteId = crypto.randomUUID();
+    const encryptedTitle = await encryptNoteField(
+      input.title ?? "",
+      noteId,
+    );
+    const encryptedContent = await encryptNoteField(
+      input.content,
+      noteId,
+    );
+
     const { data, error } = await this.client.rpc("create_note_with_version", {
       p_dashboard_id: input.dashboard_id,
-      p_title: input.title ?? "",
-      p_content: input.content,
+      p_title: encryptedTitle,
+      p_content: encryptedContent,
       p_author_id: input.author_id ?? null,
+      p_note_id: noteId,
     });
 
     if (error || !data) {
@@ -428,7 +443,23 @@ export class SupabaseDatabaseClient implements DatabaseClient {
       );
     }
 
-    return data as { note: Note; initialVersion: NoteVersion };
+    const result = data as {
+      note: Note;
+      initialVersion: NoteVersion;
+    };
+
+    const noteResult = await this.decryptCommittedRow(result.note, noteId);
+    const versionResult = await this.decryptCommittedRow(
+      result.initialVersion,
+      noteId,
+    );
+
+    return {
+      note: noteResult.row,
+      initialVersion: versionResult.row,
+      decryptionFailed:
+        noteResult.decryptionFailed || versionResult.decryptionFailed,
+    };
   }
 
   /**
@@ -437,28 +468,61 @@ export class SupabaseDatabaseClient implements DatabaseClient {
   async updateNote(input: UpdateNoteInput): Promise<{
     note: Note;
     newVersion: NoteVersion;
+    decryptionFailed?: boolean;
   }> {
+    const encryptedTitle = await encryptNoteField(
+      input.title ?? "",
+      input.note_id,
+    );
+    const encryptedContent = await encryptNoteField(
+      input.content,
+      input.note_id,
+    );
+
     const { data, error } = await this.client.rpc("update_note_with_version", {
       p_note_id: input.note_id,
       p_expected_version: input.expected_version,
-      p_content: input.content,
-      p_title: input.title ?? null,
+      p_content: encryptedContent,
+      p_title: input.title === undefined ? null : encryptedTitle,
       p_author_id: input.author_id ?? null,
     });
 
     if (error || !data) {
+      if (error?.code === POSTGRES_VERSION_CONFLICT_CODE) {
+        throw new VersionConflictError(
+          `[SupabaseDatabaseClient] updateNote failed: ${error.message}`,
+        );
+      }
       throw new Error(
         `[SupabaseDatabaseClient] updateNote failed: ${error?.message || "Unknown error"}`,
       );
     }
 
-    return data as { note: Note; newVersion: NoteVersion };
+    const result = data as {
+      note: Note;
+      newVersion: NoteVersion;
+    };
+
+    const noteResult = await this.decryptCommittedRow(result.note, input.note_id);
+    const versionResult = await this.decryptCommittedRow(
+      result.newVersion,
+      input.note_id,
+    );
+
+    return {
+      note: noteResult.row,
+      newVersion: versionResult.row,
+      decryptionFailed:
+        noteResult.decryptionFailed || versionResult.decryptionFailed,
+    };
   }
 
   /**
    * Retrieve all notes belonging to a dashboard ordered by update date descending.
+   * Rows whose ciphertext cannot be decrypted are returned as `undecryptable`
+   * placeholders (metadata only) so one corrupt note never blanks the dashboard.
    */
-  async getNotesByDashboard(dashboard_id: string): Promise<Note[]> {
+  async getNotesByDashboard(dashboard_id: string): Promise<DashboardNote[]> {
     const { data, error } = await this.client
       .from("notes")
       .select("*")
@@ -472,13 +536,18 @@ export class SupabaseDatabaseClient implements DatabaseClient {
       );
     }
 
-    return data ?? [];
+    return await Promise.all(
+      (data ?? []).map((note) => this.decryptDashboardNote(note)),
+    );
   }
 
   /**
    * Retrieve a note by its UUID primary key.
    */
-  async getNoteById(note_id: string): Promise<Note | null> {
+  async getNoteById(
+    note_id: string,
+    options?: { metadataOnly?: boolean },
+  ): Promise<Note | null> {
     const { data, error } = await this.client
       .from("notes")
       .select("*")
@@ -491,7 +560,28 @@ export class SupabaseDatabaseClient implements DatabaseClient {
       );
     }
 
-    return data;
+    if (!data) {
+      return null;
+    }
+    if (!options?.metadataOnly) {
+      return await this.decryptNote(data);
+    }
+    // Metadata-only reads (e.g. ownership prechecks for delete) do not need
+    // plaintext: on decrypt failure degrade to a safe placeholder with real
+    // metadata and empty title/content instead of failing closed.
+    try {
+      return await this.decryptNote(data);
+    } catch (decryptError) {
+      if (!(decryptError instanceof NoteCryptoError)) {
+        throw decryptError;
+      }
+      logger.error(
+        "Metadata-only note read decryption failed; returning placeholder",
+        decryptError,
+        { note_id: data.id, dashboard_id: data.dashboard_id },
+      );
+      return { ...data, title: "", content: "" };
+    }
   }
 
   /**
@@ -511,7 +601,9 @@ export class SupabaseDatabaseClient implements DatabaseClient {
       );
     }
 
-    return data ?? [];
+    return await Promise.all(
+      (data ?? []).map((version) => this.decryptVersionRowOrDegrade(version)),
+    );
   }
 
   /**
@@ -531,5 +623,99 @@ export class SupabaseDatabaseClient implements DatabaseClient {
     }
 
     return Boolean(data && data.length > 0);
+  }
+
+  private async decryptNote(row: Note): Promise<Note> {
+    return {
+      ...row,
+      title: await decryptNoteField(row.title, row.id),
+      content: await decryptNoteField(row.content, row.id),
+    };
+  }
+
+  /**
+   * Decrypts a row returned by a write RPC. The write has already committed at
+   * this point, so a decrypt failure must not surface as a failed save (each
+   * user retry would bump the version or create a duplicate). Degrades to a
+   * safe placeholder — real metadata, empty title/content, never ciphertext —
+   * and flags `decryptionFailed` so callers report the save as successful.
+   */
+  private async decryptCommittedRow<T extends { title: string; content: string }>(
+    row: T,
+    aadId: string,
+  ): Promise<{ row: T; decryptionFailed: boolean }> {
+    try {
+      return {
+        row: {
+          ...row,
+          title: await decryptNoteField(row.title, aadId),
+          content: await decryptNoteField(row.content, aadId),
+        },
+        decryptionFailed: false,
+      };
+    } catch (error) {
+      if (!(error instanceof NoteCryptoError)) {
+        throw error;
+      }
+      logger.error(
+        "Post-write decryption failed; degrading committed write result",
+        error,
+        { note_id: aadId },
+      );
+      return { row: { ...row, title: "", content: "" }, decryptionFailed: true };
+    }
+  }
+
+  /**
+   * Decrypts a listed note row, degrading to an `undecryptable` placeholder
+   * (safe metadata only — never ciphertext) when decryption fails.
+   */
+  private async decryptDashboardNote(row: Note): Promise<DashboardNote> {
+    try {
+      return { status: "ok", note: await this.decryptNote(row) };
+    } catch (error) {
+      logger.error(
+        "Note decryption failed; returning undecryptable placeholder",
+        error,
+        { note_id: row.id, dashboard_id: row.dashboard_id },
+      );
+      return {
+        status: "undecryptable",
+        id: row.id,
+        version: row.version,
+        updated_at: row.updated_at,
+      };
+    }
+  }
+
+  private async decryptNoteVersion(row: NoteVersion): Promise<NoteVersion> {
+    return {
+      ...row,
+      title: await decryptNoteField(row.title, row.note_id),
+      content: await decryptNoteField(row.content, row.note_id),
+    };
+  }
+
+  /**
+   * Decrypts a history version row, degrading to a safe placeholder (real
+   * metadata, empty title/content — never ciphertext) when decryption fails,
+   * so one corrupt snapshot never blanks the whole version history.
+   */
+  private async decryptVersionRowOrDegrade(
+    row: NoteVersion,
+  ): Promise<NoteVersion> {
+    try {
+      return await this.decryptNoteVersion(row);
+    } catch (error) {
+      if (!(error instanceof NoteCryptoError)) {
+        throw error;
+      }
+      logger.error(
+        "Version decryption failed; returning undecryptable placeholder",
+        error,
+        { note_id: row.note_id, version_id: row.id, version: row.version },
+      );
+      return { ...row, title: "", content: "" };
+    }
   }
 }

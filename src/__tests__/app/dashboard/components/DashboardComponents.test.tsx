@@ -14,6 +14,14 @@ import {
   type NoteDto,
 } from "@/app/dashboard/[hash]/components";
 import { PapyrusThemeLight } from "@/theme/papyrus-theme-light";
+
+const mockRouterReplace = vi.fn();
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    replace: mockRouterReplace,
+  }),
+}));
 function renderWithTheme(ui: React.ReactElement) {
   return render(<ThemeProvider theme={PapyrusThemeLight}>{ui}</ThemeProvider>);
 }
@@ -287,6 +295,66 @@ describe("Dashboard Subcomponents", () => {
       expect(
         screen.queryByText(/click to see whole note/i),
       ).not.toBeInTheDocument();
+    });
+
+    it("renders an 'unavailable' placeholder card for undecryptable notes without content", () => {
+      const corruptNote: NoteDto = {
+        ...sampleNote,
+        title: "",
+        content: "",
+        decryptionFailed: true,
+      };
+
+      renderWithTheme(
+        <NoteTile note={corruptNote} dashboardHash="secret-hash-16c" />,
+      );
+
+      expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(
+        "Note unavailable",
+      );
+      expect(
+        screen.getByText(/can't be loaded because of an encryption problem/i),
+      ).toBeInTheDocument();
+      // No note content, no ciphertext, no editor link.
+      expect(screen.queryByText(sampleNote.content)).not.toBeInTheDocument();
+      expect(screen.queryByRole("link")).not.toBeInTheDocument();
+      expect(screen.getByText("v3")).toBeInTheDocument();
+    });
+
+    it("opens the remove-note dialog when the unavailable card is clicked", () => {
+      const corruptNote: NoteDto = {
+        ...sampleNote,
+        title: "",
+        content: "",
+        decryptionFailed: true,
+      };
+
+      renderWithTheme(
+        <NoteTile note={corruptNote} dashboardHash="secret-hash-16c" />,
+      );
+
+      fireEvent.click(screen.getByRole("button"));
+
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(screen.getByText("Delete Note")).toBeInTheDocument();
+      expect(
+        screen.getByText(/are you sure you want to delete/i),
+      ).toBeInTheDocument();
+      // Degraded note: copy describes the note instead of a guessed title.
+      expect(
+        screen.getByText(
+          /delete an unavailable note \(its title cannot be decrypted\)\?/,
+        ),
+      ).toBeInTheDocument();
+      expect(mockRouterReplace).not.toHaveBeenCalled();
+    });
+
+    it("does not open the remove dialog when a healthy note card is rendered", () => {
+      renderWithTheme(
+        <NoteTile note={sampleNote} dashboardHash="secret-hash-16c" />,
+      );
+
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
   });
 

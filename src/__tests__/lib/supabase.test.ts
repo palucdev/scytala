@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SupabaseDatabaseClient, createTimeoutFetch } from '@/lib/supabase';
+import { encryptNoteField, isEncryptedEnvelope } from '@/lib/note-crypto';
+import { VersionConflictError } from '@/lib/db-errors';
+import { resetEnvCache } from '@/lib/env';
 import {
   createDatabaseClient,
   type CreateDashboardInput,
@@ -11,6 +14,27 @@ import {
   type NoteVersion,
 } from '@/client/db-client';
 import type { SupabaseClient } from '@supabase/supabase-js';
+
+const TEST_NOTE_KEY =
+  '4a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9';
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function encryptNoteRow(row: Note): Promise<Note> {
+  return {
+    ...row,
+    title: await encryptNoteField(row.title, row.id),
+    content: await encryptNoteField(row.content, row.id),
+  };
+}
+
+async function encryptVersionRow(row: NoteVersion): Promise<NoteVersion> {
+  return {
+    ...row,
+    title: await encryptNoteField(row.title, row.note_id),
+    content: await encryptNoteField(row.content, row.note_id),
+  };
+}
 
 interface MockQueryBuilder {
   select: ReturnType<typeof vi.fn>;
@@ -35,46 +59,41 @@ describe('src/lib/supabase domain adapter', () => {
 
   beforeEach(() => {
     vi.unstubAllEnvs();
+    // Adapter note-domain methods decrypt/encrypt through note-crypto, which
+    // calls getEnv(); stub a full valid env and reset the cache each test.
+    vi.stubEnv('SUPABASE_URL', 'https://test.supabase.co');
+    vi.stubEnv('SUPABASE_ANON_KEY', 'test-anon-key');
+    vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'test-service-role-key');
+    vi.stubEnv('SESSION_SECRET', 'test-session-secret-that-is-long-enough!');
+    vi.stubEnv('NOTE_ENCRYPTION_KEY', TEST_NOTE_KEY);
+    resetEnvCache();
   });
 
   afterEach(() => {
     process.env = { ...originalEnv };
+    resetEnvCache();
     vi.restoreAllMocks();
   });
 
   describe('constructor and client initialization', () => {
-    it('throws error when SUPABASE_URL is missing', () => {
+    it('throws when SUPABASE_URL is missing', () => {
       vi.stubEnv('SUPABASE_URL', '');
-      vi.stubEnv('SUPABASE_KEY', 'some-key');
+
+      expect(() => new SupabaseDatabaseClient()).toThrow(/SUPABASE_URL/);
+    });
+
+    it('throws when SUPABASE_SERVICE_ROLE_KEY is missing', () => {
+      vi.stubEnv('SUPABASE_URL', 'https://example.supabase.co');
       vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
 
       expect(() => new SupabaseDatabaseClient()).toThrow(
-        'Missing required environment variables: SUPABASE_URL and/or SUPABASE_KEY.'
+        /SUPABASE_SERVICE_ROLE_KEY/
       );
     });
 
-    it('throws error when SUPABASE_KEY and SUPABASE_SERVICE_ROLE_KEY are both missing', () => {
+    it('creates client from validated env without legacy SUPABASE_KEY fallback', () => {
       vi.stubEnv('SUPABASE_URL', 'https://example.supabase.co');
-      vi.stubEnv('SUPABASE_KEY', '');
-      vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
-
-      expect(() => new SupabaseDatabaseClient()).toThrow(
-        'Missing required environment variables: SUPABASE_URL and/or SUPABASE_KEY.'
-      );
-    });
-
-    it('uses SUPABASE_SERVICE_ROLE_KEY when SUPABASE_KEY is absent', () => {
-      vi.stubEnv('SUPABASE_URL', 'https://example.supabase.co');
-      vi.stubEnv('SUPABASE_KEY', '');
-      vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-secret');
-
-      expect(() => new SupabaseDatabaseClient()).not.toThrow();
-    });
-
-    it('uses SUPABASE_KEY when SUPABASE_SERVICE_ROLE_KEY is absent', () => {
-      vi.stubEnv('SUPABASE_URL', 'https://example.supabase.co');
-      vi.stubEnv('SUPABASE_KEY', 'anon-or-service-key');
-      vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
+      vi.stubEnv('SUPABASE_KEY', 'legacy-key');
 
       expect(() => new SupabaseDatabaseClient()).not.toThrow();
     });
@@ -86,27 +105,22 @@ describe('src/lib/supabase domain adapter', () => {
     });
 
     it('createDatabaseClient factory creates SupabaseDatabaseClient', () => {
-      vi.stubEnv('SUPABASE_URL', 'https://example.supabase.co');
-      vi.stubEnv('SUPABASE_KEY', 'test-key');
-
       const dbClient = createDatabaseClient();
       expect(dbClient).toBeInstanceOf(SupabaseDatabaseClient);
     });
 
     it('respects custom SUPABASE_TIMEOUT_MS environment variable', () => {
       vi.stubEnv('SUPABASE_URL', 'https://example.supabase.co');
-      vi.stubEnv('SUPABASE_KEY', 'test-key');
       vi.stubEnv('SUPABASE_TIMEOUT_MS', '3000');
 
       expect(() => new SupabaseDatabaseClient()).not.toThrow();
     });
 
-    it('falls back to default 8000ms when SUPABASE_TIMEOUT_MS is invalid', () => {
+    it('throws when SUPABASE_TIMEOUT_MS is invalid', () => {
       vi.stubEnv('SUPABASE_URL', 'https://example.supabase.co');
-      vi.stubEnv('SUPABASE_KEY', 'test-key');
       vi.stubEnv('SUPABASE_TIMEOUT_MS', 'invalid-number');
 
-      expect(() => new SupabaseDatabaseClient()).not.toThrow();
+      expect(() => new SupabaseDatabaseClient()).toThrow(/SUPABASE_TIMEOUT_MS/);
     });
   });
 
@@ -526,35 +540,43 @@ describe('src/lib/supabase domain adapter', () => {
     });
 
     describe('createNote', () => {
-      it('creates note and initial version 1 snapshot atomically via rpc', async () => {
-        const mockNote: Note = {
-          id: 'note-uuid-1',
-          dashboard_id: 'dash-uuid-1',
-          title: 'Grocery List',
-          content: 'Milk, Bread, Eggs',
-          version: 1,
-          created_at: '2026-08-20T10:00:00Z',
-          updated_at: '2026-08-20T10:00:00Z',
-        };
-
-        const mockVersion: NoteVersion = {
-          id: 'version-uuid-1',
-          note_id: 'note-uuid-1',
-          version: 1,
-          title: 'Grocery List',
-          content: 'Milk, Bread, Eggs',
-          author_id: 'user-uuid-1',
-          created_at: '2026-08-20T10:00:00Z',
-        };
-
+      it('creates note and initial version 1 snapshot atomically via rpc, encrypting at the boundary', async () => {
+        let capturedParams: Record<string, unknown> | null = null;
         const mockSupabase = {
-          rpc: vi.fn().mockResolvedValue({
-            data: {
-              note: mockNote,
-              initialVersion: mockVersion,
+          rpc: vi.fn().mockImplementation(
+            async (
+              _name: string,
+              params: { p_note_id: string; p_title: string; p_content: string },
+            ) => {
+              capturedParams = {
+                ...params,
+                p_title: await params.p_title,
+                p_content: await params.p_content,
+              };
+              const note: Note = {
+                id: params.p_note_id,
+                dashboard_id: 'dash-uuid-1',
+                title: await encryptNoteField('Grocery List', params.p_note_id),
+                content: await encryptNoteField('Milk, Bread, Eggs', params.p_note_id),
+                version: 1,
+                created_at: '2026-08-20T10:00:00Z',
+                updated_at: '2026-08-20T10:00:00Z',
+              };
+              const version: NoteVersion = {
+                id: 'version-uuid-1',
+                note_id: params.p_note_id,
+                version: 1,
+                title: await encryptNoteField('Grocery List', params.p_note_id),
+                content: await encryptNoteField('Milk, Bread, Eggs', params.p_note_id),
+                author_id: 'user-uuid-1',
+                created_at: '2026-08-20T10:00:00Z',
+              };
+              return {
+                data: { note, initialVersion: version },
+                error: null,
+              };
             },
-            error: null,
-          }),
+          ),
         } as unknown as SupabaseClient;
 
         const db = new SupabaseDatabaseClient(mockSupabase);
@@ -566,45 +588,64 @@ describe('src/lib/supabase domain adapter', () => {
         };
 
         const result = await db.createNote(input);
-        expect(result.note).toEqual(mockNote);
-        expect(result.initialVersion).toEqual(mockVersion);
-        expect(mockSupabase.rpc).toHaveBeenCalledWith('create_note_with_version', {
+        expect(result.note.title).toBe('Grocery List');
+        expect(result.note.content).toBe('Milk, Bread, Eggs');
+        expect(result.initialVersion.title).toBe('Grocery List');
+        expect(result.initialVersion.content).toBe('Milk, Bread, Eggs');
+        expect(capturedParams).toEqual({
           p_dashboard_id: 'dash-uuid-1',
-          p_title: 'Grocery List',
-          p_content: 'Milk, Bread, Eggs',
+          p_title: expect.any(String) as string,
+          p_content: expect.any(String) as string,
           p_author_id: 'user-uuid-1',
+          p_note_id: expect.any(String) as string,
         });
+        const params = capturedParams as unknown as {
+          p_note_id: string;
+          p_title: string;
+          p_content: string;
+        };
+        expect(params.p_note_id).toMatch(UUID_REGEX);
+        expect(isEncryptedEnvelope(params.p_title)).toBe(true);
+        expect(isEncryptedEnvelope(params.p_content)).toBe(true);
       });
 
       it('defaults title to empty string and author_id to null when omitted', async () => {
-        const mockNote: Note = {
-          id: 'note-uuid-2',
-          dashboard_id: 'dash-uuid-1',
-          title: '',
-          content: 'Untitled note content',
-          version: 1,
-          created_at: '2026-08-20T10:00:00Z',
-          updated_at: '2026-08-20T10:00:00Z',
-        };
-
-        const mockVersion: NoteVersion = {
-          id: 'version-uuid-2',
-          note_id: 'note-uuid-2',
-          version: 1,
-          title: '',
-          content: 'Untitled note content',
-          author_id: null,
-          created_at: '2026-08-20T10:00:00Z',
-        };
-
+        let capturedParams: Record<string, unknown> | null = null;
         const mockSupabase = {
-          rpc: vi.fn().mockResolvedValue({
-            data: {
-              note: mockNote,
-              initialVersion: mockVersion,
+          rpc: vi.fn().mockImplementation(
+            async (
+              _name: string,
+              params: { p_note_id: string; p_title: string; p_content: string },
+            ) => {
+              capturedParams = {
+                ...params,
+                p_title: await params.p_title,
+                p_content: await params.p_content,
+              };
+              const note: Note = {
+                id: params.p_note_id,
+                dashboard_id: 'dash-uuid-1',
+                title: await encryptNoteField('', params.p_note_id),
+                content: await encryptNoteField('Untitled note content', params.p_note_id),
+                version: 1,
+                created_at: '2026-08-20T10:00:00Z',
+                updated_at: '2026-08-20T10:00:00Z',
+              };
+              const version: NoteVersion = {
+                id: 'version-uuid-2',
+                note_id: params.p_note_id,
+                version: 1,
+                title: await encryptNoteField('', params.p_note_id),
+                content: await encryptNoteField('Untitled note content', params.p_note_id),
+                author_id: null,
+                created_at: '2026-08-20T10:00:00Z',
+              };
+              return {
+                data: { note, initialVersion: version },
+                error: null,
+              };
             },
-            error: null,
-          }),
+          ),
         } as unknown as SupabaseClient;
 
         const db = new SupabaseDatabaseClient(mockSupabase);
@@ -615,12 +656,14 @@ describe('src/lib/supabase domain adapter', () => {
 
         expect(result.note.title).toBe('');
         expect(result.initialVersion.author_id).toBeNull();
-        expect(mockSupabase.rpc).toHaveBeenCalledWith('create_note_with_version', {
-          p_dashboard_id: 'dash-uuid-1',
-          p_title: '',
-          p_content: 'Untitled note content',
-          p_author_id: null,
-        });
+        const params = capturedParams as unknown as {
+          p_note_id: string;
+          p_title: string;
+          p_content: string;
+        };
+        expect(params.p_title).not.toBe('');
+        expect(isEncryptedEnvelope(params.p_title)).toBe(true);
+        expect(isEncryptedEnvelope(params.p_content)).toBe(true);
       });
 
       it('throws descriptive error if rpc creation fails or returns null', async () => {
@@ -651,38 +694,103 @@ describe('src/lib/supabase domain adapter', () => {
           })
         ).rejects.toThrow('[SupabaseDatabaseClient] createNote failed: Unknown error');
       });
+
+      it('degrades to a safe placeholder when post-create decryption fails (write already committed)', async () => {
+        const mockSupabase = {
+          rpc: vi.fn().mockImplementation(
+            async (
+              _name: string,
+              params: { p_note_id: string; p_title: string; p_content: string },
+            ) => {
+              // Rows encrypted under a DIFFERENT note id → AAD mismatch on decrypt.
+              const note: Note = {
+                id: params.p_note_id,
+                dashboard_id: 'dash-uuid-1',
+                title: await encryptNoteField('Grocery List', 'other-note-uuid'),
+                content: await encryptNoteField('Milk, Bread, Eggs', 'other-note-uuid'),
+                version: 1,
+                created_at: '2026-08-20T10:00:00Z',
+                updated_at: '2026-08-20T10:00:00Z',
+              };
+              const version: NoteVersion = {
+                id: 'version-uuid-1',
+                note_id: params.p_note_id,
+                version: 1,
+                title: await encryptNoteField('Grocery List', 'other-note-uuid'),
+                content: await encryptNoteField('Milk, Bread, Eggs', 'other-note-uuid'),
+                author_id: 'user-uuid-1',
+                created_at: '2026-08-20T10:00:00Z',
+              };
+              return {
+                data: { note, initialVersion: version },
+                error: null,
+              };
+            },
+          ),
+        } as unknown as SupabaseClient;
+
+        const db = new SupabaseDatabaseClient(mockSupabase);
+        const result = await db.createNote({
+          dashboard_id: 'dash-uuid-1',
+          title: 'Grocery List',
+          content: 'Milk, Bread, Eggs',
+          author_id: 'user-uuid-1',
+        });
+
+        expect(result.decryptionFailed).toBe(true);
+        expect(result.note.title).toBe('');
+        expect(result.note.content).toBe('');
+        expect(result.note.id).toMatch(UUID_REGEX);
+        expect(result.note.version).toBe(1);
+        expect(result.initialVersion.title).toBe('');
+        expect(result.initialVersion.content).toBe('');
+        expect(JSON.stringify(result)).not.toContain('v1:');
+      });
     });
 
     describe('updateNote (optimistic concurrency via rpc)', () => {
-      it('successfully increments version and creates history snapshot atomically', async () => {
-        const updatedNote: Note = {
-          id: 'note-uuid-1',
-          dashboard_id: 'dash-uuid-1',
-          title: 'Updated Title',
-          content: 'Updated content',
-          version: 2,
-          created_at: '2026-08-20T10:00:00Z',
-          updated_at: '2026-08-20T10:05:00Z',
-        };
-
-        const newVersion: NoteVersion = {
-          id: 'version-uuid-2',
-          note_id: 'note-uuid-1',
-          version: 2,
-          title: 'Updated Title',
-          content: 'Updated content',
-          author_id: 'user-uuid-2',
-          created_at: '2026-08-20T10:05:00Z',
-        };
-
+      it('successfully increments version and creates history snapshot atomically, encrypting at the boundary', async () => {
+        let capturedParams: Record<string, unknown> | null = null;
         const mockSupabase = {
-          rpc: vi.fn().mockResolvedValue({
-            data: {
-              note: updatedNote,
-              newVersion: newVersion,
+          rpc: vi.fn().mockImplementation(
+            async (
+              _name: string,
+              params: {
+                p_note_id: string;
+                p_title: string;
+                p_content: string;
+              },
+            ) => {
+              capturedParams = params;
+              const note: Note = {
+                id: params.p_note_id,
+                dashboard_id: 'dash-uuid-1',
+                title: await encryptNoteField('Updated Title', params.p_note_id),
+                content: await encryptNoteField('Updated content', params.p_note_id),
+                version: 2,
+                created_at: '2026-08-20T10:00:00Z',
+                updated_at: '2026-08-20T10:05:00Z',
+              };
+
+              const newVersion: NoteVersion = {
+                id: 'version-uuid-2',
+                note_id: params.p_note_id,
+                version: 2,
+                title: await encryptNoteField('Updated Title', params.p_note_id),
+                content: await encryptNoteField('Updated content', params.p_note_id),
+                author_id: 'user-uuid-2',
+                created_at: '2026-08-20T10:05:00Z',
+              };
+
+              return {
+                data: {
+                  note,
+                  newVersion,
+                },
+                error: null,
+              };
             },
-            error: null,
-          }),
+          ),
         } as unknown as SupabaseClient;
 
         const db = new SupabaseDatabaseClient(mockSupabase);
@@ -695,46 +803,65 @@ describe('src/lib/supabase domain adapter', () => {
         };
 
         const result = await db.updateNote(input);
-        expect(result.note).toEqual(updatedNote);
-        expect(result.newVersion).toEqual(newVersion);
-        expect(mockSupabase.rpc).toHaveBeenCalledWith('update_note_with_version', {
+        expect(result.note.title).toBe('Updated Title');
+        expect(result.note.content).toBe('Updated content');
+        expect(result.newVersion.title).toBe('Updated Title');
+        expect(result.newVersion.content).toBe('Updated content');
+        expect(capturedParams).toEqual({
           p_note_id: 'note-uuid-1',
           p_expected_version: 1,
-          p_content: 'Updated content',
-          p_title: 'Updated Title',
+          p_content: expect.any(String) as string,
+          p_title: expect.any(String) as string,
           p_author_id: 'user-uuid-2',
         });
+        const params = capturedParams as unknown as { p_title: string; p_content: string };
+        expect(isEncryptedEnvelope(params.p_title)).toBe(true);
+        expect(isEncryptedEnvelope(params.p_content)).toBe(true);
       });
 
-      it('supports updating content while omitting title', async () => {
-        const updatedNote: Note = {
-          id: 'note-uuid-1',
-          dashboard_id: 'dash-uuid-1',
-          title: 'Original Title',
-          content: 'Only content changed',
-          version: 2,
-          created_at: '2026-08-20T10:00:00Z',
-          updated_at: '2026-08-20T10:05:00Z',
-        };
-
-        const newVersion: NoteVersion = {
-          id: 'version-uuid-2',
-          note_id: 'note-uuid-1',
-          version: 2,
-          title: 'Original Title',
-          content: 'Only content changed',
-          author_id: null,
-          created_at: '2026-08-20T10:05:00Z',
-        };
-
+      it('supports updating content while omitting title (sentinel p_title null preserved)', async () => {
+        let capturedParams: Record<string, unknown> | null = null;
         const mockSupabase = {
-          rpc: vi.fn().mockResolvedValue({
-            data: {
-              note: updatedNote,
-              newVersion: newVersion,
+          rpc: vi.fn().mockImplementation(
+            async (
+              _name: string,
+              params: {
+                p_note_id: string;
+                p_title: string | null;
+                p_content: string;
+              },
+            ) => {
+              capturedParams = params;
+              const keepTitle = 'Original Title';
+              const note: Note = {
+                id: params.p_note_id,
+                dashboard_id: 'dash-uuid-1',
+                title: await encryptNoteField(keepTitle, params.p_note_id),
+                content: await encryptNoteField('Only content changed', params.p_note_id),
+                version: 2,
+                created_at: '2026-08-20T10:00:00Z',
+                updated_at: '2026-08-20T10:05:00Z',
+              };
+
+              const newVersion: NoteVersion = {
+                id: 'version-uuid-2',
+                note_id: params.p_note_id,
+                version: 2,
+                title: await encryptNoteField(keepTitle, params.p_note_id),
+                content: await encryptNoteField('Only content changed', params.p_note_id),
+                author_id: null,
+                created_at: '2026-08-20T10:05:00Z',
+              };
+
+              return {
+                data: {
+                  note,
+                  newVersion,
+                },
+                error: null,
+              };
             },
-            error: null,
-          }),
+          ),
         } as unknown as SupabaseClient;
 
         const db = new SupabaseDatabaseClient(mockSupabase);
@@ -744,22 +871,25 @@ describe('src/lib/supabase domain adapter', () => {
           expected_version: 1,
         });
 
-        expect(result.note).toEqual(updatedNote);
-        expect(result.newVersion).toEqual(newVersion);
-        expect(mockSupabase.rpc).toHaveBeenCalledWith('update_note_with_version', {
-          p_note_id: 'note-uuid-1',
-          p_expected_version: 1,
-          p_content: 'Only content changed',
-          p_title: null,
-          p_author_id: null,
-        });
+        expect(result.note.title).toBe('Original Title');
+        expect(result.note.content).toBe('Only content changed');
+        expect(result.newVersion.content).toBe('Only content changed');
+        const params = capturedParams as unknown as {
+          p_title: string | null;
+          p_content: string;
+        };
+        expect(params.p_title).toBeNull();
+        expect(isEncryptedEnvelope(params.p_content)).toBe(true);
       });
 
       it('throws optimistic concurrency error when rpc fails with version conflict', async () => {
         const mockSupabase = {
           rpc: vi.fn().mockResolvedValue({
             data: null,
-            error: { message: 'Version mismatch or note not found (expected version 1)' },
+            error: {
+              message: 'Version mismatch or note not found (expected version 1)',
+              code: 'P0002',
+            },
           }),
         } as unknown as SupabaseClient;
 
@@ -770,9 +900,21 @@ describe('src/lib/supabase domain adapter', () => {
             content: 'Conflicting update',
             expected_version: 1,
           })
-        ).rejects.toThrow(
-          '[SupabaseDatabaseClient] updateNote failed: Version mismatch or note not found (expected version 1)'
-        );
+        ).rejects.toThrow(VersionConflictError);
+
+        const dbGeneric = new SupabaseDatabaseClient({
+          rpc: vi.fn().mockResolvedValue({
+            data: null,
+            error: { message: 'Some other failure' },
+          }),
+        } as unknown as SupabaseClient);
+        await expect(
+          dbGeneric.updateNote({
+            note_id: 'note-uuid-1',
+            content: 'Conflicting update',
+            expected_version: 1,
+          })
+        ).rejects.toThrow('[SupabaseDatabaseClient] updateNote failed: Some other failure');
 
         // Test data null with error null
         const mockSupabaseNull = {
@@ -789,28 +931,123 @@ describe('src/lib/supabase domain adapter', () => {
           '[SupabaseDatabaseClient] updateNote failed: Unknown error'
         );
       });
-    });
 
-    describe('getNotesByDashboard and getNoteById', () => {
-      const mockNotes: Note[] = [
-        {
-          id: 'note-uuid-1',
-          dashboard_id: 'dash-uuid-1',
-          title: 'Note 1',
-          content: 'Content 1',
-          version: 1,
-          created_at: '2026-08-20T10:00:00Z',
-          updated_at: '2026-08-20T10:00:00Z',
-        },
-      ];
-
-      it('getNotesByDashboard returns list of notes', async () => {
+      it('degrades to a safe placeholder when post-update decryption fails (write already committed)', async () => {
         const mockSupabase = {
-          from: vi.fn(() => createQueryBuilderMock({ data: mockNotes, error: null })),
+          rpc: vi.fn().mockImplementation(
+            async (
+              _name: string,
+              params: {
+                p_note_id: string;
+                p_title: string;
+                p_content: string;
+              },
+            ) => {
+              // Rows encrypted under a DIFFERENT note id → AAD mismatch on decrypt.
+              const note: Note = {
+                id: params.p_note_id,
+                dashboard_id: 'dash-uuid-1',
+                title: await encryptNoteField('Updated Title', 'other-note-uuid'),
+                content: await encryptNoteField('Updated content', 'other-note-uuid'),
+                version: 2,
+                created_at: '2026-08-20T10:00:00Z',
+                updated_at: '2026-08-20T10:05:00Z',
+              };
+
+              const newVersion: NoteVersion = {
+                id: 'version-uuid-2',
+                note_id: params.p_note_id,
+                version: 2,
+                title: await encryptNoteField('Updated Title', 'other-note-uuid'),
+                content: await encryptNoteField('Updated content', 'other-note-uuid'),
+                author_id: 'user-uuid-2',
+                created_at: '2026-08-20T10:05:00Z',
+              };
+
+              return {
+                data: { note, newVersion },
+                error: null,
+              };
+            },
+          ),
         } as unknown as SupabaseClient;
 
         const db = new SupabaseDatabaseClient(mockSupabase);
-        expect(await db.getNotesByDashboard('dash-uuid-1')).toEqual(mockNotes);
+        const result = await db.updateNote({
+          note_id: 'note-uuid-1',
+          title: 'Updated Title',
+          content: 'Updated content',
+          expected_version: 1,
+          author_id: 'user-uuid-2',
+        });
+
+        expect(result.decryptionFailed).toBe(true);
+        expect(result.note.title).toBe('');
+        expect(result.note.content).toBe('');
+        expect(result.note.version).toBe(2);
+        expect(result.newVersion.title).toBe('');
+        expect(result.newVersion.content).toBe('');
+        expect(JSON.stringify(result)).not.toContain('v1:');
+      });
+    });
+
+    describe('getNotesByDashboard and getNoteById', () => {
+      const baseNote: Note = {
+        id: 'note-uuid-1',
+        dashboard_id: 'dash-uuid-1',
+        title: 'Note 1',
+        content: 'Content 1',
+        version: 1,
+        created_at: '2026-08-20T10:00:00Z',
+        updated_at: '2026-08-20T10:00:00Z',
+      };
+
+      it('getNotesByDashboard decrypts the stored ciphertext back to plaintext', async () => {
+        const encryptedNote = await encryptNoteRow(baseNote);
+        expect(isEncryptedEnvelope(encryptedNote.title)).toBe(true);
+        const mockSupabase = {
+          from: vi.fn(() => createQueryBuilderMock({ data: [encryptedNote], error: null })),
+        } as unknown as SupabaseClient;
+
+        const db = new SupabaseDatabaseClient(mockSupabase);
+        expect(await db.getNotesByDashboard('dash-uuid-1')).toEqual([
+          { status: 'ok', note: baseNote },
+        ]);
+      });
+
+      it('getNotesByDashboard degrades a corrupt row to an undecryptable placeholder without failing the listing', async () => {
+        const goodNote: Note = {
+          ...baseNote,
+          id: 'note-uuid-2',
+          title: 'Good Note',
+          content: 'Good content',
+        };
+        const corruptRow = await encryptNoteRow(baseNote);
+        const [iv, ct] = corruptRow.title.split(':');
+        const ctBytes = Buffer.from(ct, 'base64');
+        ctBytes[0] ^= 0xff;
+        corruptRow.title = `v1:${iv}:${ctBytes.toString('base64')}`;
+        const goodRow = await encryptNoteRow(goodNote);
+
+        const mockSupabase = {
+          from: vi.fn(() =>
+            createQueryBuilderMock({ data: [corruptRow, goodRow], error: null }),
+          ),
+        } as unknown as SupabaseClient;
+
+        const db = new SupabaseDatabaseClient(mockSupabase);
+        const result = await db.getNotesByDashboard('dash-uuid-1');
+
+        expect(result).toHaveLength(2);
+        expect(result[0]).toEqual({
+          status: 'undecryptable',
+          id: baseNote.id,
+          version: baseNote.version,
+          updated_at: baseNote.updated_at,
+        });
+        expect(result[1]).toEqual({ status: 'ok', note: goodNote });
+        // The placeholder must never carry ciphertext.
+        expect(JSON.stringify(result[0])).not.toContain('v1:');
       });
 
       it('getNotesByDashboard returns empty array when null and throws on error', async () => {
@@ -829,13 +1066,14 @@ describe('src/lib/supabase domain adapter', () => {
         );
       });
 
-      it('getNoteById returns note or null', async () => {
+      it('getNoteById returns note (decrypting ciphertext) or null', async () => {
+        const encryptedNote = await encryptNoteRow(baseNote);
         const mockSupabase = {
-          from: vi.fn(() => createQueryBuilderMock({ data: mockNotes[0], error: null })),
+          from: vi.fn(() => createQueryBuilderMock({ data: encryptedNote, error: null })),
         } as unknown as SupabaseClient;
 
         const db = new SupabaseDatabaseClient(mockSupabase);
-        expect(await db.getNoteById('note-uuid-1')).toEqual(mockNotes[0]);
+        expect(await db.getNoteById('note-uuid-1')).toEqual(baseNote);
 
         const mockSupabaseNull = {
           from: vi.fn(() => createQueryBuilderMock({ data: null, error: null })),
@@ -856,10 +1094,33 @@ describe('src/lib/supabase domain adapter', () => {
           '[SupabaseDatabaseClient] getNoteById failed: Fetch error'
         );
       });
+
+      it('getNoteById with metadataOnly degrades undecryptable rows instead of throwing', async () => {
+        const corruptNote = {
+          ...baseNote,
+          title: 'v1:not-an-envelope',
+          content: 'v1:corrupt:base64',
+        };
+        const mockSupabase = {
+          from: vi.fn(() => createQueryBuilderMock({ data: corruptNote, error: null })),
+        } as unknown as SupabaseClient;
+
+        const db = new SupabaseDatabaseClient(mockSupabase);
+
+        await expect(db.getNoteById('note-uuid-1')).rejects.toThrow();
+        const degraded = await db.getNoteById('note-uuid-1', {
+          metadataOnly: true,
+        });
+        expect(degraded).toEqual({
+          ...corruptNote,
+          title: '',
+          content: '',
+        });
+      });
     });
 
     describe('getNoteVersions and deleteNote', () => {
-      const mockVersions: NoteVersion[] = [
+      const baseVersions: NoteVersion[] = [
         {
           id: 'v2',
           note_id: 'n1',
@@ -880,13 +1141,18 @@ describe('src/lib/supabase domain adapter', () => {
         },
       ];
 
-      it('getNoteVersions returns versions ordered descending', async () => {
+      it('getNoteVersions returns versions ordered descending, decrypting ciphertext', async () => {
+        const encryptedVersions = await Promise.all(
+          baseVersions.map((version) => encryptVersionRow(version)),
+        );
         const mockSupabase = {
-          from: vi.fn(() => createQueryBuilderMock({ data: mockVersions, error: null })),
+          from: vi.fn(() =>
+            createQueryBuilderMock({ data: encryptedVersions, error: null })
+          ),
         } as unknown as SupabaseClient;
 
         const db = new SupabaseDatabaseClient(mockSupabase);
-        expect(await db.getNoteVersions('n1')).toEqual(mockVersions);
+        expect(await db.getNoteVersions('n1')).toEqual(baseVersions);
       });
 
       it('getNoteVersions returns empty array when null and throws on error', async () => {
@@ -903,6 +1169,36 @@ describe('src/lib/supabase domain adapter', () => {
         await expect(dbErr.getNoteVersions('n1')).rejects.toThrow(
           '[SupabaseDatabaseClient] getNoteVersions failed: Err'
         );
+      });
+
+      it('getNoteVersions degrades corrupt rows to placeholders instead of failing the listing', async () => {
+        const encryptedVersions = await Promise.all(
+          baseVersions.map((version) => encryptVersionRow(version)),
+        );
+        // Corrupt one row's ciphertext so its GCM tag verification fails.
+        const corrupt = encryptedVersions.map((version) =>
+          version.id === 'v1'
+            ? { ...version, content: `v1:${version.content.slice(3).slice(0, -4)}AAAA` }
+            : version,
+        );
+        const mockSupabase = {
+          from: vi.fn(() =>
+            createQueryBuilderMock({ data: corrupt, error: null })
+          ),
+        } as unknown as SupabaseClient;
+
+        const db = new SupabaseDatabaseClient(mockSupabase);
+        const result = await db.getNoteVersions('n1');
+
+        expect(result).toHaveLength(2);
+        const healthy = result.find((version) => version.id === 'v2');
+        const degraded = result.find((version) => version.id === 'v1');
+        expect(healthy).toEqual(baseVersions[0]);
+        expect(degraded?.title).toBe('');
+        expect(degraded?.content).toBe('');
+        expect(degraded?.version).toBe(1);
+        expect(degraded?.created_at).toBe('2026-08-20T10:00:00Z');
+        expect(JSON.stringify(result)).not.toContain('v1:');
       });
 
       it('deleteNote returns true when note is deleted, false when not found', async () => {

@@ -25,7 +25,7 @@ describe("src/schemas/notes.ts", () => {
       }
     });
 
-    it("parses valid input without optional title", () => {
+    it("parses valid input without optional title, defaulting to Untitled Note", () => {
       const input = {
         dashboardHash: "AbCdEfGh12345678",
         content: "Just plain note content.",
@@ -33,12 +33,12 @@ describe("src/schemas/notes.ts", () => {
       const result = createNoteSchema.safeParse(input);
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.title).toBeUndefined();
+        expect(result.data.title).toBe("Untitled Note");
         expect(result.data.content).toBe("Just plain note content.");
       }
     });
 
-    it("transforms null and empty string titles to undefined", () => {
+    it("transforms null and empty string titles to Untitled Note so empty titles never persist", () => {
       const resultNull = createNoteSchema.safeParse({
         dashboardHash: "AbCdEfGh12345678",
         title: null,
@@ -46,7 +46,7 @@ describe("src/schemas/notes.ts", () => {
       });
       expect(resultNull.success).toBe(true);
       if (resultNull.success) {
-        expect(resultNull.data.title).toBeUndefined();
+        expect(resultNull.data.title).toBe("Untitled Note");
       }
 
       const resultEmpty = createNoteSchema.safeParse({
@@ -56,7 +56,7 @@ describe("src/schemas/notes.ts", () => {
       });
       expect(resultEmpty.success).toBe(true);
       if (resultEmpty.success) {
-        expect(resultEmpty.data.title).toBeUndefined();
+        expect(resultEmpty.data.title).toBe("Untitled Note");
       }
     });
 
@@ -174,7 +174,7 @@ describe("src/schemas/notes.ts", () => {
       }
     });
 
-    it("transforms null and empty string titles to empty string in updateNoteSchema", () => {
+    it("transforms null and empty string titles to Untitled Note in updateNoteSchema (reset to default), keeping undefined as keep-title", () => {
       const resultNull = updateNoteSchema.safeParse({
         dashboardHash: "AbCdEfGh12345678",
         noteId: validUuid,
@@ -184,7 +184,7 @@ describe("src/schemas/notes.ts", () => {
       });
       expect(resultNull.success).toBe(true);
       if (resultNull.success) {
-        expect(resultNull.data.title).toBe("");
+        expect(resultNull.data.title).toBe("Untitled Note");
       }
 
       const resultEmpty = updateNoteSchema.safeParse({
@@ -196,7 +196,7 @@ describe("src/schemas/notes.ts", () => {
       });
       expect(resultEmpty.success).toBe(true);
       if (resultEmpty.success) {
-        expect(resultEmpty.data.title).toBe("");
+        expect(resultEmpty.data.title).toBe("Untitled Note");
       }
 
       const resultUndefined = updateNoteSchema.safeParse({

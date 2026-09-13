@@ -10,4 +10,5 @@ export {
   RateLimitNotice,
   type RateLimitNoticeProps,
 } from "./RateLimitNotice";
+export { EncryptionErrorNotice } from "./EncryptionErrorNotice";
 

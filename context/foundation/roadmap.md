@@ -3,7 +3,7 @@ project: "Scytala"
 version: 1
 status: active
 created: 2026-08-18
-updated: 2026-09-12
+updated: 2026-09-13
 prd_version: 1
 main_goal: low-complexity
 top_blocker: time
@@ -35,6 +35,7 @@ Scytala addresses the problem where teams, families, and friend groups need to s
 | S-04 | `note-version-history-browser`                         | User can open any note's version history panel and browse past versions with timestamps and author details                                                                         | S-03             | US-05, FR-011                                        | done     |
 | S-05 | `manual-sync-and-conflict-diff-resolution`             | User can manually trigger sync to pull remote note changes and resolve concurrent edit conflicts via a side-by-side diff merge modal                                               | S-03             | US-04, FR-007, FR-012                                | ready    |
 | S-06 | `dashboard-management-and-lifecycle`                   | User can update dashboard metadata (title, description) or permanently delete the dashboard and all its associated notes and credentials                                           | S-02             | FR-009, FR-010                                       | ready    |
+| S-07 | `note-encryption`                                      | (security) Note titles and contents — across `notes` and all `note_versions` snapshots — are AES-256-GCM encrypted at rest; UI renders plaintext unchanged while the DB stores only `v1:` ciphertext | S-03             | Guardrails, FR-006, FR-007, FR-011                   | ready    |
 | T-01 | `testing-tenant-isolation-and-auth-session-guards`     | (testing) Verify cross-dashboard data isolation and authenticated session guard boundaries with unit and integration tests                                                         | F-01, S-01, S-02 | Test Plan §3 Phase 1, FR-004, FR-005                 | ready    |
 | T-02 | `testing-note-versioning-and-concurrency-integrity`    | (testing) Ensure atomic note updates, immutable version history snapshots, and conflict detection under concurrent mutations                                                       | S-03             | Test Plan §3 Phase 3, FR-007, FR-011, FR-012         | ready    |
 | T-03 | `testing-server-input-validation-and-security-defense` | (testing) Enforce server-side Zod validation parity, injection defense, and credential formatting contracts                                                                        | S-01             | Test Plan §3 Phase 1, FR-001, FR-002, FR-003, FR-006 | ready    |
@@ -53,7 +54,7 @@ Navigation aid — groups items that share a Prerequisites chain. Canonical orde
 | B      | Multi-user Collaboration & History | `S-04` / `S-05`                                               | Joins Stream A at `S-03`; now unblocked and ready for implementation. Builds on version persistence to provide history browsing and conflict diff resolution.                                                       |
 | C      | Governance & Observability         | `F-02` (done) / `S-06` / `O-01`                               | Joins Stream A at `S-02`; provides operational error tracking, APM integration, and dashboard lifecycle management.                                                                                                 |
 | D      | Quality & Security Verification    | `T-01` / `T-03` → `T-02` → `T-04`; `T-05` (done)              | Phased test rollout from `test-plan.md`. Playwright E2E browser suite (`T-05`) delivered on 2026-09-12 with Golden Path and note lifecycle coverage. Note mutation unit/action tests delivered in S-03 (>98% coverage); dedicated concurrency (`T-02`), tenant isolation (`T-01`), and security defense (`T-03`) remain ready. |
-| E      | Production Hardening & Readiness   | `O-01` / `H-01`                                               | Derived from the production readiness review (2026-09-12, report in `context/changes/testing-note-versioning-and-concurrency-integrity/reviews/production-readiness-report.md`). Pre-deployment gates (error alerting, migrations, secrets) run first; see "Proposed Change: Production Hardening" below. |
+| E      | Production Hardening & Readiness   | `S-07` / `O-01` / `H-01`                                      | Derived from the production readiness review (2026-09-12, report in `context/changes/testing-note-versioning-and-concurrency-integrity/reviews/production-readiness-report.md`). `S-07` (note encryption at rest, plan reviewed 2026-09-13) closes the biggest security gap — DB access alone currently reads every note as plaintext. Pre-deployment gates (error alerting, migrations, secrets) run first; see "Proposed Change: Production Hardening" below. |
 
 ## Baseline
 
@@ -170,6 +171,20 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Unknowns:** —
 - **Risk:** Cascade deletion must cleanly remove all dependent notes, versions, and credentials without leaving orphaned rows.
 - **Status:** ready
+
+### S-07: Note Encryption at Rest
+
+- **Outcome:** (security) All note titles and contents — across `notes` and every `note_versions` snapshot — are encrypted at rest with AES-256-GCM envelope encryption (`v1:<iv_128bit_b64>:<ciphertext_b64>`, 128-bit random IV, AAD = note ID) inside the `SupabaseDatabaseClient` adapter, the single choke point of the `DatabaseClient` port. Users notice nothing — tiles, editor, version history, diffs, and restore all render plaintext exactly as today — while the database stores only ciphertext. Adds a required `NOTE_ENCRYPTION_KEY` Worker secret (64 hex chars, no fallback), an "Untitled Note" title default, a one-time wipe of legacy prod test data (no backfill), and fixes the E2E cleanup fixture that deletes by plaintext title patterns.
+- **Change ID:** `note-encryption`
+- **PRD refs:** Guardrails ("Note content must not be accessible without valid credentials" — defense-in-depth, not zero-knowledge), FR-006, FR-007, FR-011
+- **Prerequisites:** S-03 (done)
+- **Parallel with:** S-05, S-06
+- **Blockers:** —
+- **Unknowns:**
+  - Key material format: Resolved in plan review — key is generated as 64 hex chars (`openssl rand -hex 32`) and hex-decoded to exactly 32 bytes for raw AES-256 `importKey`; `NOTE_ENCRYPTION_KEY` is required in the zod env schema with no fallback (fail-fast beats the silent-fallback antipattern H-01 is removing).
+  - Plaintext starting with literal `v1:`: Resolved in plan review — `v0:` escape marker written at encrypt time with three-shape recognition on decrypt (`v1:` → decrypt, `v0:` → unwrap, no prefix → legacy passthrough).
+- **Risk:** Decrypt must fail closed (throw) — garbage plaintext or masked key errors defeat authenticated encryption. Wipe-before-deploy ordering: the Worker secret + prod `notes` wipe must precede the encrypted deploy. The new 5-arg `create_note_with_version` overload must repeat REVOKE/GRANT hardening and drop the old 4-arg signature.
+- **Status:** ready (plan reviewed SOUND 2026-09-13)
 
 ## Testing & Verification
 
@@ -296,6 +311,7 @@ Consolidates the configuration, resilience, and security gaps from the review:
 | S-04       | `note-version-history-browser`                         | [#19: [S-04] Note Version History Browser](https://github.com/palucdev/scytala/issues/19)                        | done          | S-03              |
 | S-05       | `manual-sync-and-conflict-diff-resolution`             | [#20: [S-05] Manual Sync and Conflict Diff Resolution](https://github.com/palucdev/scytala/issues/20)            | ready         | S-03              |
 | S-06       | `dashboard-management-and-lifecycle`                   | [#21: [S-06] Dashboard Management and Lifecycle](https://github.com/palucdev/scytala/issues/21)                  | ready         | S-02              |
+| S-07       | `note-encryption`                                      | [#39: [S-07] Note Encryption at Rest (Title + Content)](https://github.com/palucdev/scytala/issues/39)           | ready         | S-03              |
 | T-01       | `testing-tenant-isolation-and-auth-session-guards`     | [#24: [T-01] Tenant Isolation & Auth Session Guards](https://github.com/palucdev/scytala/issues/24)              | ready         | F-01, S-01, S-02  |
 | T-02       | `testing-note-versioning-and-concurrency-integrity`    | [#26: [T-02] Note Versioning & Concurrency Integrity](https://github.com/palucdev/scytala/issues/26)             | ready         | S-03              |
 | T-03       | `testing-server-input-validation-and-security-defense` | [#27: [T-03] Server Input Validation & Security Defense](https://github.com/palucdev/scytala/issues/27)          | ready         | S-01              |

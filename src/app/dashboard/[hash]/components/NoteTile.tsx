@@ -3,12 +3,11 @@
 import Link from "next/link";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
-import Chip from "@mui/material/Chip";
-import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
 import type { NoteDto } from "./DashboardView";
-import { FormattedDate } from "./FormattedDate";
+import { TileMeta } from "./TileMeta";
+import { UnavailableNoteTile } from "./UnavailableNoteTile";
 
 export interface NoteTileProps {
   note: NoteDto;
@@ -18,6 +17,10 @@ export interface NoteTileProps {
 export function NoteTile({ note, dashboardHash }: NoteTileProps) {
   const displayTitle = note.title?.trim() || "Untitled Note";
   const versionLabel = `v${note.version || 1}`;
+
+  if (note.decryptionFailed) {
+    return <UnavailableNoteTile note={note} dashboardHash={dashboardHash} />;
+  }
 
   return (
     <Link
@@ -96,40 +99,7 @@ export function NoteTile({ note, dashboardHash }: NoteTileProps) {
             {note.content}
           </Typography>
 
-          <Stack
-            direction="row"
-            spacing={1}
-            sx={{
-              justifyContent: "space-between",
-              alignItems: "center",
-              pt: 1,
-              borderTop: "1px solid",
-              borderColor: "divider",
-              mt: "auto",
-              flexShrink: 0,
-            }}
-          >
-            <Chip
-              label={versionLabel}
-              size="small"
-              variant="outlined"
-              sx={{
-                fontWeight: 600,
-                fontSize: "0.75rem",
-                height: 22,
-                borderColor: "divider",
-                color: "text.secondary",
-              }}
-            />
-            <FormattedDate
-              date={note.updated_at}
-              sx={{
-                color: "text.disabled",
-                fontFamily: "monospace",
-                fontSize: "0.75rem",
-              }}
-            />
-          </Stack>
+          <TileMeta versionLabel={versionLabel} updatedAt={note.updated_at} />
         </CardContent>
       </Card>
     </Link>
