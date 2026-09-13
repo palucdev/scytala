@@ -19,6 +19,7 @@ import type {
   UpdateNoteInput,
 } from "../client/db-client";
 import { generateDashboardSlug } from "./crypto";
+import { decryptNoteField, encryptNoteField } from "./note-crypto";
 
 /**
  * Creates a fetch wrapper that aborts requests exceeding the specified timeout duration.
@@ -411,15 +412,32 @@ export class SupabaseDatabaseClient implements DatabaseClient {
   /**
    * Create a new note and its initial version 1 history snapshot atomically via PostgreSQL RPC.
    */
+  /**
+   * Create a new note and its initial version 1 history snapshot atomically via PostgreSQL RPC.
+   */
   async createNote(input: CreateNoteInput): Promise<{
     note: Note;
     initialVersion: NoteVersion;
   }> {
+    // AAD binding requires the note ID at creation time, but the RPC could
+    // generate it server-side; pre-generate here and pass it through so the
+    // ciphertext can bind AAD = noteId before the row exists.
+    const noteId = crypto.randomUUID();
+    const encryptedTitle = await encryptNoteField(
+      input.title ?? "",
+      noteId,
+    );
+    const encryptedContent = await encryptNoteField(
+      input.content,
+      noteId,
+    );
+
     const { data, error } = await this.client.rpc("create_note_with_version", {
       p_dashboard_id: input.dashboard_id,
-      p_title: input.title ?? "",
-      p_content: input.content,
+      p_title: encryptedTitle,
+      p_content: encryptedContent,
       p_author_id: input.author_id ?? null,
+      p_note_id: noteId,
     });
 
     if (error || !data) {
@@ -428,7 +446,15 @@ export class SupabaseDatabaseClient implements DatabaseClient {
       );
     }
 
-    return data as { note: Note; initialVersion: NoteVersion };
+    const result = data as {
+      note: Note;
+      initialVersion: NoteVersion;
+    };
+
+    return {
+      note: await this.decryptNote(result.note),
+      initialVersion: await this.decryptNoteVersion(result.initialVersion),
+    };
   }
 
   /**
@@ -438,11 +464,20 @@ export class SupabaseDatabaseClient implements DatabaseClient {
     note: Note;
     newVersion: NoteVersion;
   }> {
+    const encryptedTitle = await encryptNoteField(
+      input.title ?? "",
+      input.note_id,
+    );
+    const encryptedContent = await encryptNoteField(
+      input.content,
+      input.note_id,
+    );
+
     const { data, error } = await this.client.rpc("update_note_with_version", {
       p_note_id: input.note_id,
       p_expected_version: input.expected_version,
-      p_content: input.content,
-      p_title: input.title ?? null,
+      p_content: encryptedContent,
+      p_title: input.title === undefined ? null : encryptedTitle,
       p_author_id: input.author_id ?? null,
     });
 
@@ -452,7 +487,15 @@ export class SupabaseDatabaseClient implements DatabaseClient {
       );
     }
 
-    return data as { note: Note; newVersion: NoteVersion };
+    const result = data as {
+      note: Note;
+      newVersion: NoteVersion;
+    };
+
+    return {
+      note: await this.decryptNote(result.note),
+      newVersion: await this.decryptNoteVersion(result.newVersion),
+    };
   }
 
   /**
@@ -472,7 +515,7 @@ export class SupabaseDatabaseClient implements DatabaseClient {
       );
     }
 
-    return data ?? [];
+    return await Promise.all((data ?? []).map((note) => this.decryptNote(note)));
   }
 
   /**
@@ -491,7 +534,7 @@ export class SupabaseDatabaseClient implements DatabaseClient {
       );
     }
 
-    return data;
+    return data ? await this.decryptNote(data) : null;
   }
 
   /**
@@ -511,9 +554,14 @@ export class SupabaseDatabaseClient implements DatabaseClient {
       );
     }
 
-    return data ?? [];
+    return await Promise.all(
+      (data ?? []).map((version) => this.decryptNoteVersion(version)),
+    );
   }
 
+  /**
+   * Atomically delete a note and cascade its version history snapshots.
+   */
   /**
    * Atomically delete a note and cascade its version history snapshots.
    */
@@ -531,5 +579,21 @@ export class SupabaseDatabaseClient implements DatabaseClient {
     }
 
     return Boolean(data && data.length > 0);
+  }
+
+  private async decryptNote(row: Note): Promise<Note> {
+    return {
+      ...row,
+      title: await decryptNoteField(row.title, row.id),
+      content: await decryptNoteField(row.content, row.id),
+    };
+  }
+
+  private async decryptNoteVersion(row: NoteVersion): Promise<NoteVersion> {
+    return {
+      ...row,
+      title: await decryptNoteField(row.title, row.note_id),
+      content: await decryptNoteField(row.content, row.note_id),
+    };
   }
 }

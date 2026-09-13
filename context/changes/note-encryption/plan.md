@@ -356,16 +356,16 @@ Execute the one-time data decision (wipe prod test notes), set the Worker secret
 
 #### Automated
 
-- [ ] 2.1 Migration applies cleanly (`npm run db:reset`)
-- [ ] 2.2 Targeted unit tests pass (adapter, schemas, actions)
-- [ ] 2.3 Type checking passes
-- [ ] 2.4 Linting passes
-- [ ] 2.5 Integration tests pass
+- [x] 2.1 Migration applies cleanly (`npm run db:reset`)
+- [x] 2.2 Targeted unit tests pass (adapter, schemas, actions)
+- [x] 2.3 Type checking passes
+- [x] 2.4 Linting passes
+- [x] 2.5 Integration tests pass
 
 #### Manual
 
-- [ ] 2.6 Empty title → "Untitled Note"; `v1:` ciphertext verified in studio; version history renders plaintext
-- [ ] 2.7 Encryption error component implemented with unit test; corrupted ciphertext in DB renders the notice instead of crashing
+- [x] 2.6 Empty title → "Untitled Note"; `v1:` ciphertext verified in studio; version history renders plaintext
+- [x] 2.7 Encryption error component implemented with unit test; corrupted ciphertext in DB renders the notice instead of crashing
 
 ### Phase 3: E2E Fixture Fix + Full-Suite Gates
 

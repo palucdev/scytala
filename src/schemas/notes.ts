@@ -12,8 +12,9 @@ export const createNoteSchema = z.object({
     .max(200, "Title must not exceed 200 characters")
     .optional()
     .nullable()
-    // On creation, empty titles normalize to undefined and are persisted as empty strings in the database
-    .transform((val) => (val && val.length > 0 ? val : undefined)),
+    // On creation, empty titles normalize to the literal default so an empty title never
+    // persists — the database always stores a non-empty title.
+    .transform((val) => (val && val.length > 0 ? val : "Untitled Note")),
   content: z
     .string()
     .min(1, "Note content cannot be empty")
@@ -33,9 +34,11 @@ export const updateNoteSchema = z.object({
     .max(200, "Title must not exceed 200 characters")
     .optional()
     .nullable()
-    // In update_note_with_version RPC, NULL signifies "keep existing title" whereas "" signals
-    // an intentional request to clear the title. We map null/empty strings to "" and omit (undefined) to keep.
-    .transform((val) => (val === undefined ? undefined : val ? val : "")),
+    // In update_note_with_version RPC, NULL (kept for undefined/absent input) signifies "keep
+    // existing title"; an explicit empty title now resets to the default instead of clearing.
+    .transform((val) =>
+      val === undefined ? undefined : val && val.length > 0 ? val : "Untitled Note"
+    ),
   content: z
     .string()
     .min(1, "Note content cannot be empty")

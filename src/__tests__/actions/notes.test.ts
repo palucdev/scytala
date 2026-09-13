@@ -461,7 +461,7 @@ describe("src/actions/notes", () => {
       expect(result.success).toBe(true);
       expect(mockUpdateNote).toHaveBeenCalledWith({
         note_id: validNoteId,
-        title: "",
+        title: "Untitled Note",
         content: "Updated content",
         expected_version: 1,
         author_id: validUserId,

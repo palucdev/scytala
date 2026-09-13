@@ -6,7 +6,8 @@ import {
   SessionRateLimitError,
 } from "@/lib/auth-guard";
 import { LoginForm } from "@/app/dashboard/[hash]/components/LoginForm";
-import { RateLimitNotice } from "@/components";
+import { RateLimitNotice, EncryptionErrorNotice } from "@/components";
+import { logger } from "@/lib/logger";
 import { NoteEditor } from "./components";
 
 export const dynamic = "force-dynamic";
@@ -73,7 +74,22 @@ export default async function NoteEditorPage({ params }: NoteEditorPageProps) {
     notFound();
   }
 
-  const note = await db.getNoteById(normalizedNoteId);
+  // Fail closed on note decryption errors: render a dedicated notice instead
+  // of crashing with a framework error boundary or leaking ciphertext.
+  let note = null;
+  try {
+    note = await db.getNoteById(normalizedNoteId);
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("[note-crypto]")) {
+      logger.error(
+        "Note decryption failed; rendering encryption error notice",
+        error,
+        { note_id: normalizedNoteId },
+      );
+      return <EncryptionErrorNotice />;
+    }
+    throw error;
+  }
   if (!note || note.dashboard_id !== dashboard.id) {
     notFound();
   }
