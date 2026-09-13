@@ -41,6 +41,7 @@ Scytala addresses the problem where teams, families, and friend groups need to s
 | T-04 | `testing-ci-quality-gates-and-coverage-hardening`      | (testing) Lock the 80% coverage floor and automated quality checks across the CI/CD pipeline                                                                                       | T-01, T-03       | Test Plan §3 Phase 4, NFRs                           | proposed |
 | T-05 | `testing-playwright-e2e-critical-flows`                | (testing) End-to-end browser automation for critical flows (wizard -> credentials -> login -> note CRUD & versions -> restore -> logout) with 5-layer build isolation              | S-03, S-04       | Test Plan §3 Phase 2, Risk #4, US-01–US-05           | done     |
 | O-01 | `edge-centralized-error-tracking-and-apm`              | (observability) Centralized external error tracking (Sentry Store REST API / APM) via Next.js `instrumentation.ts` (`onRequestError`) with edge compatibility and secret redaction | F-02             | NFRs, Production Readiness Blocker 1                 | proposed |
+| H-01 | `production-hardening`                                 | (hardening) All server paths validate env via `getEnv()` with no `SESSION_SECRET` fallback to the service key in prod, explicit Server Action body size limit, idempotent reads retry transient Supabase failures, and CSP uses a nonce-based policy instead of `unsafe-inline` | F-01, S-03, F-02 | Production Readiness C-1, C-2, C-3, C-5, C-7         | proposed |
 
 ## Streams
 
@@ -52,6 +53,7 @@ Navigation aid — groups items that share a Prerequisites chain. Canonical orde
 | B      | Multi-user Collaboration & History | `S-04` / `S-05`                                               | Joins Stream A at `S-03`; now unblocked and ready for implementation. Builds on version persistence to provide history browsing and conflict diff resolution.                                                       |
 | C      | Governance & Observability         | `F-02` (done) / `S-06` / `O-01`                               | Joins Stream A at `S-02`; provides operational error tracking, APM integration, and dashboard lifecycle management.                                                                                                 |
 | D      | Quality & Security Verification    | `T-01` / `T-03` → `T-02` → `T-04`; `T-05` (done)              | Phased test rollout from `test-plan.md`. Playwright E2E browser suite (`T-05`) delivered on 2026-09-12 with Golden Path and note lifecycle coverage. Note mutation unit/action tests delivered in S-03 (>98% coverage); dedicated concurrency (`T-02`), tenant isolation (`T-01`), and security defense (`T-03`) remain ready. |
+| E      | Production Hardening & Readiness   | `O-01` / `H-01`                                               | Derived from the production readiness review (2026-09-12, report in `context/changes/testing-note-versioning-and-concurrency-integrity/reviews/production-readiness-report.md`). Pre-deployment gates (error alerting, migrations, secrets) run first; see "Proposed Change: Production Hardening" below. |
 
 ## Baseline
 
@@ -250,6 +252,38 @@ Foundations below assume these are present and do NOT re-scaffold them.
   - Fail-safe & Non-blocking: If unconfigured or if the error tracker network request fails, it silently no-ops without disrupting user requests.
 - **Status:** proposed (deferred during early demo stage; recommended for public launch)
 
+## Proposed Change: Production Hardening
+
+Derived from the production readiness review (2026-09-12, GO WITH MITIGATIONS, readiness 81%, medium risk; full findings in `context/changes/testing-note-versioning-and-concurrency-integrity/reviews/production-readiness-report.md`). A single change consolidates all code fixes identified by the review; it is preceded by deployment gates that need no change folder.
+
+### Pre-deployment gates (ops/config)
+
+1. **Error alerting stopgap** — Cloudflare Workers Logs already captures 100% of invocations as structured JSON; enable alert notifications for `error`-level logs plus the `Supabase rate limit RPC failed` warning so incidents and degraded rate limiting surface immediately. Full external error tracking is proposed separately as `O-01`.
+2. **Database migrations** — apply `supabase/migrations/*` to the production Supabase project manually before deploy (Cloudflare build watch paths exclude them, so deploys do not carry schema changes).
+3. **Worker secrets** — verify `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and an independent `SESSION_SECRET` (≥32 chars) are configured on the Worker via `wrangler secret list`.
+
+### H-01: `production-hardening` (~1–2 days, single change)
+
+Consolidates the configuration, resilience, and security gaps from the review:
+
+- Route all env access through `getEnv()` by refactoring `src/lib/supabase.ts` and `src/lib/session.ts`, which currently read `process.env` directly and bypass the zod validation schema (including a legacy `SUPABASE_KEY` fallback).
+- Fail fast in production when `SESSION_SECRET` is absent instead of falling back to `SUPABASE_SERVICE_ROLE_KEY`, which couples session signing to a rotating DB credential; dev/test fallbacks remain.
+- Make the Server Action body limit explicit (`serverActions.bodySizeLimit`, e.g. `256kb`) and cap note content with zod `.max()` in `createNoteSchema`/`updateNoteSchema` so oversized payloads cannot inflate per-version DB storage or the DoS surface.
+- Add a small retry wrapper (2 retries, exponential backoff + jitter) around idempotent Supabase reads — `getDashboardByHash`, `getNotesByDashboard`, `checkHealth` — so transient network blips or PostgREST 503s no longer surface as user-facing "temporarily unavailable" errors. Mutations (`createNote`, `updateNote`, `deleteNote`) stay single-shot because they lack idempotency keys; retrying them risks duplicate note versions.
+- Replace `script-src 'unsafe-inline'` in the production CSP with a nonce-based policy propagated via Next.js middleware.
+- Trivial hygiene bundled here: `import type { Dashboard }` in `src/app/new/components/StepSuccess.tsx`.
+
+### Also scheduled post-launch (no dedicated change yet)
+
+- `npm audit fix` for dev-toolchain CVEs (wrangler → miniflare → sharp) on a dev branch; production dependencies are clean (0 vulnerabilities).
+- Staging wrangler environment + Supabase staging project.
+- PBKDF2 iteration raise (100k → ~600k) on the next schema-touching release only (rehash-on-verify already supports migration of old hashes).
+- Metrics instrumentation (login success/failure, rate-limit trips, note mutations).
+
+### Accepted for MVP
+
+- No read caching — revisit on latency/cost signals; no circuit breaker — revisit together with `H-01`; no feature flags — no current need; graceful shutdown / connection pooling — N/A on stateless Cloudflare Workers isolates.
+
 ## Backlog Handoff
 
 | Roadmap ID | Change ID                                              | GitHub Issue / Source                                                                                            | Status        | Prerequisites     |
@@ -268,6 +302,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 | T-04       | `testing-ci-quality-gates-and-coverage-hardening`      | [#28: [T-04] CI Quality Gates & Coverage Hardening](https://github.com/palucdev/scytala/issues/28)               | proposed      | T-01, T-03        |
 | T-05       | `testing-playwright-e2e-critical-flows`                | [Plan](context/changes/testing-playwright-e2e-critical-flows/plan.md) (Branch `feature/e2e`, Commits `952b906`, `1b66e39`)       | done          | S-03, S-04        |
 | O-01       | `edge-centralized-error-tracking-and-apm`              | [#33: [O-01] Edge Centralized Error Tracking and APM Integration](https://github.com/palucdev/scytala/issues/33) | proposed      | F-02              |
+| H-01       | `production-hardening`                                 | Production readiness review (2026-09-12, report in T-02 reviews/)                                               | proposed      | F-01, S-03, F-02  |
 
 ## Open Roadmap Questions
 

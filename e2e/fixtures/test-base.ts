@@ -1,12 +1,18 @@
 /* eslint-disable react-hooks/rules-of-hooks */
 import { test as base, expect } from "@playwright/test";
 
+export interface TestDashboardParticipant {
+  alias: string;
+  password: string;
+}
+
 export interface TestDashboardInfo {
   hash: string;
   title: string;
   alias: string;
   password: string;
   shareableUrl: string;
+  participants: TestDashboardParticipant[];
 }
 
 export interface CreateTestDashboardOptions {
@@ -14,6 +20,7 @@ export interface CreateTestDashboardOptions {
   description?: string;
   alias?: string;
   password?: string;
+  additionalParticipants?: { alias: string; password?: string }[];
 }
 
 export interface TestFixtures {
@@ -33,6 +40,26 @@ export interface TestFixtures {
 
 import { createClient } from "@supabase/supabase-js";
 
+let testIpCounter = 0;
+
+/**
+ * Unique loopback-independent client IP per test.
+ *
+ * The in-memory `sessionVerifyIp` sliding window (60 req / 60s) lives in the
+ * dev-server process and is keyed on the client IP. Without isolation every
+ * test shares `127.0.0.1`, so consecutive tests drain the same bucket and
+ * would need long cooldowns. Assigning a synthetic `x-forwarded-for` IP per
+ * test gives each one a private bucket. In production Cloudflare sets
+ * `cf-connecting-ip`, which takes precedence, so client-supplied
+ * `x-forwarded-for` cannot bypass IP limiting outside tests.
+ */
+function nextTestIp(): string {
+  testIpCounter += 1;
+  const hi = Math.floor(testIpCounter / 250) + 1;
+  const lo = (testIpCounter % 250) + 1;
+  return `10.240.${hi}.${lo}`;
+}
+
 export async function clearRateLimits(): Promise<void> {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
@@ -46,7 +73,59 @@ export async function clearRateLimits(): Promise<void> {
   }
 }
 
-export const test = base.extend<TestFixtures & { _rateLimitReset: void }>({
+function isLocalSupabaseUrl(url: string): boolean {
+  try {
+    const { hostname } = new URL(url);
+    return (
+      hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]"
+    );
+  } catch {
+    return false;
+  }
+}
+
+export async function cleanupE2ENotes(): Promise<void> {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+  if (url && key && isLocalSupabaseUrl(url)) {
+    try {
+      const supabase = createClient(url, key);
+      const { error } = await supabase
+        .from("notes")
+        .delete()
+        .or(
+          "title.like.Initial E2E Note %,title.like.Seed Note %,title.like.Lifecycle Deletion Note %",
+        );
+      if (error) {
+        console.warn("cleanupE2ENotes failed:", error.message);
+      }
+    } catch {
+      // Ignore in mock or offline runs
+    }
+  }
+}
+
+export const test = base.extend<
+  TestFixtures & { _rateLimitReset: void; _rateLimitIpIsolation: void }
+>({
+  /**
+   * Rewrites `x-forwarded-for` to a unique synthetic IP for every outgoing
+   * request of this test, so the dev-server's in-memory IP rate limiters
+   * (`sessionVerifyIp`, `authIp`) see a fresh bucket per test and no cooldown
+   * sleeps are needed.
+   */
+  _rateLimitIpIsolation: [
+    async ({ context }, use) => {
+      const ip = nextTestIp();
+      await context.route("**/*", (route) => {
+        const headers = route.request().headers();
+        headers["x-forwarded-for"] = ip;
+        return route.continue({ headers });
+      });
+      await use();
+    },
+    { auto: true },
+  ],
   _rateLimitReset: [
     async ({}, use) => {
       await clearRateLimits();
@@ -110,6 +189,25 @@ export const test = base.extend<TestFixtures & { _rateLimitReset: void }>({
       }
       const password = await passwordInput.inputValue();
 
+      const additionalParticipants = options?.additionalParticipants ?? [];
+      for (const [offset, participant] of additionalParticipants.entries()) {
+        await page.locator("#add-participant-btn").click();
+
+        const participantNumber = offset + 2;
+        const extraAliasInput = page.locator(
+          `input[aria-label="Participant ${participantNumber} Alias"]`,
+        );
+        await extraAliasInput.waitFor({ state: "visible" });
+        await extraAliasInput.fill(participant.alias);
+
+        const extraPasswordInput = page.locator(
+          `input[aria-label="Participant ${participantNumber} Password"]`,
+        );
+        if (participant.password) {
+          await extraPasswordInput.fill(participant.password);
+        }
+      }
+
       await page.locator("#wizard-next-btn").click();
 
       // Step 3: Review
@@ -122,12 +220,35 @@ export const test = base.extend<TestFixtures & { _rateLimitReset: void }>({
       const shareableUrl = await shareableUrlInput.inputValue();
       const hash = shareableUrl.split("/dashboard/")[1]?.trim() || "";
 
+      const participants: TestDashboardParticipant[] = [
+        { alias, password },
+      ];
+      for (const participant of additionalParticipants) {
+        if (participant.password) {
+          participants.push({
+            alias: participant.alias,
+            password: participant.password,
+          });
+          continue;
+        }
+        const credentialRow = page
+          .getByRole("button", {
+            name: `Copy credentials for ${participant.alias}`,
+          })
+          .locator("..");
+        const passwordText =
+          (await credentialRow.locator(".credential-password").textContent()) ??
+          "";
+        participants.push({ alias: participant.alias, password: passwordText });
+      }
+
       return {
         hash,
         title,
         alias,
         password,
         shareableUrl,
+        participants,
       };
     };
 

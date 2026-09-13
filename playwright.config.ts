@@ -11,6 +11,7 @@ if (fs.existsSync(envLocalPath)) {
 export default defineConfig({
   testDir: "./e2e",
   testMatch: "**/*.spec.ts",
+  globalTeardown: "./e2e/global-teardown.ts",
   timeout: 90000,
   fullyParallel: false,
   workers: 1,
@@ -33,14 +34,8 @@ export default defineConfig({
       },
     },
     {
-      name: "rate-limit-cooldown",
-      testMatch: /cooldown\.setup\.ts/,
-      dependencies: ["chromium"],
-    },
-    {
       name: "firefox",
       use: { ...devices["Desktop Firefox"] },
-      dependencies: ["rate-limit-cooldown"],
     },
   ],
   webServer: {

@@ -6,7 +6,7 @@
 >
 > Refresh: re-run `/10x-test-plan --refresh` when stale (see §8).
 >
-> Last updated: 2026-09-11
+> Last updated: 2026-09-12
 
 ## 1. Strategy
 
@@ -69,7 +69,7 @@ orchestrator updates Status as artifacts appear on disk.
 |---|---|---|---|---|---|---|
 | 1 | Core Unit & Integration Regression Suite | Defend tenant isolation, crypto, session cookies, rate limiting, and note CRUD actions with Vitest | #1, #2, #5, #6 | unit + integration | complete | context/changes/note-crud-and-version-persistence/ |
 | 2 | Playwright E2E Test Suite & Critical Browser Flows | Introduce Playwright for end-to-end browser testing covering dashboard creation, login, note editing, and history | #4 | e2e | complete | context/changes/testing-playwright-e2e-critical-flows/ |
-| 3 | Multi-user Concurrency & Conflict Diff Resolution Tests | Verify three-way diff calculations and concurrent edit conflict resolution under simulated multi-user mutations | #3, #7 | integration + e2e | not started | — |
+| 3 | Multi-user Concurrency & Conflict Diff Resolution Tests | Verify three-way diff calculations and concurrent edit conflict resolution under simulated multi-user mutations | #3, #7 | integration + e2e | implementing | context/changes/testing-note-versioning-and-concurrency-integrity/ |
 | 4 | Observability, APM & Pre-prod Gate Hardening | Wire centralized error reporting, synthetic health checks, and pre-deployment bundle & isolate validation | cross-cutting | gates | not started | — |
 
 ## 4. Stack
@@ -159,7 +159,29 @@ How to add new tests in this project. Each sub-section is filled in once the rel
 
 ### 6.5 Adding a multi-user concurrency & conflict diff test
 
-- TBD — see §3 Phase 3 for side-by-side diff resolution and concurrent mutation conflict patterns.
+Two complementary layers ship with Phase 3: a live-database race test for
+PostgreSQL optimistic concurrency, and a dual-browser-context Playwright
+spec for the user-facing conflict experience.
+
+**Layer 1 — Database integration race test**
+
+- **Location**: `src/__tests__/integration/`.
+- **Naming**: `<area>.integration.test.ts` (must end in `.integration.test.ts` to be picked up by `vitest.integration.config.ts` and excluded from `npm test`).
+- **Run config**: `vitest.integration.config.ts` uses the `node` environment, maps the `@` alias to `./src`, and loads `.env.local` / `.env.ai` so `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are present.
+- **Seeding & cleanup**: Use `createIntegrationTestDashboard()` to seed an isolated workspace + note and `cleanupIntegrationTestDashboard(dashboardId)` in `afterAll` (from `src/__tests__/integration/test-db-helper.ts`).
+- **Race pattern**: Seed a note at v1, fire two `db.updateNote` calls simultaneously with the same `expected_version` through `Promise.allSettled`, then assert exactly one `fulfilled` result and one `rejected` result carrying `"Version mismatch or note not found"`. Follow with database-level integrity assertions: `notes.version` advanced by exactly 1 and `note_versions` containing contiguous, duplicate-free snapshots (`[1, 2]`) — proving the losing transaction rolled back atomically.
+- **Reference test**: `src/__tests__/integration/note-concurrency.integration.test.ts`.
+- **Run locally**: `npm run test:integration` (requires a running local Supabase instance).
+
+**Layer 2 — Playwright dual-context multi-user spec**
+
+- **Location**: `e2e/`.
+- **Naming**: `<feature>-concurrency.spec.ts`.
+- **Fixture support**: Pass `additionalParticipants: [{ alias: "Bob" }]` to `createTestDashboard` to add extra participants in the `/new` wizard; the returned `TestDashboardInfo.participants` array carries each participant's generated credentials.
+- **Session isolation (critical)**: Session cookies are scoped per dashboard hash (`scytala_session_${hash}`), so a second user in the *same* Playwright context would overwrite the first user's cookie. Always create the second user with `await browser.newContext()` + `context.newPage()` to get true multi-user isolation, and close the context at the end of the test.
+- **Conflict assertions**: After the second user saves with a stale version, assert the warning `Alert` (`"This note has been modified by someone else. Please reload and try again."`) is visible, the user's typed draft is still in the textarea (draft preservation before reload), the Reload button inside the alert pulls the fresh server version into the editor, and a clean follow-up save advances to the next version.
+- **Reference test**: `e2e/note-concurrency.spec.ts`.
+- **Run locally**: `npx playwright test e2e/note-concurrency.spec.ts --project=chromium` (or `--project=firefox`; requires `.env.ai`/`.env.local` loaded and the dev server started by `playwright.config.ts`).
 
 ### 6.6 Per-rollout-phase notes
 
@@ -187,8 +209,3 @@ Refresh (`/10x-test-plan --refresh`) when:
 - the project's tech stack changes (new framework, new test runner),
 - §7 negative-space no longer matches what the team believes.
 
-Refresh (`/10x-test-plan --refresh`) when:
-- a new top-3 risk surfaces from the roadmap or archive,
-- a recommended tool's `checked:` date is older than three months,
-- the project's tech stack changes (new framework, new test runner),
-- §7 negative-space no longer matches what the team believes.
