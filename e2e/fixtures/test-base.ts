@@ -40,7 +40,25 @@ export interface TestFixtures {
 
 import { createClient } from "@supabase/supabase-js";
 
-let lastTestFinishedAt = 0;
+let testIpCounter = 0;
+
+/**
+ * Unique loopback-independent client IP per test.
+ *
+ * The in-memory `sessionVerifyIp` sliding window (60 req / 60s) lives in the
+ * dev-server process and is keyed on the client IP. Without isolation every
+ * test shares `127.0.0.1`, so consecutive tests drain the same bucket and
+ * would need long cooldowns. Assigning a synthetic `x-forwarded-for` IP per
+ * test gives each one a private bucket. In production Cloudflare sets
+ * `cf-connecting-ip`, which takes precedence, so client-supplied
+ * `x-forwarded-for` cannot bypass IP limiting outside tests.
+ */
+function nextTestIp(): string {
+  testIpCounter += 1;
+  const hi = Math.floor(testIpCounter / 250) + 1;
+  const lo = (testIpCounter % 250) + 1;
+  return `10.240.${hi}.${lo}`;
+}
 
 export async function clearRateLimits(): Promise<void> {
   const url = process.env.SUPABASE_URL;
@@ -88,27 +106,23 @@ export async function cleanupE2ENotes(): Promise<void> {
 }
 
 export const test = base.extend<
-  TestFixtures & { _rateLimitReset: void; _rateLimitCooldown: void }
+  TestFixtures & { _rateLimitReset: void; _rateLimitIpIsolation: void }
 >({
   /**
-   * Structural gap between tests within a project.
-   *
-   * The in-memory `sessionVerifyIp` sliding window (60 req / 60s) lives in the
-   * dev-server process and accumulates across tests sharing `127.0.0.1`
-   * (DB-backed clearRateLimits() cannot reset it). Enforcing >=65s between
-   * consecutive tests lets every timestamp age out of the window so each test
-   * starts with a full token budget.
+   * Rewrites `x-forwarded-for` to a unique synthetic IP for every outgoing
+   * request of this test, so the dev-server's in-memory IP rate limiters
+   * (`sessionVerifyIp`, `authIp`) see a fresh bucket per test and no cooldown
+   * sleeps are needed.
    */
-  _rateLimitCooldown: [
-    async ({}, use) => {
-      const COOLDOWN_MS = 65_000;
-      const elapsed = Date.now() - lastTestFinishedAt;
-      const wait = COOLDOWN_MS - elapsed;
-      if (lastTestFinishedAt > 0 && wait > 0) {
-        await new Promise((resolve) => setTimeout(resolve, wait));
-      }
+  _rateLimitIpIsolation: [
+    async ({ context }, use) => {
+      const ip = nextTestIp();
+      await context.route("**/*", (route) => {
+        const headers = route.request().headers();
+        headers["x-forwarded-for"] = ip;
+        return route.continue({ headers });
+      });
       await use();
-      lastTestFinishedAt = Date.now();
     },
     { auto: true },
   ],
