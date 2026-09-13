@@ -23,6 +23,12 @@ import type {
 } from "../client/db-client";
 import { generateDashboardSlug } from "./crypto";
 import { logger } from "./logger";
+/**
+ * PostgreSQL error code raised by RPCs when a row update yields no matching row
+ * with the expected version (map_no_data / no_data_found) — signals a version conflict.
+ */
+const POSTGRES_VERSION_CONFLICT_CODE = "P0002";
+
 import {
   decryptNoteField,
   encryptNoteField,
@@ -482,7 +488,7 @@ export class SupabaseDatabaseClient implements DatabaseClient {
     });
 
     if (error || !data) {
-      if (error?.code === "P0002") {
+      if (error?.code === POSTGRES_VERSION_CONFLICT_CODE) {
         throw new VersionConflictError(
           `[SupabaseDatabaseClient] updateNote failed: ${error.message}`,
         );
@@ -538,7 +544,10 @@ export class SupabaseDatabaseClient implements DatabaseClient {
   /**
    * Retrieve a note by its UUID primary key.
    */
-  async getNoteById(note_id: string): Promise<Note | null> {
+  async getNoteById(
+    note_id: string,
+    options?: { metadataOnly?: boolean },
+  ): Promise<Note | null> {
     const { data, error } = await this.client
       .from("notes")
       .select("*")
@@ -551,7 +560,28 @@ export class SupabaseDatabaseClient implements DatabaseClient {
       );
     }
 
-    return data ? await this.decryptNote(data) : null;
+    if (!data) {
+      return null;
+    }
+    if (!options?.metadataOnly) {
+      return await this.decryptNote(data);
+    }
+    // Metadata-only reads (e.g. ownership prechecks for delete) do not need
+    // plaintext: on decrypt failure degrade to a safe placeholder with real
+    // metadata and empty title/content instead of failing closed.
+    try {
+      return await this.decryptNote(data);
+    } catch (decryptError) {
+      if (!(decryptError instanceof NoteCryptoError)) {
+        throw decryptError;
+      }
+      logger.error(
+        "Metadata-only note read decryption failed; returning placeholder",
+        decryptError,
+        { note_id: data.id, dashboard_id: data.dashboard_id },
+      );
+      return { ...data, title: "", content: "" };
+    }
   }
 
   /**

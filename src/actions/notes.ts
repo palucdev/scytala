@@ -8,12 +8,14 @@ import {
 } from "@/lib/auth-guard";
 import { verifyPassword } from "@/lib/crypto";
 import { VersionConflictError } from "@/lib/db-errors";
+import { NoteCryptoError } from "@/lib/note-crypto";
 import { logger } from "@/lib/logger";
 import {
   checkRateLimit,
   DUMMY_PBKDF2_HASH,
   getClientIp,
 } from "@/lib/rate-limit";
+import type { Note } from "@/client/db-client";
 import {
   createNoteSchema,
   deleteNoteSchema,
@@ -201,7 +203,23 @@ export async function updateNoteAction(
     }
 
     const db = createDatabaseClient();
-    const note = await db.getNoteById(noteId);
+    let note: Note | null = null;
+    try {
+      note = await db.getNoteById(noteId);
+    } catch (error) {
+      if (error instanceof NoteCryptoError) {
+        log.warn("Update blocked: note decryption failed", {
+          noteId,
+          dashboardId: session.dashboard_id,
+        });
+        return {
+          success: false,
+          error:
+            "This note is unavailable due to an encryption problem and cannot be edited.",
+        };
+      }
+      throw error;
+    }
     if (!note || note.dashboard_id !== session.dashboard_id) {
       log.warn("Note not found or does not belong to dashboard", {
         noteId,
@@ -332,7 +350,9 @@ export async function deleteNoteAction(
     }
 
     const db = createDatabaseClient();
-    const note = await db.getNoteById(noteId);
+    // Deletion needs no plaintext, so the ownership precheck reads metadata
+    // only — an undecryptable note can still be deleted to unstick the user.
+    const note = await db.getNoteById(noteId, { metadataOnly: true });
     if (!note || note.dashboard_id !== session.dashboard_id) {
       log.warn("Note not found or does not belong to dashboard", {
         noteId,

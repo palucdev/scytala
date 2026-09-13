@@ -71,7 +71,7 @@ function nextTestIp(): string {
 export async function clearRateLimits(): Promise<void> {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
-  if (url && key) {
+  if (url && key && isLocalSupabaseUrl(url)) {
     try {
       const supabase = createClient(url, key);
       await supabase.from("rate_limits").delete().neq("key", "");

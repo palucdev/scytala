@@ -1094,6 +1094,29 @@ describe('src/lib/supabase domain adapter', () => {
           '[SupabaseDatabaseClient] getNoteById failed: Fetch error'
         );
       });
+
+      it('getNoteById with metadataOnly degrades undecryptable rows instead of throwing', async () => {
+        const corruptNote = {
+          ...baseNote,
+          title: 'v1:not-an-envelope',
+          content: 'v1:corrupt:base64',
+        };
+        const mockSupabase = {
+          from: vi.fn(() => createQueryBuilderMock({ data: corruptNote, error: null })),
+        } as unknown as SupabaseClient;
+
+        const db = new SupabaseDatabaseClient(mockSupabase);
+
+        await expect(db.getNoteById('note-uuid-1')).rejects.toThrow();
+        const degraded = await db.getNoteById('note-uuid-1', {
+          metadataOnly: true,
+        });
+        expect(degraded).toEqual({
+          ...corruptNote,
+          title: '',
+          content: '',
+        });
+      });
     });
 
     describe('getNoteVersions and deleteNote', () => {

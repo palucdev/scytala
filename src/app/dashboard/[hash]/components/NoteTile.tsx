@@ -3,12 +3,11 @@
 import Link from "next/link";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
-import Chip from "@mui/material/Chip";
-import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 
 import type { NoteDto } from "./DashboardView";
-import { FormattedDate } from "./FormattedDate";
+import { TileMeta } from "./TileMeta";
+import { UnavailableNoteTile } from "./UnavailableNoteTile";
 
 export interface NoteTileProps {
   note: NoteDto;
@@ -20,96 +19,7 @@ export function NoteTile({ note, dashboardHash }: NoteTileProps) {
   const versionLabel = `v${note.version || 1}`;
 
   if (note.decryptionFailed) {
-    return (
-      <Card
-        component="article"
-        aria-label={`Note unavailable: version ${versionLabel}`}
-        sx={{
-          bgcolor: "background.paper",
-          border: "1px solid",
-          borderColor: "error.main",
-          borderRadius: 2,
-          boxShadow: "0 2px 8px rgba(35, 24, 13, 0.06)",
-          display: "flex",
-          flexDirection: "column",
-          height: 210,
-        }}
-      >
-        <CardContent
-          sx={{
-            p: 2,
-            "&:last-child": { pb: 2 },
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-          }}
-        >
-          <Typography
-            variant="h3"
-            component="h2"
-            sx={{
-              fontSize: "1.1rem",
-              fontWeight: 600,
-              color: "error.main",
-              mb: 1,
-            }}
-          >
-            Note unavailable
-          </Typography>
-
-          <Typography
-            variant="body1"
-            sx={{
-              color: "text.secondary",
-              flex: 1,
-              overflow: "hidden",
-              lineHeight: 1.45,
-              fontSize: "0.95rem",
-              mb: 1,
-            }}
-          >
-            This note can&apos;t be loaded because of an encryption problem.
-            Try again later.
-          </Typography>
-
-          <Stack
-            direction="row"
-            spacing={1}
-            sx={{
-              justifyContent: "space-between",
-              alignItems: "center",
-              pt: 1,
-              borderTop: "1px solid",
-              borderColor: "divider",
-              mt: "auto",
-              flexShrink: 0,
-            }}
-          >
-            <Chip
-              label={versionLabel}
-              size="small"
-              variant="outlined"
-              sx={{
-                fontWeight: 600,
-                fontSize: "0.75rem",
-                height: 22,
-                borderColor: "divider",
-                color: "text.secondary",
-              }}
-            />
-            <FormattedDate
-              date={note.updated_at}
-              sx={{
-                color: "text.disabled",
-                fontFamily: "monospace",
-                fontSize: "0.75rem",
-              }}
-            />
-          </Stack>
-        </CardContent>
-      </Card>
-    );
+    return <UnavailableNoteTile note={note} dashboardHash={dashboardHash} />;
   }
 
   return (
@@ -189,40 +99,7 @@ export function NoteTile({ note, dashboardHash }: NoteTileProps) {
             {note.content}
           </Typography>
 
-          <Stack
-            direction="row"
-            spacing={1}
-            sx={{
-              justifyContent: "space-between",
-              alignItems: "center",
-              pt: 1,
-              borderTop: "1px solid",
-              borderColor: "divider",
-              mt: "auto",
-              flexShrink: 0,
-            }}
-          >
-            <Chip
-              label={versionLabel}
-              size="small"
-              variant="outlined"
-              sx={{
-                fontWeight: 600,
-                fontSize: "0.75rem",
-                height: 22,
-                borderColor: "divider",
-                color: "text.secondary",
-              }}
-            />
-            <FormattedDate
-              date={note.updated_at}
-              sx={{
-                color: "text.disabled",
-                fontFamily: "monospace",
-                fontSize: "0.75rem",
-              }}
-            />
-          </Stack>
+          <TileMeta versionLabel={versionLabel} updatedAt={note.updated_at} />
         </CardContent>
       </Card>
     </Link>

@@ -257,7 +257,10 @@ export interface DatabaseClient {
   /**
    * Retrieve a note by its UUID primary key.
    */
-  getNoteById(note_id: string): Promise<Note | null>;
+  getNoteById(
+    note_id: string,
+    options?: { metadataOnly?: boolean },
+  ): Promise<Note | null>;
 
   /**
    * Retrieve all version history snapshots for a note ordered by version descending.

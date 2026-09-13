@@ -100,6 +100,26 @@ describe("DeleteNoteDialog Component", () => {
     ).toBeInTheDocument();
   });
 
+  it("describes an unavailable note instead of a guessed title when titleUnavailable", () => {
+    renderWithTheme(
+      <DeleteNoteDialog
+        open={true}
+        onClose={mockOnClose}
+        dashboardHash="dash-123"
+        noteId="note-123"
+        noteTitle=""
+        titleUnavailable
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        /delete an unavailable note \(its title cannot be decrypted\)\? This action cannot be undone/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Untitled Note/)).not.toBeInTheDocument();
+  });
+
   it("enables delete button when password is entered, disables when cleared", () => {
     renderWithTheme(
       <DeleteNoteDialog
