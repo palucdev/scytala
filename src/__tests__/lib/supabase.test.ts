@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SupabaseDatabaseClient, createTimeoutFetch } from '@/lib/supabase';
 import { encryptNoteField, isEncryptedEnvelope } from '@/lib/note-crypto';
+import { VersionConflictError } from '@/lib/db-errors';
 import { resetEnvCache } from '@/lib/env';
 import {
   createDatabaseClient,
@@ -75,38 +76,24 @@ describe('src/lib/supabase domain adapter', () => {
   });
 
   describe('constructor and client initialization', () => {
-    it('throws error when SUPABASE_URL is missing', () => {
+    it('throws when SUPABASE_URL is missing', () => {
       vi.stubEnv('SUPABASE_URL', '');
-      vi.stubEnv('SUPABASE_KEY', 'some-key');
+
+      expect(() => new SupabaseDatabaseClient()).toThrow(/SUPABASE_URL/);
+    });
+
+    it('throws when SUPABASE_SERVICE_ROLE_KEY is missing', () => {
+      vi.stubEnv('SUPABASE_URL', 'https://example.supabase.co');
       vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
 
       expect(() => new SupabaseDatabaseClient()).toThrow(
-        'Missing required environment variables: SUPABASE_URL and/or SUPABASE_KEY.'
+        /SUPABASE_SERVICE_ROLE_KEY/
       );
     });
 
-    it('throws error when SUPABASE_KEY and SUPABASE_SERVICE_ROLE_KEY are both missing', () => {
+    it('creates client from validated env without legacy SUPABASE_KEY fallback', () => {
       vi.stubEnv('SUPABASE_URL', 'https://example.supabase.co');
-      vi.stubEnv('SUPABASE_KEY', '');
-      vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
-
-      expect(() => new SupabaseDatabaseClient()).toThrow(
-        'Missing required environment variables: SUPABASE_URL and/or SUPABASE_KEY.'
-      );
-    });
-
-    it('uses SUPABASE_SERVICE_ROLE_KEY when SUPABASE_KEY is absent', () => {
-      vi.stubEnv('SUPABASE_URL', 'https://example.supabase.co');
-      vi.stubEnv('SUPABASE_KEY', '');
-      vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', 'service-role-secret');
-
-      expect(() => new SupabaseDatabaseClient()).not.toThrow();
-    });
-
-    it('uses SUPABASE_KEY when SUPABASE_SERVICE_ROLE_KEY is absent', () => {
-      vi.stubEnv('SUPABASE_URL', 'https://example.supabase.co');
-      vi.stubEnv('SUPABASE_KEY', 'anon-or-service-key');
-      vi.stubEnv('SUPABASE_SERVICE_ROLE_KEY', '');
+      vi.stubEnv('SUPABASE_KEY', 'legacy-key');
 
       expect(() => new SupabaseDatabaseClient()).not.toThrow();
     });
@@ -118,27 +105,22 @@ describe('src/lib/supabase domain adapter', () => {
     });
 
     it('createDatabaseClient factory creates SupabaseDatabaseClient', () => {
-      vi.stubEnv('SUPABASE_URL', 'https://example.supabase.co');
-      vi.stubEnv('SUPABASE_KEY', 'test-key');
-
       const dbClient = createDatabaseClient();
       expect(dbClient).toBeInstanceOf(SupabaseDatabaseClient);
     });
 
     it('respects custom SUPABASE_TIMEOUT_MS environment variable', () => {
       vi.stubEnv('SUPABASE_URL', 'https://example.supabase.co');
-      vi.stubEnv('SUPABASE_KEY', 'test-key');
       vi.stubEnv('SUPABASE_TIMEOUT_MS', '3000');
 
       expect(() => new SupabaseDatabaseClient()).not.toThrow();
     });
 
-    it('falls back to default 8000ms when SUPABASE_TIMEOUT_MS is invalid', () => {
+    it('throws when SUPABASE_TIMEOUT_MS is invalid', () => {
       vi.stubEnv('SUPABASE_URL', 'https://example.supabase.co');
-      vi.stubEnv('SUPABASE_KEY', 'test-key');
       vi.stubEnv('SUPABASE_TIMEOUT_MS', 'invalid-number');
 
-      expect(() => new SupabaseDatabaseClient()).not.toThrow();
+      expect(() => new SupabaseDatabaseClient()).toThrow(/SUPABASE_TIMEOUT_MS/);
     });
   });
 
@@ -904,7 +886,10 @@ describe('src/lib/supabase domain adapter', () => {
         const mockSupabase = {
           rpc: vi.fn().mockResolvedValue({
             data: null,
-            error: { message: 'Version mismatch or note not found (expected version 1)' },
+            error: {
+              message: 'Version mismatch or note not found (expected version 1)',
+              code: 'P0002',
+            },
           }),
         } as unknown as SupabaseClient;
 
@@ -915,9 +900,21 @@ describe('src/lib/supabase domain adapter', () => {
             content: 'Conflicting update',
             expected_version: 1,
           })
-        ).rejects.toThrow(
-          '[SupabaseDatabaseClient] updateNote failed: Version mismatch or note not found (expected version 1)'
-        );
+        ).rejects.toThrow(VersionConflictError);
+
+        const dbGeneric = new SupabaseDatabaseClient({
+          rpc: vi.fn().mockResolvedValue({
+            data: null,
+            error: { message: 'Some other failure' },
+          }),
+        } as unknown as SupabaseClient);
+        await expect(
+          dbGeneric.updateNote({
+            note_id: 'note-uuid-1',
+            content: 'Conflicting update',
+            expected_version: 1,
+          })
+        ).rejects.toThrow('[SupabaseDatabaseClient] updateNote failed: Some other failure');
 
         // Test data null with error null
         const mockSupabaseNull = {

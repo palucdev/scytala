@@ -3,6 +3,8 @@
  */
 
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import { getEnv } from "./env";
+import { VersionConflictError } from "./db-errors";
 import type {
   AuditInput,
   AuditRecord,
@@ -74,31 +76,16 @@ export class SupabaseDatabaseClient implements DatabaseClient {
       return;
     }
 
-    const SUPABASE_URL = process.env.SUPABASE_URL;
-    const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const SUPABASE_KEY = SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+    const env = getEnv();
 
-    if (!SUPABASE_URL || !SUPABASE_KEY) {
-      throw new Error(
-        "Missing required environment variables: SUPABASE_URL and/or SUPABASE_KEY. " +
-          "Ensure they are declared in .env",
-      );
-    }
-
-    const parsedTimeout = process.env.SUPABASE_TIMEOUT_MS
-      ? parseInt(process.env.SUPABASE_TIMEOUT_MS, 10)
-      : 8000;
-    const timeoutMs =
-      isNaN(parsedTimeout) || parsedTimeout <= 0 ? 8000 : parsedTimeout;
-
-    this.client = createClient(SUPABASE_URL, SUPABASE_KEY, {
+    this.client = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
       auth: {
         persistSession: false,
         autoRefreshToken: false,
         detectSessionInUrl: false,
       },
       global: {
-        fetch: createTimeoutFetch(timeoutMs),
+        fetch: createTimeoutFetch(env.SUPABASE_TIMEOUT_MS),
       },
     });
   }
@@ -495,6 +482,11 @@ export class SupabaseDatabaseClient implements DatabaseClient {
     });
 
     if (error || !data) {
+      if (error?.code === "P0002") {
+        throw new VersionConflictError(
+          `[SupabaseDatabaseClient] updateNote failed: ${error.message}`,
+        );
+      }
       throw new Error(
         `[SupabaseDatabaseClient] updateNote failed: ${error?.message || "Unknown error"}`,
       );

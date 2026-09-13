@@ -7,6 +7,7 @@ import {
   SessionRateLimitError,
 } from "@/lib/auth-guard";
 import { verifyPassword } from "@/lib/crypto";
+import { VersionConflictError } from "@/lib/db-errors";
 import { logger } from "@/lib/logger";
 import {
   checkRateLimit,
@@ -248,7 +249,10 @@ export async function updateNoteAction(
     }
 
     const errorMessage = error instanceof Error ? error.message : String(error);
-    if (errorMessage.toLowerCase().includes("version mismatch")) {
+    if (
+      error instanceof VersionConflictError ||
+      errorMessage.toLowerCase().includes("version mismatch")
+    ) {
       log.warn("Note update version conflict", {
         noteId,
         expectedVersion,
