@@ -1,5 +1,13 @@
 /* eslint-disable react-hooks/rules-of-hooks */
 import { test as base, expect } from "@playwright/test";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  truncateSync,
+} from "node:fs";
+import { dirname, resolve } from "node:path";
 
 export interface TestDashboardParticipant {
   alias: string;
@@ -77,10 +85,70 @@ function isLocalSupabaseUrl(url: string): boolean {
   try {
     const { hostname } = new URL(url);
     return (
-      hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]"
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "[::1]" ||
+      hostname === "host.docker.internal"
     );
   } catch {
     return false;
+  }
+}
+
+/**
+ * Dashboard hashes visited/created during this run (fixture + navigation
+ * hook). `cleanupE2ENotes` scopes its deletion to the notes of exactly these
+ * dashboards so pre-existing local data is never touched.
+ *
+ * Test workers and the global teardown run in separate Node processes, so the
+ * registry is also mirrored to an NDJSON file (NDJSON appends are
+ * crash-friendly across parallel workers); teardown merges it back in.
+ */
+const createdDashboardHashes = new Set<string>();
+
+const registryPath = resolve(
+  process.env.E2E_DASHBOARD_REGISTRY ??
+    "test-results/e2e-created-dashboards.jsonl",
+);
+
+function appendRegistryFile(hash: string): void {
+  try {
+    mkdirSync(dirname(registryPath), { recursive: true });
+    appendFileSync(registryPath, `${hash}\n`, "utf-8");
+  } catch {
+    // Registry persistence is best-effort; in-memory set still covers the
+    // common (single-process) case.
+  }
+}
+
+export function registerCreatedDashboard(hash: string): void {
+  if (!hash || createdDashboardHashes.has(hash)) {
+    return;
+  }
+  createdDashboardHashes.add(hash);
+  appendRegistryFile(hash);
+}
+
+function readRegistryFile(): string[] {
+  try {
+    return existsSync(registryPath)
+      ? readFileSync(registryPath, "utf-8")
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function truncateRegistryFile(): void {
+  try {
+    if (existsSync(registryPath)) {
+      truncateSync(registryPath, 0);
+    }
+  } catch {
+    // Best-effort; stale entries are idempotent next run.
   }
 }
 
@@ -90,14 +158,39 @@ export async function cleanupE2ENotes(): Promise<void> {
   if (url && key && isLocalSupabaseUrl(url)) {
     try {
       const supabase = createClient(url, key);
-      const { error } = await supabase
+      const hashes = [
+        ...new Set([...createdDashboardHashes, ...readRegistryFile()]),
+      ].filter(Boolean);
+      if (hashes.length === 0) {
+        return;
+      }
+      const { data, error: fetchError } = await supabase
+        .from("dashboards")
+        .select("id")
+        .in("hash", hashes);
+      if (fetchError) {
+        console.warn("cleanupE2ENotes failed:", fetchError.message);
+        return;
+      }
+      const dashboardIds = (data ?? []).map((row) => row.id);
+      if (dashboardIds.length === 0) {
+        return;
+      }
+      const { error, count: deletedCount } = await supabase
         .from("notes")
-        .delete()
-        .or(
-          "title.like.Initial E2E Note %,title.like.Seed Note %,title.like.Lifecycle Deletion Note %",
-        );
+        .delete({ count: "exact" })
+        .in("dashboard_id", dashboardIds);
       if (error) {
         console.warn("cleanupE2ENotes failed:", error.message);
+      } else if (deletedCount === 0) {
+        console.warn(
+          "cleanupE2ENotes: registered dashboards had no matching notes (possibly stale registry)",
+        );
+      }
+      if (error) {
+        console.warn("cleanupE2ENotes failed:", error.message);
+      } else {
+        truncateRegistryFile();
       }
     } catch {
       // Ignore in mock or offline runs
@@ -118,6 +211,11 @@ export const test = base.extend<
     async ({ context }, use) => {
       const ip = nextTestIp();
       await context.route("**/*", (route) => {
+        const url = new URL(route.request().url());
+        const dashboardMatch = url.pathname.match(/^\/dashboard\/([^/]+)/);
+        if (dashboardMatch && dashboardMatch[1] !== "new") {
+          registerCreatedDashboard(decodeURIComponent(dashboardMatch[1]));
+        }
         const headers = route.request().headers();
         headers["x-forwarded-for"] = ip;
         return route.continue({ headers });
@@ -219,6 +317,7 @@ export const test = base.extend<
       await expect(shareableUrlInput).toBeVisible();
       const shareableUrl = await shareableUrlInput.inputValue();
       const hash = shareableUrl.split("/dashboard/")[1]?.trim() || "";
+      registerCreatedDashboard(hash);
 
       const participants: TestDashboardParticipant[] = [
         { alias, password },

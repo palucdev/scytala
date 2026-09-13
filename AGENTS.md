@@ -1,13 +1,13 @@
 # Repository Guidelines
 
-Scytala is a private hypermedia and note sharing web platform built with Next.js 16.3 (App Router) + React 19, deployed via OpenNext on Cloudflare Workers, utilizing Supabase (PostgreSQL + RPCs) for backend persistence, Zod v4 for schema validation, and Material-UI v9 for styling. Current feature set: authentication, note CRUD with version persistence and version history browser, end-to-end note encryption (crypto core + `SESSION_SECRET`-derived env key), dashboard, rate limiting, and a health endpoint.
+Scytala is a private hypermedia and note sharing web platform built with Next.js 16.3 (App Router) + React 19, deployed via OpenNext on Cloudflare Workers, utilizing Supabase (PostgreSQL + RPCs) for backend persistence, Zod v4 for schema validation, and Material-UI v9 for styling. Current feature set: authentication, note CRUD with version persistence and version history browser, at-rest note encryption (AES-256-GCM envelopes via a dedicated `NOTE_ENCRYPTION_KEY`), dashboard, rate limiting, and a health endpoint.
 
 ## Hard Rules & Agent Instructions
 - **No TailwindCSS**: Tailwind was explicitly removed from this project. Use `@mui/material` for all styling.
 - **Strict Coverage**: Tests must maintain an 80% coverage threshold across lines, functions, branches, and statements, enforced by `@vitest.config.ts`.
 - **Forward-Only Database Migrations**: Database schema evolution is strictly forward-only (`supabase/migrations/<timestamp>_<name>.sql`). Do not create or maintain `down` migration scripts (`down.sql` / `DROP TABLE ... CASCADE`) to prevent catastrophic data loss in production. Rollbacks must be handled via additive forward migrations (fix-forward) or database Point-in-Time Recovery (PITR).
 - **Build Isolation**: Production Next.js builds use `@tsconfig.build.json` and exclude test files from serverless edge bundles via `outputFileTracingExcludes` in `@next.config.ts`. Never import test utilities or mocks into production code.
-- **Secrets & Environment Defense**: Server secrets (`SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`) must never leak to client components. Validate all runtime configuration with `@src/lib/env.ts`.
+- **Secrets & Environment Defense**: Server secrets (`SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`, `NOTE_ENCRYPTION_KEY`) must never leak to client components. Validate all runtime configuration with `@src/lib/env.ts`.
 
 ## Project Structure
 - `@src/app/` - Next.js App Router pages, layouts, and route handlers (`api/health`, `api/auth`, `dashboard/[hash]`, `new/` with co-located components and hooks).

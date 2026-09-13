@@ -8,6 +8,7 @@ import {
 import { LoginForm } from "@/app/dashboard/[hash]/components/LoginForm";
 import { RateLimitNotice, EncryptionErrorNotice } from "@/components";
 import { logger } from "@/lib/logger";
+import { NoteCryptoError } from "@/lib/note-crypto";
 import { NoteEditor } from "./components";
 
 export const dynamic = "force-dynamic";
@@ -80,7 +81,7 @@ export default async function NoteEditorPage({ params }: NoteEditorPageProps) {
   try {
     note = await db.getNoteById(normalizedNoteId);
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith("[note-crypto]")) {
+    if (error instanceof NoteCryptoError) {
       logger.error(
         "Note decryption failed; rendering encryption error notice",
         error,

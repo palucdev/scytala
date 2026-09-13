@@ -3,6 +3,7 @@ import {
   encryptNoteField,
   decryptNoteField,
   isEncryptedEnvelope,
+  NoteCryptoError,
 } from "@/lib/note-crypto";
 import { getEnv, resetEnvCache } from "@/lib/env";
 
@@ -37,7 +38,7 @@ describe("src/lib/note-crypto", () => {
       expect(isEncryptedEnvelope("v1:AAAA:BBBB")).toBe(true);
     });
 
-    it("returns false for legacy plaintext, v0 passthrough, and empty strings", () => {
+    it("returns false for non-envelope strings", () => {
       expect(isEncryptedEnvelope("hello world")).toBe(false);
       expect(isEncryptedEnvelope("v0:v1:something")).toBe(false);
       expect(isEncryptedEnvelope("")).toBe(false);
@@ -45,15 +46,17 @@ describe("src/lib/note-crypto", () => {
   });
 
   describe("encryptNoteField", () => {
-    it("returns an empty string unchanged for empty input", async () => {
-      expect(await encryptNoteField("", NOTE_A)).toBe("");
+    it("encrypts the empty string into a valid envelope", async () => {
+      const stored = await encryptNoteField("", NOTE_A);
+      expect(isEncryptedEnvelope(stored)).toBe(true);
+      expect(await decryptNoteField(stored, NOTE_A)).toBe("");
     });
 
-    it("escapes plaintext starting with v1: as a v0 passthrough marker", async () => {
+    it("encrypts plaintext starting with v1: into a real envelope and round-trips", async () => {
       const plaintext = "v1: this looks like an envelope";
       const stored = await encryptNoteField(plaintext, NOTE_A);
-      expect(stored).toBe(`v0:${plaintext}`);
-      expect(isEncryptedEnvelope(stored)).toBe(false);
+      expect(isEncryptedEnvelope(stored)).toBe(true);
+      expect(await decryptNoteField(stored, NOTE_A)).toBe(plaintext);
     });
 
     it("produces a v1 envelope with base64 IV and ciphertext segments", async () => {
@@ -88,15 +91,20 @@ describe("src/lib/note-crypto", () => {
     it("round-trips a v1-prefixed plaintext title back to the original", async () => {
       const plaintext = "v1:not actually encrypted";
       const stored = await encryptNoteField(plaintext, NOTE_A);
-      expect(stored).toBe(`v0:${plaintext}`);
+      expect(isEncryptedEnvelope(stored)).toBe(true);
       expect(await decryptNoteField(stored, NOTE_A)).toBe(plaintext);
     });
 
-    it("passes through legacy plaintext unchanged", async () => {
-      expect(await decryptNoteField("old plaintext row", NOTE_A)).toBe(
-        "old plaintext row",
+    it("rejects non-envelope values (fail closed, no plaintext support)", async () => {
+      await expect(decryptNoteField("old plaintext row", NOTE_A)).rejects.toThrowError(
+        NoteCryptoError,
       );
-      expect(await decryptNoteField("", NOTE_A)).toBe("");
+      await expect(decryptNoteField("", NOTE_A)).rejects.toThrowError(
+        /Not an encrypted envelope/,
+      );
+      await expect(decryptNoteField("v0:v1:something", NOTE_A)).rejects.toThrowError(
+        /Not an encrypted envelope/,
+      );
     });
 
     it("rejects a tampered envelope (GCM tag failure)", async () => {

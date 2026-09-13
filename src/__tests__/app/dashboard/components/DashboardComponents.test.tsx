@@ -288,6 +288,30 @@ describe("Dashboard Subcomponents", () => {
         screen.queryByText(/click to see whole note/i),
       ).not.toBeInTheDocument();
     });
+
+    it("renders an 'unavailable' placeholder card for undecryptable notes without content", () => {
+      const corruptNote: NoteDto = {
+        ...sampleNote,
+        title: "",
+        content: "",
+        decryptionFailed: true,
+      };
+
+      renderWithTheme(
+        <NoteTile note={corruptNote} dashboardHash="secret-hash-16c" />,
+      );
+
+      expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(
+        "Note unavailable",
+      );
+      expect(
+        screen.getByText(/can't be loaded because of an encryption problem/i),
+      ).toBeInTheDocument();
+      // No note content, no ciphertext, no editor link.
+      expect(screen.queryByText(sampleNote.content)).not.toBeInTheDocument();
+      expect(screen.queryByRole("link")).not.toBeInTheDocument();
+      expect(screen.getByText("v3")).toBeInTheDocument();
+    });
   });
 
   describe("FormattedDate Client Component", () => {

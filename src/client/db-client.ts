@@ -91,6 +91,21 @@ export interface NoteVersion {
   created_at: string;
 }
 
+/**
+ * A note row as listed by `getNotesByDashboard`.
+ * `undecryptable` rows carry only safe metadata — never ciphertext — so a
+ * single corrupt note can be surfaced as a placeholder instead of failing
+ * the whole dashboard listing.
+ */
+export type DashboardNote =
+  | { status: "ok"; note: Note }
+  | {
+      status: "undecryptable";
+      id: string;
+      version: number;
+      updated_at: string;
+    };
+
 // ---------------------------------------------------------------------------
 // Input Types
 // ---------------------------------------------------------------------------
@@ -222,8 +237,10 @@ export interface DatabaseClient {
 
   /**
    * Retrieve all notes belonging to a dashboard ordered by creation date.
+   * Undecryptable rows (corrupt ciphertext) are returned as `undecryptable`
+   * placeholders instead of failing the whole listing.
    */
-  getNotesByDashboard(dashboard_id: string): Promise<Note[]>;
+  getNotesByDashboard(dashboard_id: string): Promise<DashboardNote[]>;
 
   /**
    * Retrieve a note by its UUID primary key.

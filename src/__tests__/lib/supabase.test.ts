@@ -679,7 +679,8 @@ describe('src/lib/supabase domain adapter', () => {
           p_title: string;
           p_content: string;
         };
-        expect(params.p_title).toBe('');
+        expect(params.p_title).not.toBe('');
+        expect(isEncryptedEnvelope(params.p_title)).toBe(true);
         expect(isEncryptedEnvelope(params.p_content)).toBe(true);
       });
 
@@ -902,7 +903,44 @@ describe('src/lib/supabase domain adapter', () => {
         } as unknown as SupabaseClient;
 
         const db = new SupabaseDatabaseClient(mockSupabase);
-        expect(await db.getNotesByDashboard('dash-uuid-1')).toEqual([baseNote]);
+        expect(await db.getNotesByDashboard('dash-uuid-1')).toEqual([
+          { status: 'ok', note: baseNote },
+        ]);
+      });
+
+      it('getNotesByDashboard degrades a corrupt row to an undecryptable placeholder without failing the listing', async () => {
+        const goodNote: Note = {
+          ...baseNote,
+          id: 'note-uuid-2',
+          title: 'Good Note',
+          content: 'Good content',
+        };
+        const corruptRow = await encryptNoteRow(baseNote);
+        const [iv, ct] = corruptRow.title.split(':');
+        const ctBytes = Buffer.from(ct, 'base64');
+        ctBytes[0] ^= 0xff;
+        corruptRow.title = `v1:${iv}:${ctBytes.toString('base64')}`;
+        const goodRow = await encryptNoteRow(goodNote);
+
+        const mockSupabase = {
+          from: vi.fn(() =>
+            createQueryBuilderMock({ data: [corruptRow, goodRow], error: null }),
+          ),
+        } as unknown as SupabaseClient;
+
+        const db = new SupabaseDatabaseClient(mockSupabase);
+        const result = await db.getNotesByDashboard('dash-uuid-1');
+
+        expect(result).toHaveLength(2);
+        expect(result[0]).toEqual({
+          status: 'undecryptable',
+          id: baseNote.id,
+          version: baseNote.version,
+          updated_at: baseNote.updated_at,
+        });
+        expect(result[1]).toEqual({ status: 'ok', note: goodNote });
+        // The placeholder must never carry ciphertext.
+        expect(JSON.stringify(result[0])).not.toContain('v1:');
       });
 
       it('getNotesByDashboard returns empty array when null and throws on error', async () => {

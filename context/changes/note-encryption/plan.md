@@ -27,7 +27,7 @@ Encrypt `notes.title`/`notes.content` and `note_versions.title`/`note_versions.c
 
 - Every non-empty note title/content (notes + all versions) is stored as `v1:<iv_b64>:<ciphertext_b64>` in the existing TEXT columns, AES-256-GCM, 128-bit random IV, AAD = note ID, key from the required `NOTE_ENCRYPTION_KEY` env secret.
 - Reads decrypt inside the adapter; downstream consumers (actions, DTO mapper, diff, drawer) receive plaintext exactly as today.
-- Legacy plaintext rows (if any appear) pass through untouched; decrypt failures fail closed.
+- Decrypt accepts only a valid `v1:` envelope — any non-envelope value or decrypt failure fails closed (no legacy/plaintext support; review decision, 2026-09-13).
 - Empty titles never persist: they normalize to `"Untitled Note"` at the Zod schema layer.
 - Prod test data wiped once; new prod data is encrypted from the first write.
 - Full gates pass: typecheck, lint, 80% coverage, integration, E2E.
@@ -49,13 +49,12 @@ Encrypt `notes.title`/`notes.content` and `note_versions.title`/`note_versions.c
 
 ## Implementation Approach
 
-Envelope encryption at the adapter choke point: writes encrypt title/content immediately before the RPC call; reads decrypt title/content immediately after fetch. A dedicated `src/lib/note-crypto.ts` module owns the format and primitives so the adapter stays thin and the crypto is independently testable. Dual-format reads detect the `v1:` prefix; unprefixed values pass through as legacy plaintext. One additive migration extends `create_note_with_version` with an optional pre-generated note ID so AAD binding works at creation time. The "Untitled Note" default lives in the Zod schemas — one normalization point inherited by all callers.
+Envelope encryption at the adapter choke point: writes encrypt title/content immediately before the RPC call; reads decrypt title/content immediately after fetch. A dedicated `src/lib/note-crypto.ts` module owns the format and primitives so the adapter stays thin and the crypto is independently testable. Every stored value is a `v1:` envelope — non-envelope values fail closed on read (review decision, 2026-09-13). One additive migration extends `create_note_with_version` with an optional pre-generated note ID so AAD binding works at creation time. The "Untitled Note" default lives in the Zod schemas — one normalization point inherited by all callers.
 
 ## Critical Implementation Details
 
 - **AAD vs. create-time note ID (load-bearing conflict)**: the research decision "AAD = note ID" binds ciphertext to its row, but at `createNote` time the note UUID does not exist yet — the RPC generates it server-side. Resolution: the adapter pre-generates the UUID (`crypto.randomUUID()`), uses it as AAD, and passes it to the RPC; this requires an additive optional parameter (`p_note_id uuid DEFAULT NULL`) on `create_note_with_version`, with `COALESCE(p_note_id, gen_random_uuid())` preserving existing behavior. This is the plan's only RPC touch and it is additive and forward-safe. All other paths (update, all reads) already have the note ID in scope.
-- **Empty-string carve-out**: encryption skips empty strings and decryption passes them through — an empty string can never be a valid `v1:` envelope, so prefix detection stays unambiguous. With the title default and content-required rule this path is nearly unreachable, but it keeps legacy/edge rows safe from double-encryption attempts.
-- **`v1:` prefix collision guard (stability of dual-format reads)**: user content could legitimately begin with the literal `v1:` and would otherwise be misdetected as an envelope, then fail closed. `encryptNoteField` therefore escapes such plaintext at write time as `v0:<original>` (a non-encrypted passthrough marker), and `decryptNoteField` recognizes exactly three shapes: `v1:` → decrypt (fail closed on error), `v0:` → strip the marker and return the rest, no recognized prefix → legacy plaintext passthrough. `v0:` is chosen because no envelope version starts with it; escaping is idempotent (an already-escaped value decrypts back to a `v1:`-prefixed plaintext only through `v0:` unwrap, never re-encrypted). Round-trip tests must include a plaintext title starting with `v1:`.
+- **Strict envelope-only contract (review decision, 2026-09-13)**: there is no plaintext passthrough of any kind. `encryptNoteField` always encrypts — including the empty string — so every stored value is a `v1:` envelope. `decryptNoteField` accepts only a valid `v1:` envelope and throws on anything else (fail closed). This removes the earlier `v0:` escape design: a plaintext starting with the literal `v1:` is now encrypted like any other content, and a stray legacy plaintext row (e.g. from a restored backup) fails closed instead of surfacing as plaintext. Round-trip tests must include a plaintext title starting with `v1:` and a non-envelope decrypt rejection.
 - **Base64 on Workers**: ciphertext bytes → base64 must avoid `String.fromCharCode(...spread)` on unbounded arrays; content is capped at 10 000 chars so chunked conversion is a safe bound. Use the existing bytes/hex helper style of `src/lib/crypto.ts` as the convention reference.
 - **Timing-safe tamper handling**: rely on GCM tag verification failure (decrypt rejection) rather than any manual comparison — per research §Architecture Insights (Cloudflare timing warning).
 - **Wipe-before-deploy ordering (Phase 4)**: the Worker secret must be set and the prod `notes` table wiped *before* the encrypted app serves traffic, so no plaintext row is ever read by an expecting-to-decrypt path and no ciphertext is written by a keyless deploy.
@@ -75,8 +74,8 @@ Build the self-contained encryption module and its failure semantics, and make `
 **Intent**: Own the envelope format and all AES-GCM primitives so the adapter and tests share one implementation.
 
 **Contract**:
-- `encryptNoteField(plaintext: string, noteId: string): Promise<string>` — returns `v1:<iv_b64>:<ciphertext_b64>`; empty string input returns `""` unchanged.
-- `decryptNoteField(stored: string, noteId: string): Promise<string>` — values without the `v1:` prefix return unchanged (legacy plaintext passthrough); prefixed values are decrypted with AAD = `noteId`; any decrypt failure throws (fail closed).
+- `encryptNoteField(plaintext: string, noteId: string): Promise<string>` — returns `v1:<iv_b64>:<ciphertext_b64>`; always encrypts, including the empty string (strict envelope-only contract).
+- `decryptNoteField(stored: string, noteId: string): Promise<string>` — only valid `v1:` envelopes are accepted and decrypted with AAD = `noteId`; any non-envelope value or decrypt failure throws (fail closed; no legacy/plaintext support).
 - `isEncryptedEnvelope(value: string): boolean` — strict prefix check.
 - Envelope format (the contract other phases depend on):
   ```
@@ -106,7 +105,7 @@ Build the self-contained encryption module and its failure semantics, and make `
 
 **Intent**: Cover the crypto contract and the new env requirement.
 
-**Contract**: round-trip; tampered ciphertext rejects; wrong-key rejects; decrypting a valid envelope with a different noteId rejects (AAD binding); legacy plaintext passthrough; empty-string passthrough; `v1:`-prefixed plaintext escapes as `v0:` and round-trips back to the original; envelope is non-deterministic across calls (fresh IV); `envSchema` rejects a missing, malformed (non-hex), or wrong-length `NOTE_ENCRYPTION_KEY`; a 64-hex-char key decodes to exactly 32 bytes for import.
+**Contract**: round-trip; tampered ciphertext rejects; wrong-key rejects; decrypting a valid envelope with a different noteId rejects (AAD binding); non-envelope values reject on decrypt (fail closed — no plaintext support); empty-string input encrypts into a valid envelope and round-trips; `v1:`-prefixed plaintext encrypts into a real envelope and round-trips back to the original; envelope is non-deterministic across calls (fresh IV); `envSchema` rejects a missing, malformed (non-hex), or wrong-length `NOTE_ENCRYPTION_KEY`; a 64-hex-char key decodes to exactly 32 bytes for import.
 
 ### Success Criteria:
 
@@ -154,7 +153,7 @@ Wire encryption into the 5 adapter methods, extend the create RPC with an option
 - `getNotesByDashboard` (supabase.ts:461), `getNoteById` (supabase.ts:481): decrypt `title` + `content` of each row, AAD = row `id`.
 - `getNoteVersions` (supabase.ts:500): decrypt `title` + `content` of each row, AAD = row `note_id`.
 - Decryption happens before return — before the `dto.ts:20` 300-char slice and before any action consumes the result.
-- Because decrypt failures throw (fail closed) inside server-rendered pages, pages must catch decryption errors and render the dedicated error component — see step 4 below — instead of crashing with a framework error boundary.
+- **Per-note degradation for the dashboard listing (review decision, 2026-09-13)**: `getNotesByDashboard` returns `DashboardNote[]` — a discriminated union of `{ status: "ok", note }` and `{ status: "undecryptable", id, version, updated_at }`. A row whose ciphertext fails decryption is logged server-side and degraded to an `undecryptable` placeholder (safe metadata only — never ciphertext) so one corrupt note never blanks the whole dashboard. Single-note reads (`getNoteById`, `getNoteVersions`) still throw (fail closed) and are handled by the note page — see step 4.
 
 #### 3. Title default in schemas
 
@@ -175,8 +174,8 @@ Wire encryption into the 5 adapter methods, extend the create RPC with an option
 
 **Contract**:
 - A Material-UI `Alert` with `severity="error"` (matching the `RateLimitNotice` component style) that renders a generic message: the note's content is unavailable because of an encryption problem, with a hint to try again later — no ciphertext, key material, or stack details ever reach the client.
-- Server pages (`dashboard/[hash]/page.tsx`, `note/[noteId]/page.tsx`) wrap adapter reads in a try/catch that distinguishes decryption failure (log server-side with the logger, return `null`/error state, render `EncryptionErrorNotice` instead of the note content) — a missing note and a corrupt note render differently, per the fail-closed contract of `decryptNoteField`.
-- No new interactivity or client JS; it is a pure server-rendered presentation component.
+- The note page (`note/[noteId]/page.tsx`) wraps the adapter read in a try/catch that distinguishes decryption failure (log server-side, render `EncryptionErrorNotice` instead of the note content) — a missing note and a corrupt note render differently, per the fail-closed contract of `decryptNoteField`.
+- The dashboard page (`dashboard/[hash]/page.tsx`) no longer needs a crypto catch: the adapter degrades undecryptable rows to `undecryptable` placeholders (see step 2), which `NoteTile` renders as a distinct error-styled "Note unavailable" card (no note content, no ciphertext, no editor link) while healthy notes render normally.
 
 #### 5. Adapter + schema test updates
 
@@ -221,9 +220,9 @@ Fix the only known encryption-induced test breakage and run every gate, includin
 
 **File**: `e2e/fixtures/test-base.ts`
 
-**Intent**: Replace the plaintext-title-LIKE deletion with a content-independent criterion.
+**Intent**: Replace the plaintext-title-LIKE deletion with a content-independent, run-scoped criterion that preserves pre-existing local data (reviewer override, 2026-09-13: delete-all `.neq("id", "")` was rejected so local notes outside the E2E run are never wiped).
 
-**Contract**: `cleanupE2ENotes` (test-base.ts:87-106) deletes all notes (`delete().neq("id", "")`) — safe because the existing `isLocalSupabaseUrl` guard (test-base.ts:90) already restricts this cleanup to localhost. No new filtering machinery needed.
+**Contract**: `registerCreatedDashboard(hash)` is called from two places: (a) the `createTestDashboard` fixture when the wizard succeeds, and (b) an auto per-test route hook that registers the hash from every `/dashboard/<hash>` URL the page requests (covers specs that drive the wizard manually, e.g. `golden-path.spec.ts`). Registration mirrors hashes into an NDJSON registry file (default `test-results/e2e-created-dashboards.jsonl`, override via `E2E_DASHBOARD_REGISTRY`) because Playwright test workers and global teardown run in separate Node processes — the module-level `Set` alone is invisible to teardown. `cleanupE2ENotes` (test-base.ts:90+) runs once after the suite via `e2e/global-teardown.ts`, merges the in-memory set with the file, resolves dashboard IDs (`.in("hash", hashes)`), and deletes only `notes` rows whose `dashboard_id` is in that set — no-op when nothing was registered; registry is truncated on success, stale entries are idempotent next run. `isLocalSupabaseUrl` additionally accepts `host.docker.internal` (the local-Docker URL convention in `.env.ai`), since the previous localhost-only guard silently disabled cleanup in Docker environments. Deleting by `dashboard_id` is orthogonal to the note-title ciphertext, so it stays correct under encryption.
 
 #### 2. Full-suite verification
 
@@ -270,6 +269,7 @@ Execute the one-time data decision (wipe prod test notes), set the Worker secret
 **Contract**:
 - Add `NOTE_ENCRYPTION_KEY` to the secrets checklist with the ordering note: secret set → prod notes wiped → deploy.
 - Add the key to the H-01 pre-deploy gate list (roadmap.md:263) so future hardening work covers it.
+- Note that migration `20260913000000_create_note_with_version_optional_id.sql` drops the old 4-arg `create_note_with_version(uuid, text, text, uuid)` overload when it applies (impl-review F4) — ops should expect the function identity to swap atomically during migration; the sole caller (the adapter) already uses the 5-arg signature.
 
 #### 2. One-time prod wipe (operational step, documented in the runbook section)
 
@@ -303,7 +303,7 @@ Execute the one-time data decision (wipe prod test notes), set the Worker secret
 
 ### Unit Tests:
 
-- `note-crypto.test.ts`: round-trip, tamper rejection, wrong-key rejection, AAD note-ID binding (cross-note decrypt fails), legacy passthrough, empty-string passthrough, non-deterministic envelopes.
+- `note-crypto.test.ts`: round-trip, tamper rejection, wrong-key rejection, AAD note-ID binding (cross-note decrypt fails), non-envelope decrypt rejection (fail closed), empty-string encryption round-trip, non-deterministic envelopes.
 - `env.test.ts`: required key, 64-hex-char format enforcement.
 - `supabase.test.ts`: ciphertext at RPC boundary, plaintext at method boundary, `p_note_id` UUID on create, sentinel `p_title: null` on update without title.
 - `schemas/notes.test.ts`: "Untitled Note" defaulting for create and explicit-clear update; content-required rules unchanged.
@@ -328,7 +328,7 @@ Execute the one-time data decision (wipe prod test notes), set the Worker secret
 ## Migration Notes
 
 - Forward-only: the single migration is additive (`CREATE OR REPLACE` with a defaulted optional parameter). No destructive SQL; the prod wipe is a data operation, not a migration.
-- Dual-format reads tolerate any stray legacy plaintext rows (e.g. a restored backup) without failing.
+- Strict envelope-only reads: any stray legacy plaintext row (e.g. from a restored backup) fails closed rather than surfacing as plaintext — the Phase 4 prod wipe ensures no such rows exist.
 - Rotation (future, out of scope): re-encrypt with a new key by decrypt-with-old/re-encrypt-with-new over all rows — the `v1:` envelope + AAD contract is rotation-ready.
 
 ## References
@@ -356,26 +356,26 @@ Execute the one-time data decision (wipe prod test notes), set the Worker secret
 
 #### Automated
 
-- [x] 2.1 Migration applies cleanly (`npm run db:reset`)
-- [x] 2.2 Targeted unit tests pass (adapter, schemas, actions)
-- [x] 2.3 Type checking passes
-- [x] 2.4 Linting passes
-- [x] 2.5 Integration tests pass
+- [x] 2.1 Migration applies cleanly (`npm run db:reset`) — 7aca035
+- [x] 2.2 Targeted unit tests pass (adapter, schemas, actions) — 7aca035
+- [x] 2.3 Type checking passes — 7aca035
+- [x] 2.4 Linting passes — 7aca035
+- [x] 2.5 Integration tests pass — 7aca035
 
 #### Manual
 
-- [x] 2.6 Empty title → "Untitled Note"; `v1:` ciphertext verified in studio; version history renders plaintext
-- [x] 2.7 Encryption error component implemented with unit test; corrupted ciphertext in DB renders the notice instead of crashing
+- [x] 2.6 Empty title → "Untitled Note"; `v1:` ciphertext verified in studio; version history renders plaintext — 7aca035
+- [x] 2.7 Encryption error component implemented with unit test; corrupted ciphertext in DB renders the notice instead of crashing — 7aca035
 
 ### Phase 3: E2E Fixture Fix + Full-Suite Gates
 
 #### Automated
 
-- [ ] 3.1 Full unit suite with coverage passes
-- [ ] 3.2 Type checking passes
-- [ ] 3.3 Linting passes
-- [ ] 3.4 Integration tests pass
-- [ ] 3.5 E2E suite passes
+- [x] 3.1 Full unit suite with coverage passes
+- [x] 3.2 Type checking passes
+- [x] 3.3 Linting passes
+- [x] 3.4 Integration tests pass
+- [x] 3.5 E2E suite passes
 
 #### Manual
 

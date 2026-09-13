@@ -7,7 +7,7 @@ import { PapyrusThemeLight } from "@/theme/papyrus-theme-light";
 import * as dbClientModule from "@/client/db-client";
 import * as sessionModule from "@/lib/session";
 import * as authGuardModule from "@/lib/auth-guard";
-import type { Dashboard, Note } from "@/client/db-client";
+import type { Dashboard, DashboardNote, Note } from "@/client/db-client";
 
 const mockNotFound = vi.fn();
 
@@ -227,7 +227,10 @@ describe("src/app/dashboard/[hash]/page.tsx (DashboardPage SSR)", () => {
 
     it("renders DashboardView with header, participant chip, and note tiles", async () => {
       // Mock returns notes ordered by updated_at desc
-      mockGetNotesByDashboard.mockResolvedValue([mockNotes[1], mockNotes[0]]);
+      mockGetNotesByDashboard.mockResolvedValue([
+        { status: "ok", note: mockNotes[1] },
+        { status: "ok", note: mockNotes[0] },
+      ]);
 
       const page = await DashboardPage({
         params: Promise.resolve({ hash: mockDashboard.hash }),
@@ -326,24 +329,30 @@ describe("src/app/dashboard/[hash]/page.tsx (DashboardPage SSR)", () => {
 
     it("mapNotesToDto strips note internals and sorts by updated_at desc", async () => {
       const { mapNotesToDto } = await import("@/app/dashboard/[hash]/dto");
-      const unorderedNotes: Note[] = [
+      const unorderedNotes: DashboardNote[] = [
         {
-          id: "note-1",
-          dashboard_id: "dash-1234-uuid",
-          title: "First Note",
-          content: "Content 1",
-          version: 1,
-          created_at: "2026-08-26T08:00:00Z",
-          updated_at: "2026-08-26T09:00:00Z",
+          status: "ok",
+          note: {
+            id: "note-1",
+            dashboard_id: "dash-1234-uuid",
+            title: "First Note",
+            content: "Content 1",
+            version: 1,
+            created_at: "2026-08-26T08:00:00Z",
+            updated_at: "2026-08-26T09:00:00Z",
+          },
         },
         {
-          id: "note-2",
-          dashboard_id: "dash-1234-uuid",
-          title: "Second Note",
-          content: "Content 2",
-          version: 2,
-          created_at: "2026-08-26T08:30:00Z",
-          updated_at: "2026-08-26T12:00:00Z",
+          status: "ok",
+          note: {
+            id: "note-2",
+            dashboard_id: "dash-1234-uuid",
+            title: "Second Note",
+            content: "Content 2",
+            version: 2,
+            created_at: "2026-08-26T08:30:00Z",
+            updated_at: "2026-08-26T12:00:00Z",
+          },
         },
       ];
 
@@ -371,21 +380,48 @@ describe("src/app/dashboard/[hash]/page.tsx (DashboardPage SSR)", () => {
     it("truncates note content exceeding 300 characters in preview DTO", async () => {
       const { mapNotesToDto } = await import("@/app/dashboard/[hash]/dto");
       const longContent = "A".repeat(500);
-      const notes: Note[] = [
+      const notes: DashboardNote[] = [
         {
-          id: "note-long",
-          dashboard_id: "dash-1234-uuid",
-          title: "Long Note",
-          content: longContent,
-          version: 1,
-          created_at: "2026-08-26T08:00:00Z",
-          updated_at: "2026-08-26T09:00:00Z",
+          status: "ok",
+          note: {
+            id: "note-long",
+            dashboard_id: "dash-1234-uuid",
+            title: "Long Note",
+            content: longContent,
+            version: 1,
+            created_at: "2026-08-26T08:00:00Z",
+            updated_at: "2026-08-26T09:00:00Z",
+          },
         },
       ];
 
       const dtos = mapNotesToDto(notes);
       expect(dtos[0].content).toHaveLength(300);
       expect(dtos[0].content).toBe("A".repeat(300));
+    });
+
+    it("mapNotesToDto maps undecryptable rows to placeholder DTOs without ciphertext", async () => {
+      const { mapNotesToDto } = await import("@/app/dashboard/[hash]/dto");
+      const notes: DashboardNote[] = [
+        {
+          status: "undecryptable",
+          id: "note-corrupt",
+          version: 3,
+          updated_at: "2026-08-26T10:00:00Z",
+        },
+      ];
+
+      const dtos = mapNotesToDto(notes);
+      expect(dtos).toEqual([
+        {
+          id: "note-corrupt",
+          title: "",
+          content: "",
+          version: 3,
+          updated_at: "2026-08-26T10:00:00Z",
+          decryptionFailed: true,
+        },
+      ]);
     });
   });
 

@@ -49,7 +49,7 @@ Scytala provides:
 
 - **No Global Accounts**: Identity is scoped entirely to the dashboard. A user on one dashboard has no implicit association with another dashboard.
 - **Defense-in-Depth Security**:
-  - Server secrets (`SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`) are strictly validated at runtime via `src/lib/env.ts` and never leaked to client bundles.
+  - Server secrets (`SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`, `NOTE_ENCRYPTION_KEY`) are strictly validated at runtime via `src/lib/env.ts` and never leaked to client bundles.
   - Authentication uses constant-time comparisons and signed, HttpOnly, SameSite session cookies (`scytala_session_<hash>`).
   - Sensitive operations (login and note mutations) are protected by dual-layer rate limiting: Cloudflare edge bindings and a PostgreSQL token bucket RPC.
 - **Data Integrity & Concurrency**:

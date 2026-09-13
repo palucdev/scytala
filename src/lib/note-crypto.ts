@@ -5,14 +5,11 @@
  *   v1:<iv_128bit_b64>:<ciphertext_b64>
  *
  * Semantics:
- * - Encryption skips the empty string (carve-out: an empty string can never be a valid envelope).
- * - Plaintext that already starts with the literal "v1:" is escaped at write time as
- *   "v0:<original>" (a passthrough marker, NOT encrypted) so the dual-format reader never
- *   misinterprets user content as an envelope.
- * - Decryption recognizes exactly three shapes:
+ * - Every stored value is a v1 envelope — encryption always encrypts, including
+ *   the empty string. No plaintext passthrough exists (review decision, 2026-09-13).
+ * - Decryption accepts only a valid v1 envelope:
  *     v1: -> AES-256-GCM decrypt with AAD = noteId; any failure throws (fail closed)
- *     v0: -> strip the marker, return the rest unchanged
- *     no recognized prefix -> legacy plaintext passthrough
+ *     anything else -> throws (fail closed; no legacy/plaintext support)
  * - AAD = note ID (UTF-8) binds ciphertext to its row; cross-row decrypts fail.
  *
  * Key: getEnv().NOTE_ENCRYPTION_KEY — a 64-hex-char string decoded to exactly 32 bytes
@@ -22,10 +19,21 @@
 import { getEnv } from "@/lib/env";
 
 const ENVELOPE_VERSION = "v1";
-const PASSTHROUGH_PREFIX = "v0";
 const IV_BYTE_LENGTH = 16; // 128-bit random IV per write
 const AES_KEY_BYTE_LENGTH = 32;
 const BASE64_CHUNK_SIZE = 0x8000;
+
+/**
+ * Typed error for all note-crypto failures (malformed envelope, GCM
+ * authentication failure, key problems). Callers classify decrypt failures
+ * via `instanceof` instead of matching on message strings.
+ */
+export class NoteCryptoError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "NoteCryptoError";
+  }
+}
 
 // AAD binding requires an explicit noteId for every (de)cipher operation.
 const encoder = new TextEncoder();
@@ -107,20 +115,13 @@ export function isEncryptedEnvelope(value: string): boolean {
 }
 
 /**
- * Encrypts a note field. Returns "" unchanged for empty input; escapes
- * plaintext starting with "v1:" as "v0:<original>" (passthrough marker).
+ * Encrypts a note field into a v1 envelope. Always encrypts — including the
+ * empty string — so every stored value is an encrypted envelope.
  */
 export async function encryptNoteField(
   plaintext: string,
   noteId: string,
 ): Promise<string> {
-  if (plaintext === "") {
-    return "";
-  }
-  if (plaintext.startsWith(`${ENVELOPE_VERSION}:`)) {
-    return `${PASSTHROUGH_PREFIX}:${plaintext}`;
-  }
-
   const key = await getAesKey();
   const iv = new Uint8Array(IV_BYTE_LENGTH);
   crypto.getRandomValues(iv);
@@ -137,24 +138,22 @@ export async function encryptNoteField(
 }
 
 /**
- * Decrypts a stored note field. Non-envelope values pass through unchanged
- * (legacy plaintext or v0 passthrough marker); v1 envelopes are decrypted
- * with AAD = noteId and any failure throws (fail closed).
+ * Decrypts a stored note field. Only valid v1 envelopes are accepted;
+ * any non-envelope value or decrypt failure throws (fail closed).
  */
 export async function decryptNoteField(
   stored: string,
   noteId: string,
 ): Promise<string> {
-  if (stored.startsWith(`${PASSTHROUGH_PREFIX}:`)) {
-    return stored.slice(PASSTHROUGH_PREFIX.length + 1);
-  }
   if (!isEncryptedEnvelope(stored)) {
-    return stored;
+    throw new NoteCryptoError(
+      "[note-crypto] Not an encrypted envelope: every stored note field must be a v1 envelope",
+    );
   }
 
   const parts = stored.split(":");
   if (parts.length !== 3) {
-    throw new Error(
+    throw new NoteCryptoError(
       "[note-crypto] Malformed encryption envelope: expected v1:<iv>:<ciphertext>",
     );
   }
@@ -171,9 +170,10 @@ export async function decryptNoteField(
       ciphertext,
     );
     return new TextDecoder().decode(plaintext);
-  } catch {
-    throw new Error(
+  } catch (cause) {
+    throw new NoteCryptoError(
       "[note-crypto] Decryption failed: AES-GCM authentication rejected the envelope (tampered data, wrong key, or mismatched note ID)",
+      { cause },
     );
   }
 }

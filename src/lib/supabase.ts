@@ -10,6 +10,7 @@ import type {
   CreateDashboardInput,
   CreateNoteInput,
   Dashboard,
+  DashboardNote,
   DashboardUser,
   DatabaseClient,
   HealthCheckResult,
@@ -19,6 +20,7 @@ import type {
   UpdateNoteInput,
 } from "../client/db-client";
 import { generateDashboardSlug } from "./crypto";
+import { logger } from "./logger";
 import { decryptNoteField, encryptNoteField } from "./note-crypto";
 
 /**
@@ -412,9 +414,6 @@ export class SupabaseDatabaseClient implements DatabaseClient {
   /**
    * Create a new note and its initial version 1 history snapshot atomically via PostgreSQL RPC.
    */
-  /**
-   * Create a new note and its initial version 1 history snapshot atomically via PostgreSQL RPC.
-   */
   async createNote(input: CreateNoteInput): Promise<{
     note: Note;
     initialVersion: NoteVersion;
@@ -500,8 +499,10 @@ export class SupabaseDatabaseClient implements DatabaseClient {
 
   /**
    * Retrieve all notes belonging to a dashboard ordered by update date descending.
+   * Rows whose ciphertext cannot be decrypted are returned as `undecryptable`
+   * placeholders (metadata only) so one corrupt note never blanks the dashboard.
    */
-  async getNotesByDashboard(dashboard_id: string): Promise<Note[]> {
+  async getNotesByDashboard(dashboard_id: string): Promise<DashboardNote[]> {
     const { data, error } = await this.client
       .from("notes")
       .select("*")
@@ -515,7 +516,9 @@ export class SupabaseDatabaseClient implements DatabaseClient {
       );
     }
 
-    return await Promise.all((data ?? []).map((note) => this.decryptNote(note)));
+    return await Promise.all(
+      (data ?? []).map((note) => this.decryptDashboardNote(note)),
+    );
   }
 
   /**
@@ -562,9 +565,6 @@ export class SupabaseDatabaseClient implements DatabaseClient {
   /**
    * Atomically delete a note and cascade its version history snapshots.
    */
-  /**
-   * Atomically delete a note and cascade its version history snapshots.
-   */
   async deleteNote(note_id: string): Promise<boolean> {
     const { data, error } = await this.client
       .from("notes")
@@ -587,6 +587,28 @@ export class SupabaseDatabaseClient implements DatabaseClient {
       title: await decryptNoteField(row.title, row.id),
       content: await decryptNoteField(row.content, row.id),
     };
+  }
+
+  /**
+   * Decrypts a listed note row, degrading to an `undecryptable` placeholder
+   * (safe metadata only — never ciphertext) when decryption fails.
+   */
+  private async decryptDashboardNote(row: Note): Promise<DashboardNote> {
+    try {
+      return { status: "ok", note: await this.decryptNote(row) };
+    } catch (error) {
+      logger.error(
+        "Note decryption failed; returning undecryptable placeholder",
+        error,
+        { note_id: row.id, dashboard_id: row.dashboard_id },
+      );
+      return {
+        status: "undecryptable",
+        id: row.id,
+        version: row.version,
+        updated_at: row.updated_at,
+      };
+    }
   }
 
   private async decryptNoteVersion(row: NoteVersion): Promise<NoteVersion> {
